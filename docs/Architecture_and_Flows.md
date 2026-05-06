@@ -347,9 +347,9 @@ flowchart LR
 
     MEDIA -- Có ảnh --> COMPRESS[Nén ảnh\n< 1MB]
     COMPRESS --> SQLMEDIA[Lưu MediaItem\nvào SQLite]
-    MEDIA -- Không --> SQLNOTE
+    MEDIA -- Không --> SQLNOTE[Lưu NoteModel\nvào SQLite]
 
-    SQLMEDIA --> SQLNOTE[Lưu NoteModel\nvào SQLite]
+    SQLMEDIA --> SQLNOTE
     SQLNOTE --> NOTIFY[Cập nhật\nNoteProvider.notes]
     NOTIFY --> UI([🖥️ UI refresh\nHiển thị ghi chú mới])
 
@@ -485,9 +485,9 @@ flowchart TD
     SPLASH[🚀 SplashScreen\n2s animation] --> AUTH_CHECK{Đã\nđăng nhập?}
 
     AUTH_CHECK -- Không --> LOGIN[🔐 LoginScreen\nGoogle / Email]
-    LOGIN --> HOME
+    LOGIN --> HOME[🏠 HomeScreen\nStaggered Grid]
 
-    AUTH_CHECK -- Có --> HOME[🏠 HomeScreen\nStaggered Grid]
+    AUTH_CHECK -- Có --> HOME
 
     HOME --> EDITOR_NEW[📝 EditorScreen\nTạo ghi chú mới]
     HOME --> DETAIL[👁️ DetailScreen\nXem chi tiết]
