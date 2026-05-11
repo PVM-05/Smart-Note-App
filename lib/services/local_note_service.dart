@@ -12,19 +12,33 @@ class LocalNoteService {
     return _db!;
   }
 
+  // lib/services/local_note_service.dart — phần _initDb
   Future<Database> _initDb() async {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,                          // ← tăng từ 1 lên 2
       onCreate: (db, version) async {
         await db.execute('''
-          CREATE TABLE notes(
-            id TEXT PRIMARY KEY,
-            title TEXT,
-            content TEXT
-          )
-        ''');
+        CREATE TABLE notes(
+          id TEXT PRIMARY KEY,
+          title TEXT,
+          content TEXT,
+          status TEXT DEFAULT 'normal',
+          is_synced INTEGER DEFAULT 0,
+          created_at INTEGER,
+          updated_at INTEGER
+        )
+      ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Thêm cột mới, không xóa data cũ
+          await db.execute("ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'normal'");
+          await db.execute("ALTER TABLE notes ADD COLUMN is_synced INTEGER DEFAULT 0");
+          await db.execute("ALTER TABLE notes ADD COLUMN created_at INTEGER DEFAULT 0");
+          await db.execute("ALTER TABLE notes ADD COLUMN updated_at INTEGER DEFAULT 0");
+        }
       },
     );
   }
