@@ -47,6 +47,7 @@ flowchart TB
     subgraph REPO["🗂️ Repository Layer (repositories/)"]
         direction LR
         NR["NoteRepository\n(abstract interface)"]
+        SR["SyncRepository\n(abstract interface)"]
     end
 
     subgraph SERVICE["🔌 Service Layer (services/)"]
@@ -65,7 +66,12 @@ flowchart TB
 
     UI --> STATE
     STATE --> REPO
-    REPO --> SERVICE
+    NP --> NR
+    SY --> SR
+    NR --> LS
+    NR --> FS
+    SR --> LS
+    SR --> FS
     LS --> SQ
     FS --> FB
     ST --> FBS
@@ -88,7 +94,7 @@ graph LR
     ROOT --> CORE["📁 core/\n─ AppColors\n─ AppStrings\n─ AppTheme"]
     ROOT --> MODELS["📁 models/\n─ NoteModel\n─ UserModel\n─ TagModel\n─ MediaItem"]
     ROOT --> PROVIDERS["📁 providers/\n─ NoteProvider\n─ AuthProvider\n─ SyncProvider\n─ ThemeProvider"]
-    ROOT --> REPOS["📁 repositories/\n─ NoteRepository (abstract)\n─ UserRepository (abstract)"]
+    ROOT --> REPOS["📁 repositories/\n─ NoteRepository (abstract)\n─ UserRepository (abstract)\n─ SyncRepository (abstract)"]
     ROOT --> SERVICES["📁 services/\n─ LocalNoteService\n─ FirestoreService\n─ StorageService\n─ SyncService\n─ BiometricService"]
     ROOT --> SCREENS["📁 screens/\n─ SplashScreen\n─ HomeScreen\n─ EditorScreen\n─ DetailScreen\n─ ArchiveScreen\n─ TrashScreen\n─ SettingsScreen"]
     ROOT --> WIDGETS["📁 widgets/\n─ NoteCard\n─ TagChip\n─ AudioPlayer\n─ SyncStatusIcon\n─ FABAdaptive"]
@@ -186,8 +192,22 @@ classDiagram
         +toggleArchive(String id) Future~void~
     }
 
+    class SyncRepository {
+        <<interface>>
+        +syncNotesBatch(List~Note~ notes) Future~void~
+        +getUnsyncedNotes() Future~List~NoteModel~~
+        +syncStatusStream Stream~SyncStatus~
+    }
+
+    class SyncRepositoryImpl {
+        -NoteRepository _localRepo
+        -NoteRepository _remoteRepo
+        +syncNotesBatch(List~Note~ notes) Future~void~
+        +getUnsyncedNotes() Future~List~NoteModel~~
+    }
+
     class SyncProvider {
-        -SyncService _syncService
+        -SyncRepository _syncRepo
         +SyncStatus syncStatus
         +int pendingCount
         +DateTime? lastSyncedAt
@@ -203,9 +223,11 @@ classDiagram
 
     NoteRepository <|.. LocalNoteService : implements
     NoteRepository <|.. FirestoreNoteService : implements
+    SyncRepository <|.. SyncRepositoryImpl : implements
     NoteProvider --> NoteRepository : uses
-    SyncProvider --> LocalNoteService : reads unsynced
-    SyncProvider --> FirestoreNoteService : pushes to cloud
+    SyncProvider --> SyncRepository : uses
+    SyncRepositoryImpl --> LocalNoteService : reads unsynced
+    SyncRepositoryImpl --> FirestoreNoteService : pushes to cloud
     NoteModel "1" --> "many" MediaItem : contains
     NoteModel "many" --> "many" TagModel : tagged with
     DataPrinter --> NoteModel : generic type
@@ -280,29 +302,42 @@ erDiagram
 
 ## 5. Sơ đồ Trạng thái Ghi chú
 
+> **Lưu ý thiết kế:** `isLocked` là **thuộc tính độc lập** (orthogonal), không phải trạng thái tuần tự — một ghi chú có thể vừa Pinned vừa Locked. Vì vậy sơ đồ được tách thành **2 FSM song song**:
+> - **Status FSM**: quản lý vòng đời (normal/pinned/archived/trash)
+> - **Lock FSM**: quản lý khóa sinh trắc (unlocked/locked)
+
 ```mermaid
 stateDiagram-v2
-    [*] --> Normal : Tạo ghi chú mới
+    state "Status FSM" as StatusFSM {
+        [*] --> Normal : create()
 
-    Normal --> Pinned : Ghim (togglePin)
-    Pinned --> Normal : Bỏ ghim
+        Normal --> Pinned : togglePin()
+        Pinned --> Normal : togglePin()
 
-    Normal --> Archived : Lưu trữ (archive)
-    Archived --> Normal : Khôi phục (restore)
+        Normal --> Archived : archive()
+        Archived --> Normal : unarchive()
 
-    Normal --> Trash : Chuyển vào thùng rác
-    Pinned --> Trash : Chuyển vào thùng rác
-    Archived --> Trash : Chuyển vào thùng rác
+        Normal --> Trash : moveToTrash()
+        Pinned --> Trash : moveToTrash()
+        Archived --> Trash : moveToTrash()
 
-    Trash --> Normal : Khôi phục từ thùng rác
-    Trash --> [*] : Xóa vĩnh viễn\n(thủ công hoặc sau 30 ngày)
+        Trash --> Normal : restore()
+        Trash --> [*] : permanentDelete()\n(thủ công hoặc sau 30 ngày)
+    }
 
-    Normal --> Locked : Bật khóa sinh trắc (isLocked=true)
-    Locked --> Normal : Xác thực thành công
+    state "Lock FSM (thuộc tính độc lập)" as LockFSM {
+        [*] --> Unlocked : create()
 
-    note right of Locked
-        Hiển thị Biometric Prompt
-        khi mở ghi chú
+        Unlocked --> Locked : enableBiometric()\n[isLocked = true]
+        Locked --> Unlocked : authenticate()\n[biometric success]
+        Locked --> Locked : authFailed()\n[hiển thị Biometric Prompt]
+    }
+
+    note right of LockFSM
+        isLocked là thuộc tính Boolean
+        trong NoteModel, không phụ thuộc
+        vào status (normal/pinned/archived).
+        Một ghi chú Pinned vẫn có thể Locked.
     end note
 ```
 
@@ -347,9 +382,9 @@ flowchart LR
 
     MEDIA -- Có ảnh --> COMPRESS[Nén ảnh\n< 1MB]
     COMPRESS --> SQLMEDIA[Lưu MediaItem\nvào SQLite]
-    MEDIA -- Không --> SQLNOTE[Lưu NoteModel\nvào SQLite]
+    MEDIA -- Không --> SQLNOTE
 
-    SQLMEDIA --> SQLNOTE
+    SQLMEDIA --> SQLNOTE[Lưu NoteModel\nvào SQLite]
     SQLNOTE --> NOTIFY[Cập nhật\nNoteProvider.notes]
     NOTIFY --> UI([🖥️ UI refresh\nHiển thị ghi chú mới])
 
@@ -446,7 +481,7 @@ sequenceDiagram
     participant App as 📱 App
     participant Auth as 🔐 AuthProvider
     participant Firebase as 🔥 Firebase Auth
-    participant SyncSvc as 🔄 SyncService
+    participant SyncSvc as 🔄 SyncRepository
     participant Local as 💾 SQLite
     participant Cloud as ☁️ Firestore
 
@@ -480,18 +515,19 @@ sequenceDiagram
 
 ## 11. Luồng Điều hướng Màn hình
 
+> **Quyết định thiết kế:** Tìm kiếm được triển khai **inline** trong HomeScreen (AppBar SearchTextField + FTS5) thay vì màn hình riêng — giảm độ phức tạp điều hướng, nhất quán với Google Keep UX.
+
 ```mermaid
 flowchart TD
     SPLASH[🚀 SplashScreen\n2s animation] --> AUTH_CHECK{Đã\nđăng nhập?}
 
     AUTH_CHECK -- Không --> LOGIN[🔐 LoginScreen\nGoogle / Email]
-    LOGIN --> HOME[🏠 HomeScreen\nStaggered Grid]
+    LOGIN --> HOME
 
-    AUTH_CHECK -- Có --> HOME
+    AUTH_CHECK -- Có --> HOME[🏠 HomeScreen\nStaggered Grid\n🔍 Search inline - AppBar]
 
     HOME --> EDITOR_NEW[📝 EditorScreen\nTạo ghi chú mới]
     HOME --> DETAIL[👁️ DetailScreen\nXem chi tiết]
-    HOME --> SEARCH[🔍 SearchScreen\nTìm kiếm full-text]
     HOME --> MENU[☰ Navigation Drawer]
 
     MENU --> ARCHIVE[🗄️ ArchiveScreen]
@@ -597,17 +633,17 @@ flowchart LR
 
 | # | Tên sơ đồ | Loại | Mục đích |
 |---|-----------|------|----------|
-| 1 | Kiến trúc Tổng thể | Flowchart | Tổng quan 4-layer Clean Architecture |
+| 1 | Kiến trúc Tổng thể | Flowchart | Tổng quan 4-layer Clean Architecture + SyncRepository |
 | 2 | Cấu trúc Thư mục | Graph | Tổ chức code trong dự án |
-| 3 | Sơ đồ Lớp | Class Diagram | Quan hệ giữa các class |
+| 3 | Sơ đồ Lớp | Class Diagram | Quan hệ giữa các class (incl. SyncRepository) |
 | 4 | ERD | ER Diagram | Schema SQLite & Firestore |
-| 5 | Sơ đồ Trạng thái | State Diagram | Vòng đời của một ghi chú |
+| 5 | Sơ đồ Trạng thái | State Diagram | Orthogonal FSM: Status FSM + Lock FSM độc lập |
 | 6 | Luồng Đồng bộ | Flowchart | Offline-First Sync Strategy |
 | 7 | Luồng Lưu Ghi chú | Flowchart | Chi tiết quá trình save note |
 | 8 | Biometric Auth | Flowchart | Luồng xác thực sinh trắc |
 | 9 | Sequence: Tạo Note | Sequence | Tương tác giữa các lớp khi tạo note |
 | 10 | Sequence: Login & Sync | Sequence | Luồng đăng nhập và đồng bộ dữ liệu |
-| 11 | Navigation Flow | Flowchart | Điều hướng giữa các màn hình |
+| 11 | Navigation Flow | Flowchart | Điều hướng màn hình (Search inline, không có SearchScreen riêng) |
 | 12 | Multimedia Upload | Flowchart | Luồng xử lý ảnh và ghi âm |
 | 13 | CI/CD Pipeline | Flowchart | Quy trình build và deploy |
 
