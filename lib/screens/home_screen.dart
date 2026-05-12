@@ -3,6 +3,10 @@ import 'package:uuid/uuid.dart';
 import '../models/note_model.dart';
 import '../services/local_note_service.dart';
 import '../widgets/note_card.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/firestore_note_service.dart';
+
+final _firestoreService = FirestoreNoteService();
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,6 +57,13 @@ class _HomeScreenState extends State<HomeScreen> {
         content: 'Nội dung ghi chú...',
       );
       await _service.insertNote(note);
+
+      // 2. Nếu đã login → ghi lên Firestore
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await _firestoreService.saveNote(note);
+        print('✅ Đã sync lên Firestore');
+      }
       await _loadNotes();
     } catch (e) {
       if (mounted) {
