@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_note_app/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
 import '../models/note_model.dart';
 import '../services/local_note_service.dart';
@@ -7,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_note_service.dart';
 
 final _firestoreService = FirestoreNoteService();
+final _syncService = SyncService();
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadNotes();
+    _syncService.syncNow();
   }
 
   Future<void> _loadNotes() async {
@@ -57,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
         content: 'Nội dung ghi chú...',
       );
       await _service.insertNote(note);
+      await _loadNotes();
+      _syncService.syncNow();
 
       // 2. Nếu đã login → ghi lên Firestore
       final user = FirebaseAuth.instance.currentUser;
