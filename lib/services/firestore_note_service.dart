@@ -7,7 +7,15 @@ class FirestoreNoteService {
   final _auth = FirebaseAuth.instance;
 
   // Lấy uid của user đang login
-  String get _uid => _auth.currentUser!.uid;
+  String get _uid {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      throw Exception('User chưa đăng nhập');
+    }
+
+    return user.uid;
+  }
 
   // Reference đến collection notes của user
   CollectionReference get _notesRef =>
@@ -15,14 +23,7 @@ class FirestoreNoteService {
 
   // ── Lưu hoặc cập nhật 1 note ──
   Future<void> saveNote(Note note) async {
-    await _notesRef.doc(note.id).set({
-      'id': note.id,
-      'title': note.title,
-      'content': note.content,
-      'status': note.status,
-      'created_at': Timestamp.fromDate(note.createdAt),
-      'updated_at': Timestamp.fromDate(note.updatedAt),
-    });
+    await _notesRef.doc(note.id).set(note.toFirestoreMap());  // ← dùng toFirestoreMap
   }
 
   // ── Lấy tất cả notes ──
@@ -32,18 +33,9 @@ class FirestoreNoteService {
         .orderBy('updated_at', descending: true)
         .get();
 
-    return snap.docs.map((doc) {
-      final d = doc.data() as Map<String, dynamic>;
-      return Note(
-        id: d['id'],
-        title: d['title'],
-        content: d['content'],
-        status: d['status'] ?? 'normal',
-        isSynced: true,
-        createdAt: (d['created_at'] as Timestamp).toDate(),
-        updatedAt: (d['updated_at'] as Timestamp).toDate(),
-      );
-    }).toList();
+    return snap.docs
+        .map((doc) => Note.fromFirestoreMap(doc.data() as Map<String, dynamic>))
+        .toList();  // ← dùng fromFirestoreMap
   }
 
   // ── Xóa 1 note ──
@@ -55,15 +47,8 @@ class FirestoreNoteService {
   Future<void> batchSaveNotes(List<Note> notes) async {
     final batch = _firestore.batch();
     for (final note in notes) {
-      batch.set(_notesRef.doc(note.id), {
-        'id': note.id,
-        'title': note.title,
-        'content': note.content,
-        'status': note.status,
-        'created_at': Timestamp.fromDate(note.createdAt),
-        'updated_at': Timestamp.fromDate(note.updatedAt),
-      });
+      batch.set(_notesRef.doc(note.id), note.toFirestoreMap());  // ← dùng toFirestoreMap
     }
-    await batch.commit();   // ghi tất cả 1 lần — nhanh hơn ghi từng cái
+    await batch.commit();
   }
 }

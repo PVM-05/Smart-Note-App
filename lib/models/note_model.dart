@@ -1,4 +1,6 @@
 // lib/models/note_model.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Note {
   final String id;
   final String title;
@@ -19,6 +21,9 @@ class Note {
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
+  // ────────────────────────────────────────────
+  // SQLite — dùng int milliseconds
+  // ────────────────────────────────────────────
   Map<String, dynamic> toMap() => {
     'id': id,
     'title': title,
@@ -35,21 +40,57 @@ class Note {
     content: m['content'],
     status: m['status'] ?? 'normal',
     isSynced: (m['is_synced'] ?? 0) == 1,
-    createdAt: DateTime.fromMillisecondsSinceEpoch(m['created_at'] ?? 0),
-    updatedAt: DateTime.fromMillisecondsSinceEpoch(m['updated_at'] ?? 0),
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      m['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
+    ),
+    updatedAt: DateTime.fromMillisecondsSinceEpoch(
+      m['updated_at'] ?? DateTime.now().millisecondsSinceEpoch,
+    ),
   );
 
-  // Dùng để tạo bản sao có thay đổi 1 vài field
-  Note copyWith({
-    String? title, String? content,
-    String? status, bool? isSynced,
-  }) => Note(
-    id: id,
-    title: title ?? this.title,
-    content: content ?? this.content,
-    status: status ?? this.status,
-    isSynced: isSynced ?? this.isSynced,
-    createdAt: createdAt,
-    updatedAt: DateTime.now(),
+  // ────────────────────────────────────────────
+  // Firestore — dùng Timestamp
+  // ────────────────────────────────────────────
+  Map<String, dynamic> toFirestoreMap() => {
+    'id': id,
+    'title': title,
+    'content': content,
+    'status': status,
+    'created_at': Timestamp.fromDate(createdAt),  // DateTime → Timestamp
+    'updated_at': Timestamp.fromDate(updatedAt),
+    // KHÔNG lưu isSynced lên cloud — field này chỉ có nghĩa ở local
+  };
+
+  factory Note.fromFirestoreMap(Map<String, dynamic> m) => Note(
+    id: m['id'] ?? '',
+    title: m['title'] ?? '',
+    content: m['content'] ?? '',
+    status: m['status'] ?? 'normal',
+    isSynced: true,   // lấy từ Firestore về → luôn là đã sync
+    createdAt: m['created_at'] != null
+        ? (m['created_at'] as Timestamp).toDate()  // Timestamp → DateTime
+        : DateTime.now(),
+    updatedAt: m['updated_at'] != null
+        ? (m['updated_at'] as Timestamp).toDate()
+        : DateTime.now(),
   );
+
+  // ────────────────────────────────────────────
+  // copyWith — tạo bản sao thay đổi 1 vài field
+  // ────────────────────────────────────────────
+  Note copyWith({
+    String? title,
+    String? content,
+    String? status,
+    bool? isSynced,
+  }) =>
+      Note(
+        id: id,
+        title: title ?? this.title,
+        content: content ?? this.content,
+        status: status ?? this.status,
+        isSynced: isSynced ?? this.isSynced,
+        createdAt: createdAt,
+        updatedAt: DateTime.now(),  // luôn cập nhật updatedAt khi copyWith
+      );
 }
