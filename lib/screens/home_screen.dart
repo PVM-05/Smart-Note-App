@@ -1,81 +1,174 @@
 import 'package:flutter/material.dart';
-import 'package:smart_note_app/services/sync_service.dart';
-import 'package:uuid/uuid.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../services/local_note_service.dart';
+import '../services/sync_service.dart';
 import '../widgets/note_card.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_note_service.dart';
-
-final _firestoreService = FirestoreNoteService();
-final _syncService = SyncService();
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _service = LocalNoteService();
-  List<Note> _notes = [];
-
+  final _service     = LocalNoteService();
+  final _syncService = SyncService();
+  List<Note> _notes  = [];
   @override
   void initState() {
     super.initState();
-    _loadNotes();
-    _syncService.syncNow();
+    // Load notes ngay khi vào màn hình
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (auth.isAuthenticated) {
+        Provider.of<NoteProvider>(context, listen: false).fetchNotes(auth.userId!);
+      }
+    });
   }
 
-  Future<void> _loadNotes() async {
-    final notes = await _service.getAllNotes();
-    setState(() => _notes = notes);
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Smart Note')),
-      body: _notes.isEmpty 
-          ? const Center(child: Text('Chưa có ghi chú nào. Hãy bấm + để thêm.'))
-          : ListView.builder(
-              itemCount: _notes.length,
-              itemBuilder: (context, i) => NoteCard(
-                title: _notes[i].title,
-                content: _notes[i].content,
-              ),
+      appBar: AppBar(
+        title: const Text('Smart Note'),
+        actions: [
+          Consumer<AuthProvider>(
+            builder: (context, auth, child) {
+              return PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    await auth.signOut();
+                    if (context.mounted) {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    }
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.logout, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Đăng xuất (${auth.email ?? ''})'),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+      body: Consumer<NoteProvider>(
+        builder: (context, noteProvider, child) {
+          if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (noteProvider.notes.isEmpty) {
+            return const Center(
+              child: Text('Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              await noteProvider.fetchNotes(auth.userId!);
+            },
+            child: ListView(
+              children: [
+                // Ghi chú đã ghim
+                if (noteProvider.pinnedNotes.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      '📌 GHI CHÚ GHIM',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                  ...noteProvider.pinnedNotes.map((note) => NoteCard(note: note)),
+                ],
+                
+                // Ghi chú bình thường
+                if (noteProvider.normalNotes.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Tất cả ghi chú',
+                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+                    ),
+                  ),
+                  ...noteProvider.normalNotes.map((note) => NoteCard(note: note)),
+                ],
+              ],
             ),
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addNote,
-        child: const Icon(Icons.add),
+        onPressed: () => _showCreateNoteDialog(context),
+        backgroundColor: const Color(0xFF2E75B6),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  Future<void> _addNote() async {
-    try {
-      final note = Note(
-        id: const Uuid().v4(),
-        title: 'Note ${_notes.length + 1}',
-        content: 'Nội dung ghi chú...',
-      );
-      await _service.insertNote(note);
-      await _loadNotes();
-      _syncService.syncNow();
-
-      // 2. Nếu đã login → ghi lên Firestore
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await _firestoreService.saveNote(note);
-        print('✅ Đã sync lên Firestore');
-      }
-      await _loadNotes();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Bị lỗi: $e')),
-        );
-      }
-    }
+  void _showCreateNoteDialog(BuildContext context) {
+    final titleController = TextEditingController();
+    final contentController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ghi chú mới'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(hintText: 'Tiêu đề...'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: contentController,
+              decoration: const InputDecoration(hintText: 'Nội dung...'),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (titleController.text.isEmpty) return;
+              
+              final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+              
+              final newNote = Note(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                title: titleController.text,
+                content: contentController.text,
+                status: 'normal',
+                isSynced: false,
+              );
+              
+              noteProvider.addNote(newNote);
+              Navigator.pop(context);
+            },
+            child: const Text('Tạo'),
+          ),
+        ],
+      ),
+    );
   }
 }

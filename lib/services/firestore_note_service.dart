@@ -8,7 +8,7 @@ class FirestoreNoteService {
 
   // Lấy uid của user đang login
   String get _uid {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
 
     if (user == null) {
       throw Exception('User chưa đăng nhập');

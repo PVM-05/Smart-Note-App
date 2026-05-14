@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'local_note_service.dart';
@@ -29,14 +30,14 @@ class SyncService {
   Future<bool> _canSync() async {
     // 1. Phải có user đang login
     if (_auth.currentUser == null) {
-      print('⚠️ SyncService: chưa login, bỏ qua sync');
+      log('⚠️ SyncService: chưa login, bỏ qua sync');
       return false;
     }
 
     // 2. Phải có mạng
     final connectivity = await Connectivity().checkConnectivity();
-    if (connectivity == ConnectivityResult.none) {
-      print('⚠️ SyncService: không có mạng, bỏ qua sync');
+    if (connectivity.contains(ConnectivityResult.none)) {
+      log('⚠️ SyncService: không có mạng, bỏ qua sync');
       return false;
     }
 
@@ -56,13 +57,13 @@ class SyncService {
       pendingCount = unsyncedNotes.length;
 
       if (unsyncedNotes.isEmpty) {
-        print('✅ SyncService: không có gì cần sync');
+        log('✅ SyncService: không có gì cần sync');
         _setStatus(SyncStatus.success);
         lastSyncedAt = DateTime.now();
         return;
       }
 
-      print('🔄 SyncService: đang sync ${unsyncedNotes.length} notes...');
+      log('🔄 SyncService: đang sync ${unsyncedNotes.length} notes...');
 
       // 2. Batch push lên Firestore (ghi 1 lần thay vì từng cái)
       await _firestoreService.batchSaveNotes(unsyncedNotes);
@@ -75,16 +76,17 @@ class SyncService {
       pendingCount = 0;
       lastSyncedAt = DateTime.now();
       _setStatus(SyncStatus.success);
-      print('✅ SyncService: sync ${unsyncedNotes.length} notes thành công');
+      log('✅ SyncService: sync ${unsyncedNotes.length} notes thành công');
 
     } catch (e) {
       _setStatus(SyncStatus.error);
-      print('❌ SyncService lỗi: $e');
+      log('❌ SyncService lỗi: $e');
     }
   }
 
   // ── Pull: tải notes từ Firestore về SQLite ──
   // Dùng khi user login lần đầu trên thiết bị mới
+// lib/services/sync_service.dart
   Future<void> pullFromCloud() async {
     if (!await _canSync()) return;
 
@@ -93,7 +95,7 @@ class SyncService {
       final cloudNotes = await _firestoreService.getNotes();
 
       for (final note in cloudNotes) {
-        // Lưu vào SQLite, đánh dấu isSynced=true luôn
+        // replace — nếu đã có thì ghi đè, chưa có thì insert mới
         await _localService.insertNote(note);
       }
 
@@ -130,23 +132,23 @@ class SyncService {
           // Local mới hơn → push lên cloud
           await _firestoreService.saveNote(local);
           await _localService.markSynced(local.id);
-          print('🔀 Conflict: giữ bản local (${local.id})');
+          log('🔀 Conflict: giữ bản local (${local.id})');
 
         } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
           // Cloud mới hơn → cập nhật local
           await _localService.updateNote(cloud);
-          print('🔀 Conflict: giữ bản cloud (${cloud.id})');
+          log('🔀 Conflict: giữ bản cloud (${cloud.id})');
         }
         // Bằng nhau → không làm gì
       }
 
       lastSyncedAt = DateTime.now();
       _setStatus(SyncStatus.success);
-      print('✅ SyncService: conflict resolution hoàn tất');
+      log('✅ SyncService: conflict resolution hoàn tất');
 
     } catch (e) {
       _setStatus(SyncStatus.error);
-      print('❌ SyncService conflict lỗi: $e');
+      log('❌ SyncService conflict lỗi: $e');
     }
   }
 }
