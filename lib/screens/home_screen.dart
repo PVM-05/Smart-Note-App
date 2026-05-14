@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
+import '../services/local_note_service.dart';
+import '../services/sync_service.dart';
 import '../widgets/note_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -13,6 +15,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _service     = LocalNoteService();
+  final _syncService = SyncService();
+  List<Note> _notes  = [];
   @override
   void initState() {
     super.initState();
@@ -24,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
+
 
   @override
   Widget build(BuildContext context) {

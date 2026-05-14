@@ -43,12 +43,17 @@ class LocalNoteService {
 
   // ── Insert ──
   Future<void> insertNote(Note note) async {
-    if (kIsWeb) { _webNotes.add(note); return; }
+    if (kIsWeb) {
+      final i = _webNotes.indexWhere((n) => n.id == note.id);
+      if (i != -1) _webNotes[i] = note; // update nếu đã có
+      else _webNotes.add(note);
+      return;
+    }
     final database = await db;
     await database.insert(
       'notes',
       note.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace, // tránh lỗi khi insert trùng id
+      conflictAlgorithm: ConflictAlgorithm.replace, // ← quan trọng
     );
   }
 

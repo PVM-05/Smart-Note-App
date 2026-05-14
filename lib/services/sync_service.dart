@@ -86,21 +86,22 @@ class SyncService {
 
   // ── Pull: tải notes từ Firestore về SQLite ──
   // Dùng khi user login lần đầu trên thiết bị mới
+// lib/services/sync_service.dart
   Future<void> pullFromCloud() async {
     if (!await _canSync()) return;
 
     try {
-      log('⬇️ SyncService: đang tải data từ cloud...');
+      print('⬇️ SyncService: đang tải data từ cloud...');
       final cloudNotes = await _firestoreService.getNotes();
 
       for (final note in cloudNotes) {
-        // Lưu vào SQLite, đánh dấu isSynced=true luôn
+        // replace — nếu đã có thì ghi đè, chưa có thì insert mới
         await _localService.insertNote(note);
       }
 
-      log('✅ SyncService: đã tải ${cloudNotes.length} notes từ cloud');
+      print('✅ SyncService: đã tải ${cloudNotes.length} notes từ cloud');
     } catch (e) {
-      log('❌ SyncService pullFromCloud lỗi: $e');
+      print('❌ SyncService pullFromCloud lỗi: $e');
     }
   }
 
