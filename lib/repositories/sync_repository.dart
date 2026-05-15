@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import '../models/note_model.dart';
 import '../services/local_note_service.dart';
 import '../services/firestore_note_service.dart';
@@ -7,7 +7,7 @@ enum SyncStatus { idle, syncing, success, error }
 
 abstract class SyncRepository {
   Future<void> syncNotesBatch(List<Note> notes);
-  Future<List<Note>> getUnsyncedNotes();
+  Future<List<Note>> getUnsyncedNotes(String userId);
   Stream<SyncStatus> get syncStatusStream;
   Future<void> pullFromCloud();
   Future<void> syncWithConflictResolution(String userId);
@@ -30,7 +30,6 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<void> syncNotesBatch(List<Note> notes) async {
-    // Note: getUnsyncedNotes will need userId if it requires one.
     if (notes.isEmpty) return;
     try {
       _updateStatus(SyncStatus.syncing);
@@ -46,8 +45,8 @@ class SyncRepositoryImpl implements SyncRepository {
   }
 
   @override
-  Future<List<Note>> getUnsyncedNotes() async {
-    return await _localService.getUnsyncedNotes();
+  Future<List<Note>> getUnsyncedNotes(String userId) async {
+    return await _localService.getUnsyncedNotes(userId: userId);
   }
 
   @override

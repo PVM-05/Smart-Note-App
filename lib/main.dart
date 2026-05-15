@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -29,16 +29,25 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         Provider<SyncRepository>(create: (_) => SyncRepositoryImpl()),
-        ChangeNotifierProvider(
-          create: (context) => NoteProvider(NoteRepositoryImpl()),
+        ChangeNotifierProxyProvider<AuthProvider, NoteProvider>(
+          create: (_) => NoteProvider(NoteRepositoryImpl()),
+          update: (context, auth, noteProvider) {
+            if (auth.isAuthenticated && auth.user != null) {
+              noteProvider?.fetchNotes(auth.user!.uid);
+            } else {
+              noteProvider?.clearNotes();
+            }
+            return noteProvider!;
+          },
         ),
-        ChangeNotifierProvider(
+        ChangeNotifierProxyProvider<AuthProvider, SyncProvider>(
           create: (context) => SyncProvider(context.read<SyncRepository>()),
+          update: (context, auth, syncProvider) {
+            syncProvider?.updateUser(auth.user?.uid);
+            return syncProvider!;
+          },
         ),
-        
       ],
-
-
       child: MaterialApp(
         title: 'Smart Note App',
         debugShowCheckedModeBanner: false,
@@ -46,7 +55,6 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E75B6)),
           useMaterial3: true,
         ),
-        // StreamBuilder lắng nghe trạng thái login
         home: StreamBuilder<User?>(
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, snapshot) {
@@ -55,7 +63,6 @@ class MyApp extends StatelessWidget {
                 body: Center(child: CircularProgressIndicator()),
               );
             }
-            // Đã login → HomeScreen, chưa login → LoginScreen
             return snapshot.hasData ? const HomeScreen() : const LoginScreen();
           },
         ),

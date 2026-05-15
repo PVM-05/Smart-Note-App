@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../repositories/sync_repository.dart';
 import '../utils/connectivity_helper.dart';
 
@@ -9,6 +9,7 @@ class SyncProvider extends ChangeNotifier {
   SyncStatus _status = SyncStatus.idle;
   DateTime? _lastSyncedAt;
   int _pendingCount = 0;
+  String? _userId;
 
   SyncStatus get status => _status;
   DateTime? get lastSyncedAt => _lastSyncedAt;
@@ -18,13 +19,21 @@ class SyncProvider extends ChangeNotifier {
     _init();
   }
 
-  // Label hiển thị trên UI
+  void updateUser(String? newUserId) {
+    if (_userId != newUserId) {
+      _userId = newUserId;
+      if (_userId != null) {
+        syncNow();
+      }
+    }
+  }
+
   String get statusLabel {
     switch (_status) {
       case SyncStatus.idle:
         return 'Chưa sync';
       case SyncStatus.syncing:
-        return 'Đang sync...';
+        return 'Đang đồng bộ';
       case SyncStatus.success:
         return 'Đã đồng bộ';
       case SyncStatus.error:
@@ -33,22 +42,17 @@ class SyncProvider extends ChangeNotifier {
   }
 
   void _init() {
-    // Lắng nghe status từ SyncRepository
     _syncRepo.syncStatusStream.listen((status) {
       _status = status;
-      // Note: SyncRepository should manage lastSyncedAt and pendingCount internally or expose them
       notifyListeners();
     });
 
-    // Bắt đầu lắng nghe mạng
     _connectivityHelper.startListening(onOnline: () => syncNow());
-
-    // Sync ngay khi khởi động
-    syncNow();
   }
 
   Future<void> syncNow() async {
-    final notes = await _syncRepo.getUnsyncedNotes();
+    if (_userId == null) return;
+    final notes = await _syncRepo.getUnsyncedNotes(_userId!);
     _pendingCount = notes.length;
     notifyListeners();
 
@@ -58,15 +62,16 @@ class SyncProvider extends ChangeNotifier {
         _lastSyncedAt = DateTime.now();
         _pendingCount = 0;
       } catch (e) {
-        // Error status handled via stream
+        // Ignored or handle error appropriately.
+        debugPrint('Sync failed: $e');
       }
       notifyListeners();
     }
   }
 
   void startBackgroundSync() {
-    // Logic for background sync can be added here using workmanager or similar
   }
+
   @override
   void dispose() {
     _connectivityHelper.stopListening();

@@ -6,7 +6,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../services/local_note_service.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final LocalNoteService _localNoteService = LocalNoteService();
   User? _user;
   bool _isLoading = false;
   String? _error;
@@ -180,9 +179,13 @@ class AuthProvider extends ChangeNotifier {
   // ✅ LOGOUT
   Future<void> signOut() async {
     try {
+      // Xóa data local của user này trước khi đăng xuất
+      final uid = _user?.uid;
+      if (uid != null) {
+        await LocalNoteService().clearUserNotes(uid);
+      }
       await FirebaseAuth.instance.signOut();
       await GoogleSignIn().signOut();
-      await _localNoteService.clearAllData();
     } catch (e) {
       log('Logout error: $e');
     }
