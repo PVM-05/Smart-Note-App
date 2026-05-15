@@ -112,9 +112,10 @@ class SyncService {
 
     try {
       _setStatus(SyncStatus.syncing);
+      final currentUserId = _auth.currentUser!.uid;
 
       // Lấy từ cả 2 nguồn
-      final localNotes = await _localService.getAllNotes();
+      final localNotes = await _localService.getAllNotes(currentUserId);
       final cloudNotes = await _firestoreService.getNotes();
 
       // Tạo map để so sánh nhanh theo id

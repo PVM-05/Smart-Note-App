@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/note_provider.dart';
+import 'providers/sync_provider.dart';
 import 'repositories/note_repository.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -28,6 +29,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => NoteProvider(NoteRepositoryImpl()), // Tiêm NoteRepositoryImpl vào đây
         ),
+        ChangeNotifierProvider(create: (_) => SyncProvider()..init()),
       ],
       child: MaterialApp(
         title: 'Smart Note',

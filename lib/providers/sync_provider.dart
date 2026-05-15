@@ -43,7 +43,7 @@ class SyncProvider extends ChangeNotifier {
   Future<void> syncNow() async {
     await _syncService.syncNow();
   }
-
+  @override
   void dispose() {
     _connectivityHelper.stopListening();
     super.dispose();
