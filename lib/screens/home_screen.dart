@@ -3,9 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
-import '../services/local_note_service.dart';
-import '../services/sync_service.dart';
 import '../widgets/note_card.dart';
+import 'editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,9 +14,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _service     = LocalNoteService();
-  final _syncService = SyncService();
-  List<Note> _notes  = [];
   @override
   void initState() {
     super.initState();
@@ -93,7 +89,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
-                  ...noteProvider.pinnedNotes.map((note) => NoteCard(note: note)),
+                  ...noteProvider.pinnedNotes.map((note) => NoteCard(
+                      note: note,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditorScreen(note: note),
+                        ),
+                      );
+                    },
+                  )),
                 ],
                 
                 // Ghi chú bình thường
@@ -105,7 +111,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
                     ),
                   ),
-                  ...noteProvider.normalNotes.map((note) => NoteCard(note: note)),
+                  ...noteProvider.normalNotes.map((note) => NoteCard(
+                    note: note,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditorScreen(note: note),
+                        ),
+                      );
+                    },
+                  )),
                 ],
               ],
             ),
@@ -121,53 +137,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showCreateNoteDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final contentController = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ghi chú mới'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(hintText: 'Tiêu đề...'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: contentController,
-              decoration: const InputDecoration(hintText: 'Nội dung...'),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (titleController.text.isEmpty) return;
-              
-              final noteProvider = Provider.of<NoteProvider>(context, listen: false);
-              
-              final newNote = Note(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                title: titleController.text,
-                content: contentController.text,
-                status: 'normal',
-                isSynced: false,
-              );
-              
-              noteProvider.addNote(newNote);
-              Navigator.pop(context);
-            },
-            child: const Text('Tạo'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const EditorScreen(),
       ),
     );
   }
