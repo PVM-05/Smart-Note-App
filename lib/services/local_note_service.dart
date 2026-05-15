@@ -16,12 +16,12 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 3, // Nâng version lên 3
+      version: 3, // tăng lên 3
       onCreate: (db, version) async {
         await db.execute('''
         CREATE TABLE notes(
           id TEXT PRIMARY KEY,
-          user_id TEXT, -- Thêm cột user_id
+          user_id TEXT DEFAULT '',
           title TEXT,
           content TEXT,
           status TEXT DEFAULT 'normal',
@@ -32,8 +32,15 @@ class LocalNoteService {
       ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute("ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'normal'");
+          await db.execute("ALTER TABLE notes ADD COLUMN is_synced INTEGER DEFAULT 0");
+          await db.execute("ALTER TABLE notes ADD COLUMN created_at INTEGER DEFAULT 0");
+          await db.execute("ALTER TABLE notes ADD COLUMN updated_at INTEGER DEFAULT 0");
+        }
         if (oldVersion < 3) {
-          await db.execute("ALTER TABLE notes ADD COLUMN user_id TEXT");
+          // THÊM cột user_id cho thiết bị đang dùng version cũ
+          await db.execute("ALTER TABLE notes ADD COLUMN user_id TEXT DEFAULT ''");
         }
       },
     );
@@ -57,10 +64,7 @@ class LocalNoteService {
 
   // ── Get all ──
   Future<List<Note>> getAllNotes(String userId) async {
-    if (kIsWeb) {
-      // Bây giờ n.userId đã tồn tại
-      return _webNotes.where((n) => n.userId == userId && n.status != 'trash').toList();
-    };
+    if (kIsWeb) return _webNotes.where((n) => n.userId == userId).toList();
 
     final database = await db;
     final maps = await database.query(
@@ -95,19 +99,23 @@ class LocalNoteService {
     await database.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<void> clearAllData() async {
+  Future<void> clearUserNotes(String userId) async {
+    if (kIsWeb) {
+      _webNotes.removeWhere((n) => n.userId == userId);
+      return;
+    }
     final database = await db;
-    await database.delete('notes');
+    await database.delete('notes', where: 'user_id = ?', whereArgs: [userId]);
   }
 
   // ── Lấy notes chưa sync — SyncService dùng ──
-  Future<List<Note>> getUnsyncedNotes() async {
-    if (kIsWeb) return _webNotes.where((n) => !n.isSynced).toList();
+  Future<List<Note>> getUnsyncedNotes({required String userId}) async {
+    if (kIsWeb) return _webNotes.where((n) => !n.isSynced && n.userId == userId).toList();
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: 'is_synced = ?',
-      whereArgs: [0],
+      where: 'is_synced = ? AND user_id = ?',
+      whereArgs: [0, userId],
     );
     return maps.map((m) => Note.fromMap(m)).toList();
   }

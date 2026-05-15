@@ -26,8 +26,18 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(
-          create: (_) => NoteProvider(NoteRepositoryImpl()), // Tiêm NoteRepositoryImpl vào đây
+        ChangeNotifierProxyProvider<AuthProvider, NoteProvider>(
+          create: (_) => NoteProvider(NoteRepositoryImpl()),
+          update: (context, auth, noteProvider) {
+            // Tự động fetch notes khi user đăng nhập thành công
+            if (auth.isAuthenticated && auth.user != null) {
+              noteProvider!.fetchNotes(auth.user!.uid);
+            } else {
+              // Xóa sạch note trên UI khi đăng xuất
+              noteProvider!.clearNotes();
+            }
+            return noteProvider!;
+          },
         ),
         ChangeNotifierProvider(create: (_) => SyncProvider()..init()),
       ],

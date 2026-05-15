@@ -53,7 +53,8 @@ class SyncService {
       _setStatus(SyncStatus.syncing);
 
       // 1. Lấy tất cả notes chưa sync từ SQLite
-      final unsyncedNotes = await _localService.getUnsyncedNotes();
+      final currentUserId = _auth.currentUser!.uid;
+      final unsyncedNotes = await _localService.getUnsyncedNotes(userId: currentUserId);
       pendingCount = unsyncedNotes.length;
 
       if (unsyncedNotes.isEmpty) {

@@ -57,6 +57,7 @@ class Note {
   // ────────────────────────────────────────────
   Map<String, dynamic> toFirestoreMap() => {
     'id': id,
+    'user_id': userId,
     'title': title,
     'content': content,
     'status': status,

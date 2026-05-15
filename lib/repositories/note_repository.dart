@@ -9,7 +9,7 @@ abstract class NoteRepository {
   Future<List<Note>> getNotes(String userId);
   Future<void> saveNote(Note note);
   Future<void> deleteNote(String id);
-  Future<List<Note>> getUnsyncedNotes();
+  Future<List<Note>> getUnsyncedNotes(String userId);
 }
 
 class NoteRepositoryImpl implements NoteRepository {
@@ -55,7 +55,7 @@ class NoteRepositoryImpl implements NoteRepository {
   }
 
   @override
-  Future<List<Note>> getUnsyncedNotes() async {
-    return await _localService.getUnsyncedNotes();
+  Future<List<Note>> getUnsyncedNotes(String userId) async {
+    return await _localService.getUnsyncedNotes(userId: userId);
   }
 }
