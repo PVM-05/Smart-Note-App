@@ -34,6 +34,14 @@ class AuthProvider extends ChangeNotifier {
     });
   }
 
+  // ==================================================================
+  // 🔐 AUTH LOGIC: GOOGLE SIGN IN
+  // DATA FLOW: FE (Button) -> Google API -> Firebase Auth -> Update _user
+  // ==================================================================
+  // ==================================================================
+  // 🔐 AUTH LOGIC: GOOGLE SIGN IN
+  // DATA FLOW: FE (Button) -> Google API -> Firebase Auth -> Update _user
+  // ==================================================================
   // ✅ GOOGLE
   Future<bool> signInWithGoogle() async {
     _isLoading = true;
@@ -66,6 +74,14 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ==================================================================
+  // 🔐 AUTH LOGIC: EMAIL SIGN IN
+  // DATA FLOW: FE (Input) -> Firebase Auth (Validate) -> Update _user
+  // ==================================================================
+  // ==================================================================
+  // 🔐 AUTH LOGIC: EMAIL SIGN IN
+  // DATA FLOW: FE (Input) -> Firebase Auth (Validate) -> Update _user
+  // ==================================================================
   // ✅ EMAIL LOGIN (FIX - Dùng Firebase trực tiếp)
   Future<bool> signInWithEmail(String email, String password) async {
     _isLoading = true;
@@ -105,6 +121,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ==================================================================
+  // 🔐 AUTH LOGIC: EMAIL REGISTER
+  // DATA FLOW: FE (Input) -> Firebase Auth (Create) -> [TODO: Create Firestore Profile] -> Update _user
+  // LƯU Ý: Bước tạo Profile trên Firestore nên được gọi ở layer sau khi đăng ký thành công.
+  // ==================================================================
+  // ==================================================================
+  // 🔐 AUTH LOGIC: EMAIL REGISTER
+  // DATA FLOW: FE (Input) -> Firebase Auth (Create) -> Update _user
+  // ==================================================================
   // ✅ REGISTER (FIX - Firebase trực tiếp)
   Future<bool> registerWithEmail(String email, String password) async {
     _isLoading = true;
@@ -144,6 +169,14 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ==================================================================
+  // 🚪 AUTH LOGIC: LOGOUT
+  // DATA FLOW: FE (Button) -> Clear Firebase Session -> Clear Local State -> UI Redirect
+  // ==================================================================
+  // ==================================================================
+  // 🚪 AUTH LOGIC: LOGOUT
+  // DATA FLOW: FE (Button) -> Clear Firebase Session -> Clear Local State
+  // ==================================================================
   // ✅ LOGOUT
   Future<void> signOut() async {
     try {
