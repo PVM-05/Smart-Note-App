@@ -64,4 +64,8 @@ class NoteProvider extends ChangeNotifier {
       await _repository.saveNote(updatedNote);
     }
   }
+  void clearNotes() {
+    _notes = [];
+    notifyListeners();
+  }
 }
