@@ -13,7 +13,7 @@ class NoteRepositoryImpl implements NoteRepository {
 
   @override
   Future<List<Note>> getNotes(String userId) async {
-    return await _localService.getAllNotes();
+    return await _localService.getAllNotes(userId);
   }
 
   @override

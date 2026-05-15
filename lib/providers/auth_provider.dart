@@ -3,7 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../services/local_note_service.dart';
+
 class AuthProvider extends ChangeNotifier {
+  final LocalNoteService _localNoteService = LocalNoteService();
   User? _user;
   bool _isLoading = false;
   String? _error;
@@ -179,6 +182,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await FirebaseAuth.instance.signOut();
       await GoogleSignIn().signOut();
+      await _localNoteService.clearAllData();
     } catch (e) {
       log('Logout error: $e');
     }

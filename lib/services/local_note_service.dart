@@ -16,11 +16,12 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
             id TEXT PRIMARY KEY,
+            user_id TEXT,
             title TEXT,
             content TEXT,
             status TEXT DEFAULT 'normal',
@@ -31,6 +32,7 @@ class LocalNoteService {
         ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 3) { await db.execute('ALTER TABLE notes ADD COLUMN user_id TEXT'); }
         if (oldVersion < 2) {
           await db.execute(
               "ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'normal'");
@@ -65,13 +67,13 @@ class LocalNoteService {
   }
 
   // ── Get all ──
-  Future<List<Note>> getAllNotes() async {
+  Future<List<Note>> getAllNotes(String userId) async {
     if (kIsWeb) return _webNotes.toList();
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: 'status != ?',
-      whereArgs: ['trash'],
+      where: 'status != ? AND user_id = ?',
+      whereArgs: ['trash', userId],
       orderBy: 'updated_at DESC',
     );
     return maps.map((m) => Note.fromMap(m)).toList();
@@ -94,6 +96,12 @@ class LocalNoteService {
   }
 
   // ── Delete ──
+  Future<void> clearAllData() async {
+    if (kIsWeb) { _webNotes.clear(); return; }
+    final database = await db;
+    await database.delete('notes');
+  }
+
   Future<void> deleteNote(String id) async {
     if (kIsWeb) {
       _webNotes.removeWhere((n) => n.id == id);

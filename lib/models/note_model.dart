@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Note {
   final String id;
+  final String userId;
   final String title;
   final String content;
   final String status; // normal | pinned | archived | trash
@@ -12,6 +13,7 @@ class Note {
 
   Note({
     required this.id,
+    this.userId = '',
     required this.title,
     required this.content,
     this.status = 'normal',
@@ -26,6 +28,7 @@ class Note {
   // ────────────────────────────────────────────
   Map<String, dynamic> toMap() => {
         'id': id,
+        'user_id': userId,
         'title': title,
         'content': content,
         'status': status,
@@ -36,6 +39,7 @@ class Note {
 
   factory Note.fromMap(Map<String, dynamic> m) => Note(
         id: m['id'],
+        userId: m['user_id'] ?? '',
         title: m['title'],
         content: m['content'],
         status: m['status'] ?? 'normal',
@@ -53,6 +57,7 @@ class Note {
   // ────────────────────────────────────────────
   Map<String, dynamic> toFirestoreMap() => {
         'id': id,
+        'user_id': userId,
         'title': title,
         'content': content,
         'status': status,
@@ -63,6 +68,7 @@ class Note {
 
   factory Note.fromFirestoreMap(Map<String, dynamic> m) => Note(
         id: m['id'] ?? '',
+        userId: m['user_id'] ?? '',
         title: m['title'] ?? '',
         content: m['content'] ?? '',
         status: m['status'] ?? 'normal',
@@ -86,6 +92,7 @@ class Note {
   }) =>
       Note(
         id: id,
+        userId: userId,
         title: title ?? this.title,
         content: content ?? this.content,
         status: status ?? this.status,

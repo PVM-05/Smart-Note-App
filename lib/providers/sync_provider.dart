@@ -67,7 +67,6 @@ class SyncProvider extends ChangeNotifier {
   void startBackgroundSync() {
     // Logic for background sync can be added here using workmanager or similar
   }
-
   @override
   void dispose() {
     _connectivityHelper.stopListening();

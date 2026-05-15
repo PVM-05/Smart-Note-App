@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
-import '../models/note_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/sync_provider.dart';
 import '../repositories/sync_repository.dart';
-import 'note_detail_screen.dart';
 import '../widgets/note_card.dart';
+import 'editor_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -76,32 +74,57 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          return ListView.builder(
-            itemCount: noteProvider.notes.length,
-            itemBuilder: (context, i) {
-              final note = noteProvider.notes[i];
-              return NoteCard(
-                title: note.title,
-                content: note.content,
-                onTap: () {
-                  final auth = context.read<AuthProvider>();
-                  final noteProvider = context.read<NoteProvider>();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => NoteDetailScreen(note: note),
-                    ),
-                  ).then((_) {
-                    if (!mounted) return;
-                    // Làm mới danh sách khi quay lại từ màn hình chi tiết
-                    if (auth.userId != null) {
-                      noteProvider.fetchNotes(auth.userId!);
-                    }
-                  });
-                },
-
-              );
+          return RefreshIndicator(
+            onRefresh: () async {
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              if (auth.userId != null) {
+                await noteProvider.fetchNotes(auth.userId!);
+              }
             },
+            child: ListView(
+              children: [
+                if (noteProvider.pinnedNotes.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('📌 GHI CHÚ GHIM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  ...noteProvider.pinnedNotes.map((note) => NoteCard(
+                    title: note.title, content: note.content,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => EditorScreen(note: note)))
+                        .then((_) {
+                          if (!mounted) return;
+                          final auth = context.read<AuthProvider>();
+                          if (auth.userId != null) {
+                             context.read<NoteProvider>().fetchNotes(auth.userId!);
+                          }
+                          context.read<SyncProvider>().syncNow();
+                        });
+                    },
+                  )),
+                ],
+                if (noteProvider.normalNotes.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Tất cả ghi chú', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  ...noteProvider.normalNotes.map((note) => NoteCard(
+                    title: note.title, content: note.content,
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => EditorScreen(note: note)))
+                        .then((_) {
+                          if (!mounted) return;
+                          final auth = context.read<AuthProvider>();
+                          if (auth.userId != null) {
+                             context.read<NoteProvider>().fetchNotes(auth.userId!);
+                          }
+                          context.read<SyncProvider>().syncNow();
+                        });
+                    },
+                  )),
+                ],
+              ],
+            ),
           );
         },
       ),
@@ -112,26 +135,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _addNote() async {
-    final noteProvider = context.read<NoteProvider>();
-    final syncProvider = context.read<SyncProvider>();
-
-    try {
-      final note = Note(
-        id: const Uuid().v4(),
-        title: 'Ghi chú ${noteProvider.notes.length + 1}',
-        content: 'Nội dung ghi chú mới...',
-      );
-
-      await noteProvider.addNote(note);
-
-      // Kích hoạt đồng bộ ngay lập tức
-      syncProvider.syncNow();
-    } catch (e) {
+  void _addNote() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const EditorScreen()),
+    ).then((_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bị lỗi: $e')),
-      );
+      final auth = context.read<AuthProvider>();
+      if (auth.userId != null) {
+        context.read<NoteProvider>().fetchNotes(auth.userId!);
+      }
+      context.read<SyncProvider>().syncNow();
+    });
     }
-  }
 }
+

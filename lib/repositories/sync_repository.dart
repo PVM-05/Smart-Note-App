@@ -10,7 +10,7 @@ abstract class SyncRepository {
   Future<List<Note>> getUnsyncedNotes();
   Stream<SyncStatus> get syncStatusStream;
   Future<void> pullFromCloud();
-  Future<void> syncWithConflictResolution();
+  Future<void> syncWithConflictResolution(String userId);
 }
 
 class SyncRepositoryImpl implements SyncRepository {
@@ -30,6 +30,7 @@ class SyncRepositoryImpl implements SyncRepository {
 
   @override
   Future<void> syncNotesBatch(List<Note> notes) async {
+    // Note: getUnsyncedNotes will need userId if it requires one.
     if (notes.isEmpty) return;
     try {
       _updateStatus(SyncStatus.syncing);
@@ -65,10 +66,10 @@ class SyncRepositoryImpl implements SyncRepository {
   }
 
   @override
-  Future<void> syncWithConflictResolution() async {
+  Future<void> syncWithConflictResolution(String userId) async {
     try {
       _updateStatus(SyncStatus.syncing);
-      final localNotes = await _localService.getAllNotes();
+      final localNotes = await _localService.getAllNotes(userId);
       final cloudNotes = await _firestoreService.getNotes();
 
       final cloudMap = {for (final n in cloudNotes) n.id: n};
