@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/sync_service.dart';
+import 'package:provider/provider.dart';
+import '../repositories/sync_repository.dart';
 import 'home_screen.dart';
 
 class SyncingScreen extends StatefulWidget {
@@ -21,7 +22,6 @@ class _SyncingScreenState extends State<SyncingScreen> {
 
   int _currentStep = 0;
   double _progress = 0;
-  final SyncService _syncService = SyncService();
 
   @override
   void initState() {
@@ -38,23 +38,23 @@ class _SyncingScreenState extends State<SyncingScreen> {
     await Future.delayed(const Duration(milliseconds: 800));
   }
 
-  // SYNC: QUY TRÌNH ĐỒNG BỘ DỮ LIỆU (SEQUENCE 10)
-  // Data Flow: Auth Verified -> Local DB Init -> Cloud Fetch (Firestore -> SQLite) -> HomeScreen
   void _startRealSync() async {
     try {
-      await _updateStep(0);
+      final syncRepo = context.read<SyncRepository>();
       
+      await _updateStep(0);
       await _updateStep(1);
+      
+      // Pull data from cloud
+      await syncRepo.pullFromCloud();
       
       await _updateStep(2);
       await _updateStep(3);
-      
-      await _syncService.pullFromCloud();
-      
       await _updateStep(4);
       
       if (!mounted) return;
       
+      // Navigate to Home
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
@@ -68,7 +68,6 @@ class _SyncingScreenState extends State<SyncingScreen> {
     } catch (e) {
       debugPrint('Sync error: $e');
       if (mounted) {
-        // Nếu lỗi (mất mạng, v.v.), báo cho user nhưng vẫn cho vào Home để dùng offline
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi đồng bộ: $e. Tiếp tục vào Home.')),
         );
@@ -76,7 +75,6 @@ class _SyncingScreenState extends State<SyncingScreen> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +84,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF1A237E), Color(0xFF2E75B6), Color(0xFF0D47A1)],
+            colors: [Color(0xFF1A3A5C), Color(0xFF2E75B6), Color(0xFF0D47A1)],
           ),
         ),
         child: SafeArea(

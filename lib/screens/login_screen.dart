@@ -127,7 +127,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 48),
-
                         _buildTextField(
                           controller: _emailController,
                           label: 'Email Address',
@@ -145,7 +144,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             () => _obscurePassword = !_obscurePassword,
                           ),
                         ),
-
                         if (auth.error != null) ...[
                           const SizedBox(height: 16),
                           Text(
@@ -157,9 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             textAlign: TextAlign.center,
                           ),
                         ],
-
                         const SizedBox(height: 32),
-
                         Container(
                           height: 56,
                           decoration: BoxDecoration(
@@ -197,7 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                           ),
                         ),
-
                         const SizedBox(height: 24),
 
                         /*
@@ -225,7 +220,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         */
 
                         const SizedBox(height: 32),
-
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

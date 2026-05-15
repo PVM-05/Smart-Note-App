@@ -1,35 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:smart_note_app/services/sync_service.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/note_model.dart';
-import '../services/local_note_service.dart';
+import '../providers/auth_provider.dart';
+import '../providers/note_provider.dart';
+import '../providers/sync_provider.dart';
+import '../repositories/sync_repository.dart';
+import 'note_detail_screen.dart';
 import '../widgets/note_card.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_note_service.dart';
-
-final _firestoreService = FirestoreNoteService();
-final _syncService = SyncService();
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _service = LocalNoteService();
-  List<Note> _notes = [];
-
   @override
   void initState() {
     super.initState();
-    _loadNotes();
-    _syncService.syncNow();
-  }
-
-  Future<void> _loadNotes() async {
-    final notes = await _service.getAllNotes();
-    setState(() => _notes = notes);
+    // Khởi tạo data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.userId != null) {
+        context.read<NoteProvider>().fetchNotes(auth.userId!);
+      }
+    });
   }
 
   @override
@@ -38,23 +35,76 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Smart Note'),
         actions: [
+          // Hiển thị trạng thái sync
+          Consumer<SyncProvider>(
+            builder: (context, sync, child) {
+              return Tooltip(
+                message: sync.statusLabel,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Icon(
+                    sync.status == SyncStatus.syncing
+                        ? Icons.sync
+                        : sync.status == SyncStatus.error
+                            ? Icons.sync_problem
+                            : Icons.cloud_done,
+                    color: sync.status == SyncStatus.error
+                        ? Colors.red
+                        : Colors.green,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              await context.read<AuthProvider>().signOut();
             },
           ),
         ],
       ),
-      body: _notes.isEmpty
-          ? const Center(child: Text('Chưa có ghi chú nào. Hãy bấm + để thêm.'))
-          : ListView.builder(
-              itemCount: _notes.length,
-              itemBuilder: (context, i) => NoteCard(
-                title: _notes[i].title,
-                content: _notes[i].content,
-              ),
-            ),
+      body: Consumer<NoteProvider>(
+        builder: (context, noteProvider, child) {
+          if (noteProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (noteProvider.notes.isEmpty) {
+            return const Center(
+              child: Text('Chưa có ghi chú nào. Hãy bấm + để thêm.'),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: noteProvider.notes.length,
+            itemBuilder: (context, i) {
+              final note = noteProvider.notes[i];
+              return NoteCard(
+                title: note.title,
+                content: note.content,
+                onTap: () {
+                  final auth = context.read<AuthProvider>();
+                  final noteProvider = context.read<NoteProvider>();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NoteDetailScreen(note: note),
+                    ),
+                  ).then((_) {
+                    if (!mounted) return;
+                    // Làm mới danh sách khi quay lại từ màn hình chi tiết
+                    if (auth.userId != null) {
+                      noteProvider.fetchNotes(auth.userId!);
+                    }
+                  });
+                },
+
+              );
+            },
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addNote,
         child: const Icon(Icons.add),
@@ -63,29 +113,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _addNote() async {
+    final noteProvider = context.read<NoteProvider>();
+    final syncProvider = context.read<SyncProvider>();
+
     try {
       final note = Note(
         id: const Uuid().v4(),
-        title: 'Note ${_notes.length + 1}',
-        content: 'Nội dung ghi chú...',
+        title: 'Ghi chú ${noteProvider.notes.length + 1}',
+        content: 'Nội dung ghi chú mới...',
       );
-      await _service.insertNote(note);
-      await _loadNotes();
-      _syncService.syncNow();
 
-      // 2. Nếu đã login → ghi lên Firestore
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await _firestoreService.saveNote(note);
-        debugPrint('✅ Đã sync lên Firestore');
-      }
-      await _loadNotes();
+      await noteProvider.addNote(note);
+
+      // Kích hoạt đồng bộ ngay lập tức
+      syncProvider.syncNow();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Bị lỗi: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bị lỗi: $e')),
+      );
     }
   }
 }

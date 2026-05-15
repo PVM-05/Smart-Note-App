@@ -32,10 +32,14 @@ class LocalNoteService {
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          await db.execute("ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'normal'");
-          await db.execute("ALTER TABLE notes ADD COLUMN is_synced INTEGER DEFAULT 0");
-          await db.execute("ALTER TABLE notes ADD COLUMN created_at INTEGER DEFAULT 0");
-          await db.execute("ALTER TABLE notes ADD COLUMN updated_at INTEGER DEFAULT 0");
+          await db.execute(
+              "ALTER TABLE notes ADD COLUMN status TEXT DEFAULT 'normal'");
+          await db.execute(
+              "ALTER TABLE notes ADD COLUMN is_synced INTEGER DEFAULT 0");
+          await db.execute(
+              "ALTER TABLE notes ADD COLUMN created_at INTEGER DEFAULT 0");
+          await db.execute(
+              "ALTER TABLE notes ADD COLUMN updated_at INTEGER DEFAULT 0");
         }
       },
     );
@@ -43,12 +47,20 @@ class LocalNoteService {
 
   // ── Insert ──
   Future<void> insertNote(Note note) async {
-    if (kIsWeb) { _webNotes.add(note); return; }
+    if (kIsWeb) {
+      final i = _webNotes.indexWhere((n) => n.id == note.id);
+      if (i != -1) {
+        _webNotes[i] = note; // update nếu đã có
+      } else {
+        _webNotes.add(note);
+      }
+      return;
+    }
     final database = await db;
     await database.insert(
       'notes',
       note.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace, // tránh lỗi khi insert trùng id
+      conflictAlgorithm: ConflictAlgorithm.replace, // ← quan trọng
     );
   }
 
@@ -83,7 +95,10 @@ class LocalNoteService {
 
   // ── Delete ──
   Future<void> deleteNote(String id) async {
-    if (kIsWeb) { _webNotes.removeWhere((n) => n.id == id); return; }
+    if (kIsWeb) {
+      _webNotes.removeWhere((n) => n.id == id);
+      return;
+    }
     final database = await db;
     await database.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
