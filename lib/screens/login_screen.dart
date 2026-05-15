@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:local_auth/local_auth.dart';
+// import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'syncing_screen.dart';
@@ -17,11 +17,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLogin = true;
   bool _obscurePassword = true;
-  final LocalAuthentication authLocal = LocalAuthentication();
+  // final LocalAuthentication authLocal = LocalAuthentication();
 
   static const _primary = Color(0xFF2E75B6);
   static const _secondary = Color(0xFF1A237E);
 
+  /*
   // AUTH: XỬ LÝ SINH TRẮC HỌC (BIOMETRIC)
   // Data Flow: Người dùng -> Hệ điều hành -> Local Auth -> Chuyển sang SyncingScreen
   Future<void> _authenticateBiometric() async {
@@ -47,14 +48,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (didAuthenticate && mounted) {
-        /* 
-          🎯 LƯU Ý CHO TƯƠNG LAI:
-          - Hiện tại logic này chỉ "mở khóa" giao diện.
-          - Để hoàn thiện: Bạn cần kiểm tra xem có User Session (FirebaseAuth.instance.currentUser) không.
-          - Nếu chưa có: Phải yêu cầu user đăng nhập bằng Password ít nhất một lần trước, 
-            sau đó mới cho phép dùng Vân tay để "vào nhanh" ở những lần sau.
-        */
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const SyncingScreen()),
@@ -64,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
       debugPrint('Biometric Error: $e');
     }
   }
+  */
 
   // UI: GIAO DIỆN CHÍNH (PHONG CÁCH GLASSMORPHISM)
   // Data Flow: Gradient Background -> SafeArea -> SingleChildScrollView -> Column UI
@@ -206,6 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         const SizedBox(height: 24),
 
+                        /*
                         if (_isLogin)
                           Center(
                             child: InkWell(
@@ -227,6 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                        */
 
                         const SizedBox(height: 32),
 

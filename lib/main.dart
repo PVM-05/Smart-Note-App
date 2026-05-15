@@ -5,9 +5,9 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/note_provider.dart';
 import 'repositories/note_repository.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,23 +26,29 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
-          create: (_) => NoteProvider(NoteRepositoryImpl()), // Tiêm NoteRepositoryImpl vào đây
+          create: (_) => NoteProvider(NoteRepositoryImpl()),
         ),
       ],
       child: MaterialApp(
-        title: 'Smart Note',
+        title: 'Smart Note App',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.blue,
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E75B6)),
           useMaterial3: true,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        home: const SplashScreen(),
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/home': (context) => const HomeScreen(),
-        },
+        // StreamBuilder lắng nghe trạng thái login
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            // Đã login → HomeScreen, chưa login → LoginScreen
+            return snapshot.hasData ? const HomeScreen() : const LoginScreen();
+          },
+        ),
       ),
     );
   }
