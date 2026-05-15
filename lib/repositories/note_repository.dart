@@ -35,11 +35,14 @@ class NoteRepositoryImpl implements NoteRepository {
 
   @override
   Future<void> saveNote(Note note) async {
-    // 1. Lưu local trước (offline-first)
-    await _localService.insertNote(note);
-    
-    // 2. Trigger sync ngay (background)
-    // Lưu ý: SyncService hiện tại đồng bộ tất cả các bản ghi chưa sync
+    // 1. QUAN TRỌNG: Luôn ép trạng thái isSynced = false trước khi lưu
+    // Bất kể là tạo mới hay cập nhật, cứ có thay đổi là phải đánh dấu chưa đồng bộ.
+    final noteToSave = note.copyWith(isSynced: false);
+
+    // 2. Lưu local trước (offline-first) - dùng insertNote với ConflictAlgorithm.replace (Upsert)
+    await _localService.insertNote(noteToSave);
+
+    // 3. Trigger sync ngay (background)
     _syncService.syncNow();
   }
 
