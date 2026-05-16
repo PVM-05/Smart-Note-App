@@ -1,7 +1,4 @@
-import 'package:flutter/cupertino.dart';
-
 import '../models/note_model.dart';
-import '../services/firestore_note_service.dart';
 import '../services/local_note_service.dart';
 import '../services/sync_service.dart';
 
@@ -13,48 +10,36 @@ abstract class NoteRepository {
 }
 
 class NoteRepositoryImpl implements NoteRepository {
-  final LocalNoteService _localService = LocalNoteService();
-  final SyncService _syncService = SyncService();
-  final FirestoreNoteService _firestoreService = FirestoreNoteService();
+  final _localService = LocalNoteService();
+  final _syncService  = SyncService();
 
   @override
   Future<List<Note>> getNotes(String userId) async {
-    final localNotes = await _localService.getAllNotes(userId);
+    final localNotes = await _localService.getAllNotes(userId: userId);
 
-    // Nếu local rỗng (đăng nhập lần đầu / thiết bị mới)
-    // → Pull từ Firestore về trước, sau đó mới trả data
     if (localNotes.isEmpty) {
+      // Lần đầu đăng nhập / thiết bị mới → pull cloud về trước
       await _syncService.pullFromCloud();
-      return await _localService.getAllNotes(userId);
+      return await _localService.getAllNotes(userId: userId);
     }
 
-    // Nếu đã có data local → trả ngay, sync conflict ngầm
+    // Có data local → trả ngay, sync ngầm
     _syncService.syncWithConflictResolution();
     return localNotes;
   }
 
   @override
   Future<void> saveNote(Note note) async {
-    // 1. QUAN TRỌNG: Luôn ép trạng thái isSynced = false trước khi lưu
-    // Bất kể là tạo mới hay cập nhật, cứ có thay đổi là phải đánh dấu chưa đồng bộ.
+    // Luôn đánh dấu chưa sync khi lưu
     final noteToSave = note.copyWith(isSynced: false);
-
-    // 2. Lưu local trước (offline-first) - dùng insertNote với ConflictAlgorithm.replace (Upsert)
     await _localService.insertNote(noteToSave);
-
-    // 3. Trigger sync ngay (background)
-    _syncService.syncNow();
+    _syncService.syncNow(); // push lên cloud ngay nếu có mạng
   }
 
   @override
   Future<void> deleteNote(String id) async {
-    await _localService.deleteNote(id);
-    try {
-      await _firestoreService.deleteNote(id);
-    } catch (e) {
-      // Offline → bỏ qua, note đã xóa local rồi
-      debugPrint('⚠️ deleteNote cloud failed (offline?): $e');
-    }
+    // SyncService xử lý cả local lẫn cloud (kể cả offline)
+    await _syncService.deleteNote(id);
   }
 
   @override
