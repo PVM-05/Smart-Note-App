@@ -67,6 +67,7 @@ class _EditorScreenState extends State<EditorScreen> {
       final updated = widget.note!.copyWith(
         title:   title,
         content: _contentController.text.trim(),
+        isSynced: false,
       );
       await provider.updateNote(updated);
     } else {
