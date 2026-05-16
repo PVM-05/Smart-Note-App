@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:animations/animations.dart'; // THÊM IMPORT NÀY
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
@@ -107,16 +108,35 @@ class _HomeScreenState extends State<HomeScreen> {
           body: _buildBody(noteProvider),
 
           floatingActionButton: AnimatedScale(
-            scale: isSelectionMode ? 0.0 : 1.0, // Phóng to 100% hoặc thu nhỏ 0%
-            duration: const Duration(milliseconds: 250), // Thời gian chạy
-            curve: Curves.easeOutBack, // Hiệu ứng nảy (bounce) nhẹ rất đẹp
-            child: FloatingActionButton(
-              onPressed: () {
-                // Chặn bấm nếu đang thu nhỏ chưa xong
-                if (!isSelectionMode) _openEditor(null);
+            scale: isSelectionMode ? 0.0 : 1.0,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutBack,
+            child: OpenContainer(
+              transitionType: ContainerTransitionType.fade,
+              transitionDuration: const Duration(milliseconds: 400),
+              closedElevation: 6,
+              openElevation: 0,
+              closedShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16), // Bo góc cho giống Keep
+              ),
+              closedColor: _primary,
+              openBuilder: (context, _) => const EditorScreen(note: null),
+              onClosed: (_) async {
+                final auth = Provider.of<AuthProvider>(context, listen: false);
+                if (auth.isAuthenticated && auth.userId != null) {
+                  await Provider.of<NoteProvider>(context, listen: false).fetchNotes(auth.userId!);
+                }
               },
-              backgroundColor: _primary,
-              child: const Icon(Icons.add, color: Colors.white),
+              closedBuilder: (context, openContainer) {
+                return FloatingActionButton(
+                  elevation: 0, // Elevation đã được OpenContainer quản lý
+                  backgroundColor: Colors.transparent,
+                  onPressed: () {
+                    if (!isSelectionMode) openContainer();
+                  },
+                  child: const Icon(Icons.add, color: Colors.white),
+                );
+              },
             ),
           ),
         );
@@ -206,16 +226,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
 
-    // THÊM TWEEN ANIMATION BUILDER BAO NGOÀI
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeOutQuint,
       builder: (context, value, child) {
         return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)), // Trượt từ dưới lên 20px
+          offset: Offset(0, 20 * (1 - value)),
           child: Opacity(
-            opacity: value, // Từ mờ 0 -> rõ 1
+            opacity: value,
             child: child,
           ),
         );
@@ -229,27 +248,47 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Material(
-            color: isSelected ? _primary.withOpacity(0.05) : Colors.white,
-            child: InkWell(
-              onLongPress: () {
-                provider.toggleSelection(note.id);
-              },
-              onTap: () {
-                if (isSelectionMode) {
-                  provider.toggleSelection(note.id);
-                } else {
-                  _openEditor(note);
-                }
-              },
-              child: NoteCard(
-                note: note,
-                searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
-              ),
-            ),
+        // SỬ DỤNG OPENCONTAINER Ở ĐÂY
+        child: OpenContainer(
+          transitionType: ContainerTransitionType.fade,
+          transitionDuration: const Duration(milliseconds: 400),
+          closedElevation: 0,
+          openElevation: 0,
+          closedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
+          closedColor: isSelected ? _primary.withOpacity(0.05) : Colors.white,
+          middleColor: Colors.white,
+          openColor: Theme.of(context).scaffoldBackgroundColor,
+          // Màn hình mở ra
+          openBuilder: (context, _) => EditorScreen(note: note),
+          // Hàm chạy khi đóng (quay lại từ EditorScreen)
+          onClosed: (_) async {
+            final auth = Provider.of<AuthProvider>(context, listen: false);
+            if (auth.isAuthenticated && auth.userId != null) {
+              await provider.fetchNotes(auth.userId!);
+            }
+          },
+          // Card hiển thị khi đóng
+          closedBuilder: (context, openContainer) {
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onLongPress: () => provider.toggleSelection(note.id),
+                onTap: () {
+                  if (isSelectionMode) {
+                    provider.toggleSelection(note.id);
+                  } else {
+                    openContainer(); // Gọi hàm này để kích hoạt animation Mở
+                  }
+                },
+                child: NoteCard(
+                  note: note,
+                  searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -358,72 +397,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
-  }
-
-  // Sửa lỗi: Thêm chữ 'async' vào đây và tự động cập nhật dữ liệu sau khi pop
-  void _openEditor(Note? note) async {
-    await Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 350),
-        reverseTransitionDuration: const Duration(milliseconds: 300),
-
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return EditorScreen(note: note);
-        },
-
-        transitionsBuilder:
-            (context, animation, secondaryAnimation, child) {
-
-          // Animation zoom
-          final scaleAnimation = Tween<double>(
-            begin: 0.92,
-            end: 1.0,
-          ).animate(
-            CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-              reverseCurve: Curves.easeInCubic,
-            ),
-          );
-
-          // Fade animation
-          final fadeAnimation = Tween<double>(
-            begin: 0.0,
-            end: 1.0,
-          ).animate(
-            CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOut,
-            ),
-          );
-
-          return FadeTransition(
-            opacity: fadeAnimation,
-            child: ScaleTransition(
-              scale: scaleAnimation,
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
-
-    // Reload notes khi quay về
-    if (mounted) {
-      final auth = Provider.of<AuthProvider>(
-        context,
-        listen: false,
-      );
-
-      if (auth.isAuthenticated && auth.userId != null) {
-        final noteProvider = Provider.of<NoteProvider>(
-          context,
-          listen: false,
-        );
-
-        await noteProvider.fetchNotes(auth.userId!);
-      }
-    }
   }
 }
