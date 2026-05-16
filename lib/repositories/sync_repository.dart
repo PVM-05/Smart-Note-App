@@ -68,7 +68,7 @@ class SyncRepositoryImpl implements SyncRepository {
   Future<void> syncWithConflictResolution(String userId) async {
     try {
       _updateStatus(SyncStatus.syncing);
-      final localNotes = await _localService.getAllNotes(userId);
+      final localNotes = await _localService.getAllNotes(userId: userId);
       final cloudNotes = await _firestoreService.getNotes();
 
       final cloudMap = {for (final n in cloudNotes) n.id: n};

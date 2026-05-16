@@ -1,8 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
+import '../providers/auth_provider.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note; // null = tạo mới, có giá trị = chỉnh sửa
@@ -52,6 +53,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   // ── Lưu ghi chú ──
+  // ── Lưu ghi chú ──
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -71,10 +73,22 @@ class _EditorScreenState extends State<EditorScreen> {
       );
       await provider.updateNote(updated);
     } else {
-      final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      // 1. Lấy thông tin tài khoản đang hoạt động từ AuthProvider
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final currentUserId = auth.userId ?? '';
+
+      // Phòng trường hợp hy hữu session bị mất đột ngột
+      if (currentUserId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lỗi: Phiên đăng nhập hết hạn. Vui lòng thử lại.')),
+        );
+        return;
+      }
+
+      // 2. Đóng gói dữ liệu với đầy đủ thông tin chủ sở hữu
       final newNote = Note(
         id:      DateTime.now().millisecondsSinceEpoch.toString(),
-        userId:  currentUserId,
+        userId:  currentUserId, // Vá lỗ hổng userId bị rỗng tại đây
         title:   title,
         content: _contentController.text.trim(),
         status:  'normal',
