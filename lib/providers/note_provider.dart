@@ -21,6 +21,47 @@ class NoteProvider extends ChangeNotifier {
 
   NoteProvider(this._repository);
 
+  final Set<String> _selectedNoteIds = {};
+
+  Set<String> get selectedNoteIds => _selectedNoteIds;
+  bool get isSelectionMode => _selectedNoteIds.isNotEmpty;
+
+  // ── Thao tác chọn ──
+  void toggleSelection(String id) {
+    if (_selectedNoteIds.contains(id)) {
+      _selectedNoteIds.remove(id);
+    } else {
+      _selectedNoteIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    _selectedNoteIds.clear();
+    notifyListeners();
+  }
+
+  // ── Thao tác hàng loạt (Batch Actions) ──
+  Future<void> deleteSelectedNotes() async {
+    final idsToDelete = _selectedNoteIds.toList();
+    clearSelection(); // Xóa UI trước để tạo cảm giác mượt mà
+
+    for (final id in idsToDelete) {
+      await deleteNote(id); // Gọi hàm xóa từng note đang có sẵn
+    }
+  }
+
+  Future<void> togglePinSelectedNotes() async {
+    final idsToToggle = _selectedNoteIds.toList();
+    clearSelection();
+
+    for (final id in idsToToggle) {
+      // Tìm note trong danh sách hiện tại để lấy data
+      final note = _activeList.firstWhere((n) => n.id == id);
+      await togglePin(note);
+    }
+  }
+
   Future<void> fetchNotes(String userId) async {
     _isLoading = true;
     notifyListeners();

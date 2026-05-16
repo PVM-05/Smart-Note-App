@@ -40,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  // ── XỬ LÝ TÌM KIẾM ──
   void _openSearch() {
     setState(() => _showSearch = true);
     Future.delayed(
@@ -60,128 +61,186 @@ class _HomeScreenState extends State<HomeScreen> {
         .search(query, auth.userId ?? '');
   }
 
+  // ── XÓA NHIỀU GHI CHÚ ──
+  Future<void> _confirmDeleteSelected(NoteProvider provider) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa ghi chú?'),
+        content: Text(
+            'Bạn có chắc muốn xóa ${provider.selectedNoteIds.length} ghi chú đã chọn?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await provider.deleteSelectedNotes();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _showSearch ? _searchAppBar() : _normalAppBar(),
-      body: Consumer<NoteProvider>(
-        builder: (context, noteProvider, child) {
-          // Loading
-          if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return Consumer<NoteProvider>(
+      builder: (context, noteProvider, child) {
+        final isSelectionMode = noteProvider.isSelectionMode;
 
-          // Không có kết quả search
-          if (noteProvider.isSearching && noteProvider.notes.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Không tìm thấy ghi chú nào',
-                    style: TextStyle(color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-            );
-          }
+        return Scaffold(
+          // 1. CHUYỂN MẠCH APPBAR TÙY TRẠNG THÁI
+          appBar: isSelectionMode
+              ? _selectionAppBar(noteProvider)
+              : (_showSearch ? _searchAppBar() : _normalAppBar()),
 
-          // Danh sách rỗng
-          if (noteProvider.notes.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.note_add_outlined,
-                      size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 12),
-                  const Text('Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
-                ],
-              ),
-            );
-          }
+          body: _buildBody(noteProvider),
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              final auth =
-              Provider.of<AuthProvider>(context, listen: false);
-              await noteProvider.fetchNotes(auth.userId!);
-            },
-            child: ListView(
-              padding: const EdgeInsets.only(bottom: 80),
-              children: [
-                // Kết quả search — hiện flat list không phân nhóm
-                if (noteProvider.isSearching) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: Text(
-                      '${noteProvider.notes.length} kết quả',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey[500]),
-                    ),
-                  ),
-                  ...noteProvider.notes.map(
-                        (note) => NoteCard(
-                      note: note,
-                      searchQuery: _searchController.text, // highlight
-                      onTap: () => _openEditor(note),
-                    ),
-                  ),
-                ] else ...[
-                  // Ghi chú ghim
-                  if (noteProvider.pinnedNotes.isNotEmpty) ...[
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text(
-                        '📌 GHI CHÚ GHIM',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                    ),
-                    ...noteProvider.pinnedNotes.map(
-                          (note) => NoteCard(
-                        note: note,
-                        onTap: () => _openEditor(note),
-                      ),
-                    ),
-                  ],
+          // 2. ẨN NÚT TẠO MỚI KHI ĐANG TÌM KIẾM HOẶC CHỌN NHIỀU
+          floatingActionButton: (_showSearch || isSelectionMode)
+              ? null
+              : FloatingActionButton(
+            onPressed: () => _openEditor(null),
+            backgroundColor: _primary,
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        );
+      },
+    );
+  }
 
-                  // Ghi chú bình thường
-                  if (noteProvider.normalNotes.isNotEmpty) ...[
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text(
-                        'Tất cả ghi chú',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 13),
-                      ),
-                    ),
-                    ...noteProvider.normalNotes.map(
-                          (note) => NoteCard(
-                        note: note,
-                        onTap: () => _openEditor(note),
-                      ),
-                    ),
-                  ],
-                ],
-              ],
+  // ── PHẦN THÂN (BODY) ──
+  Widget _buildBody(NoteProvider noteProvider) {
+    // Loading
+    if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // Không có kết quả search
+    if (noteProvider.isSearching && noteProvider.notes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Text(
+              'Không tìm thấy ghi chú nào',
+              style: TextStyle(color: Colors.grey[500]),
             ),
-          );
-        },
-      ),
-      floatingActionButton: _showSearch
-          ? null // ẩn FAB khi đang search
-          : FloatingActionButton(
-        onPressed: () => _openEditor(null),
-        backgroundColor: _primary,
-        child: const Icon(Icons.add, color: Colors.white),
+          ],
+        ),
+      );
+    }
+
+    // Danh sách rỗng
+    if (noteProvider.notes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.note_add_outlined, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            const Text('Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        await noteProvider.fetchNotes(auth.userId!);
+      },
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 80),
+        children: [
+          // Kết quả search — hiện flat list không phân nhóm
+          if (noteProvider.isSearching) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                '${noteProvider.notes.length} kết quả',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ),
+            ...noteProvider.notes.map((note) => _buildNoteItem(note, noteProvider)),
+          ] else ...[
+            // Ghi chú ghim
+            if (noteProvider.pinnedNotes.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  '📌 GHI CHÚ GHIM',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+              ...noteProvider.pinnedNotes.map((note) => _buildNoteItem(note, noteProvider)),
+            ],
+
+            // Ghi chú bình thường
+            if (noteProvider.normalNotes.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Text(
+                  'Tất cả ghi chú',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                ),
+              ),
+              ...noteProvider.normalNotes.map((note) => _buildNoteItem(note, noteProvider)),
+            ],
+          ],
+        ],
       ),
     );
   }
 
-  // ── AppBar bình thường ──
+  // ── WIDGET BAO BỌC NOTECARD ĐỂ XỬ LÝ CHỌN (MULTI-SELECT) ──
+  Widget _buildNoteItem(Note note, NoteProvider provider) {
+    final isSelected = provider.selectedNoteIds.contains(note.id);
+    final isSelectionMode = provider.isSelectionMode;
+
+    return GestureDetector(
+      // BẤM GIỮ: Kích hoạt chế độ chọn nhiều
+      onLongPress: () {
+        provider.toggleSelection(note.id);
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          // Hiển thị viền và nền màu xanh nhạt nếu đang được chọn
+          border: Border.all(
+            color: isSelected ? _primary : Colors.transparent,
+            width: 2,
+          ),
+          color: isSelected ? _primary.withOpacity(0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: NoteCard(
+          note: note,
+          searchQuery: _showSearch ? _searchController.text : null,
+          // BẤM CHẠM:
+          onTap: () {
+            if (isSelectionMode) {
+              // Đang ở chế độ chọn -> tích thêm hoặc bỏ tích
+              provider.toggleSelection(note.id);
+            } else {
+              // Bình thường -> Mở Note ra sửa
+              _openEditor(note);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── 1. AppBar Bình thường ──
   AppBar _normalAppBar() {
     return AppBar(
       title: const Text('Smart Note'),
@@ -219,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── AppBar search mode ──
+  // ── 2. AppBar Search Mode ──
   AppBar _searchAppBar() {
     return AppBar(
       leading: IconButton(
@@ -247,6 +306,38 @@ class _HomeScreenState extends State<HomeScreen> {
               _searchFocus.requestFocus();
             },
           ),
+      ],
+    );
+  }
+
+  // ── 3. AppBar Selection Mode ──
+  AppBar _selectionAppBar(NoteProvider provider) {
+    return AppBar(
+      backgroundColor: const Color(0xFFE2E8F0), // Đổi màu nền để user nhận biết
+      leading: IconButton(
+        icon: const Icon(Icons.close, color: Colors.black87),
+        tooltip: 'Hủy chọn',
+        onPressed: () => provider.clearSelection(),
+      ),
+      title: Text(
+        '${provider.selectedNoteIds.length} đã chọn',
+        style: const TextStyle(
+          color: Colors.black87,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.push_pin_outlined, color: Colors.black87),
+          tooltip: 'Ghim/Bỏ ghim hàng loạt',
+          onPressed: () => provider.togglePinSelectedNotes(),
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          tooltip: 'Xóa hàng loạt',
+          onPressed: () => _confirmDeleteSelected(provider),
+        ),
       ],
     );
   }
