@@ -29,15 +29,16 @@ class FirestoreNoteService {
   }
 
   // ── Lấy tất cả notes ──
+  // ── Lấy tất cả notes (Bao gồm cả normal, pinned và trash) ──
   Future<List<Note>> getNotes() async {
     final snap = await _notesRef
-        .where('status', isNotEqualTo: 'trash')
+    // Đã xóa dòng: .where('status', isNotEqualTo: 'trash')
         .orderBy('updated_at', descending: true)
         .get();
 
     return snap.docs
         .map((doc) => Note.fromFirestoreMap(doc.data() as Map<String, dynamic>))
-        .toList(); // ← dùng fromFirestoreMap
+        .toList();
   }
 
   // ── Xóa 1 note ──

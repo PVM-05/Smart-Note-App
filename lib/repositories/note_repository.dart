@@ -15,6 +15,8 @@ abstract class NoteRepository {
     required String userId,
     required String query,
   });
+  Future<List<Note>> getTrashNotes(String userId);
+  Future<void> clearLocalData(String userId);
 }
 
 class NoteRepositoryImpl implements NoteRepository {
@@ -146,5 +148,15 @@ class NoteRepositoryImpl implements NoteRepository {
     } catch (e) {
       log('⚠️ Background sync error: $e');
     }
+  }
+
+  @override
+  Future<List<Note>> getTrashNotes(String userId) async {
+    return await _localService.getTrashNotes(userId: userId);
+  }
+
+  @override
+  Future<void> clearLocalData(String userId) async {
+    await _localService.clearUserNotes(userId); // Hàm này bạn đã viết sẵn trong LocalNoteService rồi
   }
 }
