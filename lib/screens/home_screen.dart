@@ -7,7 +7,7 @@ import '../models/note_model.dart';
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
-import 'login_screen.dart';
+import '../widgets/profile_drawer.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,15 +25,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async { // 1. Thêm async ở đây
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.isAuthenticated) {
         final noteProvider = Provider.of<NoteProvider>(context, listen: false);
 
-        // 2. Thêm await để ép buộc đợi nạp xong Note thường và kéo data từ Cloud về SQLite hoàn tất
+        // Thêm await để ép buộc đợi nạp xong Note thường và kéo data từ Cloud về SQLite hoàn tất
         await noteProvider.fetchNotes(auth.userId!);
 
-        // 3. Đợi xong bước trên mới bắt đầu quét dữ liệu rác trong SQLite lên UI
+        // Đợi xong bước trên mới bắt đầu quét dữ liệu rác trong SQLite lên UI
         await noteProvider.fetchTrashNotes(auth.userId!);
       }
     });
@@ -73,9 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Huỷ',
             textColor: const Color(0xFF2E75B6),
             onPressed: () async {
-              // Ẩn popup ngay lập tức khi bấm Hoàn tác
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
               for (final id in deletedIds) {
                 await provider.restoreNote(id);
               }
@@ -84,10 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-      // THÊM ĐOẠN NÀY: Ép buộc hệ thống dọn dẹp popup đúng sau 4 giây
       Timer(const Duration(seconds: 4), () {
         if (mounted) {
-          // Lệnh này sẽ thu hồi SnackBar hiện tại bất chấp cài đặt của Hệ điều hành
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
         }
       });
@@ -102,27 +98,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           drawer: const MainDrawer(currentRoute: '/home'),
-          // Tự động hoán đổi giữa AppBar lựa chọn hàng loạt và AppBar thiết kế mới
+          endDrawer: const ProfileDrawer(),
+
           appBar: isSelectionMode
               ? _selectionAppBar(noteProvider)
               : _normalAppBar(),
 
           body: _buildBody(noteProvider),
 
-          // Ẩn nút tạo mới khi đang chọn nhiều mục để tránh bấm nhầm
-          floatingActionButton: isSelectionMode
-              ? null
-              : FloatingActionButton(
-            onPressed: () => _openEditor(null),
-            backgroundColor: _primary,
-            child: const Icon(Icons.add, color: Colors.white),
+          floatingActionButton: AnimatedScale(
+            scale: isSelectionMode ? 0.0 : 1.0, // Phóng to 100% hoặc thu nhỏ 0%
+            duration: const Duration(milliseconds: 250), // Thời gian chạy
+            curve: Curves.easeOutBack, // Hiệu ứng nảy (bounce) nhẹ rất đẹp
+            child: FloatingActionButton(
+              onPressed: () {
+                // Chặn bấm nếu đang thu nhỏ chưa xong
+                if (!isSelectionMode) _openEditor(null);
+              },
+              backgroundColor: _primary,
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
           ),
         );
       },
     );
   }
 
-  // ── PHẦN THÂN HIỂN THỊ (BODY) ──
   Widget _buildBody(NoteProvider noteProvider) {
     if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -175,7 +176,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ...noteProvider.notes.map((note) => _buildNoteItem(note, noteProvider)),
           ] else ...[
-            // Nhóm ghi chú được ghim
             if (noteProvider.pinnedNotes.isNotEmpty) ...[
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -186,8 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               ...noteProvider.pinnedNotes.map((note) => _buildNoteItem(note, noteProvider)),
             ],
-
-            // Nhóm ghi chú thông thường
             if (noteProvider.normalNotes.isNotEmpty) ...[
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -208,57 +206,65 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: isSelected ? _primary : Colors.transparent,
-          width: 2,
+    // THÊM TWEEN ANIMATION BUILDER BAO NGOÀI
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutQuint,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)), // Trượt từ dưới lên 20px
+          child: Opacity(
+            opacity: value, // Từ mờ 0 -> rõ 1
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: isSelected ? _primary : Colors.transparent,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(16),
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Material(
-          // Hiển thị màu nền xanh nhạt khi được tích chọn
-          color: isSelected ? _primary.withOpacity(0.05) : Colors.white,
-          child: InkWell(
-            // 1. NHẤN GIỮ: Bật/tắt chế độ chọn nhiều mục
-            onLongPress: () {
-              provider.toggleSelection(note.id);
-            },
-            // 2. CHẠM NHẸ: Tích chọn tiếp HOẶC Mở màn hình soạn thảo công việc công nghệ
-            onTap: () {
-              if (isSelectionMode) {
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Material(
+            color: isSelected ? _primary.withOpacity(0.05) : Colors.white,
+            child: InkWell(
+              onLongPress: () {
                 provider.toggleSelection(note.id);
-              } else {
-                _openEditor(note);
-              }
-            },
-            child: NoteCard(
-              note: note,
-              searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
+              },
+              onTap: () {
+                if (isSelectionMode) {
+                  provider.toggleSelection(note.id);
+                } else {
+                  _openEditor(note);
+                }
+              },
+              child: NoteCard(
+                note: note,
+                searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
+              ),
             ),
           ),
         ),
       ),
     );
   }
-  // ── APP BAR THEO THIẾT KẾ MỚI (CỦA BẠN YÊU CẦU) ──
-  // ── APP BAR THEO THIẾT KẾ MỚI ──
+
   AppBar _normalAppBar() {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.transparent,
-
       leading: Builder(
         builder: (context) => IconButton(
           icon: const Icon(Icons.menu, color: Colors.black87),
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
-
-      // 2. CHÍNH GIỮ: Ô Tìm Kiếm (Search Box) tinh gọn
       title: Container(
         height: 40,
         decoration: BoxDecoration(
@@ -289,67 +295,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       centerTitle: true,
-
-      // 3. GÓC PHẢI: Hình đại diện Account phục vụ đăng xuất
       actions: [
         Consumer<AuthProvider>(
-          builder: (context, auth, child) => PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'logout') {
-                final userId = auth.userId; // Lấy userId trước khi đăng xuất
-
-                // 1. Đăng xuất khỏi Firebase Auth
-                await auth.signOut();
-
-                // 2. Dọn dẹp dữ liệu thông qua Provider
-                if (context.mounted && userId != null) {
-                  final noteProvider = Provider.of<NoteProvider>(context, listen: false);
-
-                  // Xóa vật lý dưới CSDL Local
-                  await noteProvider.clearLocalData(userId);
-
-                  // Xóa dữ liệu rác trên RAM (UI)
-                  noteProvider.clearNotes();
-
-                  // Chuyển về màn hình Login và xóa lịch sử
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                        (Route<dynamic> route) => false,
-                  );
-                }
-              }
-            },
-            offset: const Offset(0, 40),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    const Icon(Icons.logout, color: Colors.redAccent, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Đăng xuất',
-                      style: const TextStyle(color: Colors.redAccent),
+          builder: (context, auth, child) => Builder(
+            builder: (context) => GestureDetector(
+              onTap: () {
+                Scaffold.of(context).openEndDrawer();
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFF2E75B6),
+                  backgroundImage: (auth.userData?['photoUrl'] != null && auth.userData!['photoUrl'].toString().isNotEmpty)
+                      ? NetworkImage(auth.userData!['photoUrl'])
+                      : null,
+                  child: (auth.userData?['photoUrl'] == null || auth.userData!['photoUrl'].toString().isEmpty)
+                      ? Text(
+                    auth.email?.substring(0, 1).toUpperCase() ?? 'U',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
-                  ],
-                ),
-              ),
-            ],
-            // Widget hiển thị bọc ngoài Account Hình tròn
-            child: Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: _primary,
-                child: Text(
-                  auth.email?.substring(0, 1).toUpperCase() ?? 'U',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+                  )
+                      : null,
                 ),
               ),
             ),
@@ -359,7 +329,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── APP BAR KHI CHỌN MULTI-SELECT ──
   AppBar _selectionAppBar(NoteProvider provider) {
     return AppBar(
       backgroundColor: const Color(0xFFE2E8F0),
@@ -391,10 +360,70 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openEditor(Note? note) {
-    Navigator.push(
+  // Sửa lỗi: Thêm chữ 'async' vào đây và tự động cập nhật dữ liệu sau khi pop
+  void _openEditor(Note? note) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => EditorScreen(note: note)),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 350),
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return EditorScreen(note: note);
+        },
+
+        transitionsBuilder:
+            (context, animation, secondaryAnimation, child) {
+
+          // Animation zoom
+          final scaleAnimation = Tween<double>(
+            begin: 0.92,
+            end: 1.0,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+          );
+
+          // Fade animation
+          final fadeAnimation = Tween<double>(
+            begin: 0.0,
+            end: 1.0,
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOut,
+            ),
+          );
+
+          return FadeTransition(
+            opacity: fadeAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
+              child: child,
+            ),
+          );
+        },
+      ),
     );
+
+    // Reload notes khi quay về
+    if (mounted) {
+      final auth = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      );
+
+      if (auth.isAuthenticated && auth.userId != null) {
+        final noteProvider = Provider.of<NoteProvider>(
+          context,
+          listen: false,
+        );
+
+        await noteProvider.fetchNotes(auth.userId!);
+      }
+    }
   }
 }
