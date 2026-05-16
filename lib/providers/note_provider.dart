@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
@@ -5,13 +6,18 @@ import '../repositories/note_repository.dart';
 class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
   List<Note> _notes = [];
+  List<Note> _filtered  = [];
   bool _isLoading = false;
+  bool _isSearching     = false; // THÊM — đang ở chế độ search?
+  Timer? _debounce;
 
-  List<Note> get notes => _notes.where((n) => n.status != 'trash').toList();
-  List<Note> get pinnedNotes => _notes.where((n) => n.status == 'pinned').toList();
-  List<Note> get normalNotes => _notes.where((n) => n.status == 'normal').toList();
-  List<Note> get trashNotes => _notes.where((n) => n.status == 'trash').toList();
+  List<Note> get _activeList => _isSearching ? _filtered : _notes;
+  List<Note> get notes       => _activeList.where((n) => n.status != 'trash').toList();
+  List<Note> get pinnedNotes => _activeList.where((n) => n.status == 'pinned').toList();
+  List<Note> get normalNotes => _activeList.where((n) => n.status == 'normal').toList();
+  List<Note> get trashNotes  => _activeList.where((n) => n.status == 'trash').toList();
   bool get isLoading => _isLoading;
+  bool get isSearching  => _isSearching;
 
   NoteProvider(this._repository);
 
@@ -64,6 +70,37 @@ class NoteProvider extends ChangeNotifier {
       await _repository.saveNote(updatedNote);
     }
   }
+
+  void search(String query, String userId) {
+    // Hủy debounce cũ nếu user vẫn đang gõ
+    _debounce?.cancel();
+
+    if (query.trim().isEmpty) {
+      _isSearching = false;
+      _filtered    = [];
+      notifyListeners();
+      return;
+    }
+
+    _isSearching = true;
+    notifyListeners(); // hiện loading ngay
+
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      _filtered = await _repository.searchNotes(
+        userId: userId,
+        query: query,
+      );
+      notifyListeners();
+    });
+  }
+
+  void clearSearch() {
+    _debounce?.cancel();
+    _isSearching = false;
+    _filtered    = [];
+    notifyListeners();
+  }
+
   void clearNotes() {
     _notes = [];
     notifyListeners();
