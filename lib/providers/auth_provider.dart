@@ -2,8 +2,10 @@ import 'dart:developer';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/local_note_service.dart';
+
+
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
@@ -18,6 +20,9 @@ class AuthProvider extends ChangeNotifier {
   String? get userId => _user?.uid;
   String? get email => _user?.email;
 
+  Map<String, dynamic>? _userData;
+  Map<String, dynamic>? get userData => _userData;
+
   // Cho phép set lỗi validation từ UI
   void setError(String? message) {
     _error = message;
@@ -31,6 +36,26 @@ class AuthProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
     });
+  }
+
+  Future<void> _syncUserProfile(User user, {String? displayName, String? photoUrl}) async {
+    final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snapshot = await userDoc.get();
+
+    if (!snapshot.exists) {
+      // Tạo mới nếu chưa có
+      await userDoc.set({
+        'email': user.email,
+        'displayName': displayName ?? user.displayName ?? '',
+        'photoUrl': photoUrl ?? user.photoURL ?? '',
+        'bio': '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      _userData = (await userDoc.get()).data();
+    } else {
+      _userData = snapshot.data();
+    }
+    notifyListeners();
   }
 
   // ==================================================================
@@ -61,6 +86,7 @@ class AuthProvider extends ChangeNotifier {
       final UserCredential result = await FirebaseAuth.instance
           .signInWithCredential(credential);
       _user = result.user;
+      if (_user != null) await _syncUserProfile(_user!);
       log('✅ Google login: ${_user?.uid}');
       return true;
     } catch (e) {
@@ -91,6 +117,7 @@ class AuthProvider extends ChangeNotifier {
       final userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email.trim(), password: password);
       _user = userCredential.user;
+      if (_user != null) await _syncUserProfile(_user!);
       log('✅ Email login: ${_user?.uid}');
       return true;
     } on FirebaseAuthException catch (e) {
@@ -142,6 +169,7 @@ class AuthProvider extends ChangeNotifier {
             password: password,
           );
       _user = userCredential.user;
+      if (_user != null) await _syncUserProfile(_user!);
       log('✅ Register: ${_user?.uid}');
       return true;
     } on FirebaseAuthException catch (e) {
