@@ -6,7 +6,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../services/local_note_service.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final LocalNoteService _localNoteService = LocalNoteService();
   User? _user;
   bool _isLoading = false;
   String? _error;

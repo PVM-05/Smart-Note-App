@@ -16,20 +16,20 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 3, // tăng lên 3
       onCreate: (db, version) async {
         await db.execute('''
-          CREATE TABLE notes(
-            id TEXT PRIMARY KEY,
-            user_id TEXT DEFAULT '',
-            title TEXT,
-            content TEXT,
-            status TEXT DEFAULT 'normal',
-            is_synced INTEGER DEFAULT 0,
-            created_at INTEGER,
-            updated_at INTEGER
-          )
-        ''');
+        CREATE TABLE notes(
+          id TEXT PRIMARY KEY,
+          user_id TEXT DEFAULT '',
+          title TEXT,
+          content TEXT,
+          status TEXT DEFAULT 'normal',
+          is_synced INTEGER DEFAULT 0,
+          created_at INTEGER,
+          updated_at INTEGER
+        )
+      ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -39,39 +39,40 @@ class LocalNoteService {
           await db.execute("ALTER TABLE notes ADD COLUMN updated_at INTEGER DEFAULT 0");
         }
         if (oldVersion < 3) {
+          // THÊM cột user_id cho thiết bị đang dùng version cũ
           await db.execute("ALTER TABLE notes ADD COLUMN user_id TEXT DEFAULT ''");
         }
       },
     );
   }
 
-  // ── Insert / Upsert ──
+  // ── Insert ──
   Future<void> insertNote(Note note) async {
     if (kIsWeb) {
       final i = _webNotes.indexWhere((n) => n.id == note.id);
-      if (i != -1) _webNotes[i] = note;
-      else _webNotes.add(note);
+      if (i != -1) {
+        _webNotes[i] = note; // update náº¿u Ä‘Ã£ cÃ³
+      } else {
+        _webNotes.add(note);
+      }
       return;
     }
     final database = await db;
     await database.insert(
       'notes',
       note.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      conflictAlgorithm: ConflictAlgorithm.replace, // ← quan trọng
     );
   }
 
-  // ── Get all — BẮT BUỘC truyền userId ──
-  Future<List<Note>> getAllNotes({required String userId}) async {
-    if (kIsWeb) {
-      return _webNotes
-          .where((n) => n.userId == userId && n.status != 'trash')
-          .toList();
-    }
+  // ── Get all ──
+  Future<List<Note>> getAllNotes(String userId) async {
+    if (kIsWeb) return _webNotes.where((n) => n.userId == userId).toList();
+
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: 'status != ? AND user_id = ?',
+      where: 'status != ? AND user_id = ?', // Thêm lọc theo user_id
       whereArgs: ['trash', userId],
       orderBy: 'updated_at DESC',
     );
@@ -96,21 +97,23 @@ class LocalNoteService {
 
   // ── Delete ──
   Future<void> deleteNote(String id) async {
-    if (kIsWeb) {
-      _webNotes.removeWhere((n) => n.id == id);
-      return;
-    }
+    if (kIsWeb) { _webNotes.removeWhere((n) => n.id == id); return; }
     final database = await db;
     await database.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ── Unsynced — BẮT BUỘC truyền userId ──
-  Future<List<Note>> getUnsyncedNotes({required String userId}) async {
+  Future<void> clearUserNotes(String userId) async {
     if (kIsWeb) {
-      return _webNotes
-          .where((n) => !n.isSynced && n.userId == userId)
-          .toList();
+      _webNotes.removeWhere((n) => n.userId == userId);
+      return;
     }
+    final database = await db;
+    await database.delete('notes', where: 'user_id = ?', whereArgs: [userId]);
+  }
+
+  // ── Lấy notes chưa sync — SyncService dùng ──
+  Future<List<Note>> getUnsyncedNotes({required String userId}) async {
+    if (kIsWeb) return _webNotes.where((n) => !n.isSynced && n.userId == userId).toList();
     final database = await db;
     final maps = await database.query(
       'notes',
@@ -120,11 +123,13 @@ class LocalNoteService {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  // ── Mark synced ──
+  // ── Đánh dấu đã sync — SyncService dùng ──
   Future<void> markSynced(String id) async {
     if (kIsWeb) {
       final i = _webNotes.indexWhere((n) => n.id == id);
-      if (i != -1) _webNotes[i] = _webNotes[i].copyWith(isSynced: true);
+      if (i != -1) {
+        _webNotes[i] = _webNotes[i].copyWith(isSynced: true);
+      }
       return;
     }
     final database = await db;
@@ -133,20 +138,6 @@ class LocalNoteService {
       {'is_synced': 1},
       where: 'id = ?',
       whereArgs: [id],
-    );
-  }
-
-  // ── Xóa toàn bộ notes của 1 user (dùng khi logout) ──
-  Future<void> clearUserNotes(String userId) async {
-    if (kIsWeb) {
-      _webNotes.removeWhere((n) => n.userId == userId);
-      return;
-    }
-    final database = await db;
-    await database.delete(
-      'notes',
-      where: 'user_id = ?',
-      whereArgs: [userId],
     );
   }
 }

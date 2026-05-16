@@ -23,7 +23,9 @@ class FirestoreNoteService {
 
   // ── Lưu hoặc cập nhật 1 note ──
   Future<void> saveNote(Note note) async {
-    await _notesRef.doc(note.id).set(note.toFirestoreMap());  // ← dùng toFirestoreMap
+    await _notesRef
+        .doc(note.id)
+        .set(note.toFirestoreMap()); // ← dùng toFirestoreMap
   }
 
   // ── Lấy tất cả notes ──
@@ -35,7 +37,7 @@ class FirestoreNoteService {
 
     return snap.docs
         .map((doc) => Note.fromFirestoreMap(doc.data() as Map<String, dynamic>))
-        .toList();  // ← dùng fromFirestoreMap
+        .toList(); // ← dùng fromFirestoreMap
   }
 
   // ── Xóa 1 note ──
@@ -47,7 +49,8 @@ class FirestoreNoteService {
   Future<void> batchSaveNotes(List<Note> notes) async {
     final batch = _firestore.batch();
     for (final note in notes) {
-      batch.set(_notesRef.doc(note.id), note.toFirestoreMap());  // ← dùng toFirestoreMap
+      batch.set(_notesRef.doc(note.id),
+          note.toFirestoreMap()); // ← dùng toFirestoreMap
     }
     await batch.commit();
   }

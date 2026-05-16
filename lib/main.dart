@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -6,9 +6,11 @@ import 'providers/auth_provider.dart';
 import 'providers/note_provider.dart';
 import 'providers/sync_provider.dart';
 import 'repositories/note_repository.dart';
-import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
+import 'repositories/sync_repository.dart';
+
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,35 +28,44 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        Provider<SyncRepository>(create: (_) => SyncRepositoryImpl()),
         ChangeNotifierProxyProvider<AuthProvider, NoteProvider>(
           create: (_) => NoteProvider(NoteRepositoryImpl()),
           update: (context, auth, noteProvider) {
-            // Tự động fetch notes khi user đăng nhập thành công
             if (auth.isAuthenticated && auth.user != null) {
-              noteProvider!.fetchNotes(auth.user!.uid);
+              noteProvider?.fetchNotes(auth.user!.uid);
             } else {
-              // Xóa sạch note trên UI khi đăng xuất
-              noteProvider!.clearNotes();
+              noteProvider?.clearNotes();
             }
             return noteProvider!;
           },
         ),
-        ChangeNotifierProvider(create: (_) => SyncProvider()..init()),
+        ChangeNotifierProxyProvider<AuthProvider, SyncProvider>(
+          create: (context) => SyncProvider(context.read<SyncRepository>()),
+          update: (context, auth, syncProvider) {
+            syncProvider?.updateUser(auth.user?.uid);
+            return syncProvider!;
+          },
+        ),
       ],
       child: MaterialApp(
-        title: 'Smart Note',
+        title: 'Smart Note App',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.blue,
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E75B6)),
           useMaterial3: true,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        home: const SplashScreen(),
-        routes: {
-          '/login': (context) => const LoginScreen(),
-          '/home': (context) => const HomeScreen(),
-        },
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return snapshot.hasData ? const HomeScreen() : const LoginScreen();
+          },
+        ),
       ),
     );
   }
