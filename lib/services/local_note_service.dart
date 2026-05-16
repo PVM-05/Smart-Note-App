@@ -119,6 +119,22 @@ class LocalNoteService {
     await database.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
 
+  // Lấy các ghi chú đang nằm trong thùng rác
+  // THÊM HÀM NÀY: Chỉ truy vấn các ghi chú có trạng thái đúng là 'trash'
+  Future<List<Note>> getTrashNotes({required String userId}) async {
+    if (kIsWeb) {
+      return _webNotes.where((n) => n.userId == userId && n.status == 'trash').toList();
+    }
+    final database = await db;
+    final maps = await database.query(
+      'notes',
+      where: 'status = ? AND user_id = ?',
+      whereArgs: ['trash', userId],
+      orderBy: 'updated_at DESC',
+    );
+    return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
   Future<List<Note>> getUnsyncedNotes({required String userId}) async {
     if (kIsWeb) {
       return _webNotes.where((n) => !n.isSynced && n.userId == userId).toList();

@@ -4,96 +4,81 @@ import '../models/note_model.dart';
 
 class NoteCard extends StatelessWidget {
   final Note note;
-  final VoidCallback? onTap;
   final String? searchQuery;
 
   const NoteCard({
     super.key,
     required this.note,
-    this.onTap,
     this.searchQuery,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero, // Margin đã được xử lý ở container bọc ngoài của HomeScreen
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200, width: 1.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      color: Colors.white,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── PHẦN HEADER: TIÊU ĐỀ & ICON GHIM ──
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min, // RẤT QUAN TRỌNG: Giúp thẻ tự co giãn chiều cao trong lưới Masonry
             children: [
-              // ── PHẦN HEADER: TIÊU ĐỀ & ICON GHIM ──
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: note.title.isNotEmpty
-                        ? _buildHighlightedText(
-                      note.title,
-                      style: GoogleFonts.outfit(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF1E293B),
-                      ),
-                      maxLines: 3,
-                    )
-                        : const SizedBox.shrink(),
-                  ),
-                  if (note.status == 'pinned') ...[
-                    const SizedBox(width: 8),
-                    const Icon(Icons.push_pin_rounded, size: 18, color: Color(0xFF2E75B6)),
-                  ]
-                ],
-              ),
-
-              if (note.title.isNotEmpty && note.content.isNotEmpty)
-                const SizedBox(height: 8),
-
-              // ── PHẦN NỘI DUNG ──
-              if (note.content.isNotEmpty)
-                _buildHighlightedText(
-                  note.content,
+              Expanded(
+                child: note.title.isNotEmpty
+                    ? _buildHighlightedText(
+                  note.title,
                   style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    color: const Color(0xFF475569),
-                    height: 1.5,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
                   ),
-                  maxLines: 8, // Cho phép hiển thị tối đa 8 dòng để tạo hiệu ứng sole (Masonry)
-                ),
-
-              // ── PHẦN FOOTER: TRẠNG THÁI ĐỒNG BỘ ──
-              if (!note.isSynced) ...[
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Icon(
-                      Icons.cloud_upload_outlined,
-                      size: 16,
-                      color: Colors.grey.shade400,
-                    ),
-                  ],
-                ),
+                  maxLines: 3,
+                )
+                    : const SizedBox.shrink(),
+              ),
+              if (note.status == 'pinned') ...[
+                const SizedBox(width: 8),
+                const Icon(Icons.push_pin_rounded, size: 18, color: Color(0xFF2E75B6)),
               ]
             ],
           ),
-        ),
+
+          if (note.title.isNotEmpty && note.content.isNotEmpty)
+            const SizedBox(height: 8),
+
+          // ── PHẦN NỘI DUNG ──
+          if (note.content.isNotEmpty)
+            _buildHighlightedText(
+              note.content,
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                color: const Color(0xFF475569),
+                height: 1.5,
+              ),
+              maxLines: 8,
+            ),
+
+          // ── PHẦN FOOTER: TRẠNG THÁI ĐỒNG BỘ ──
+          if (!note.isSynced) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(
+                  Icons.cloud_upload_outlined,
+                  size: 16,
+                  color: Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ]
+        ],
       ),
     );
   }
 
-  // Hàm Highlight từ khóa search bằng màu vàng (Giữ nguyên logic cực tốt của bạn)
+  // Khung xử lý Highlight từ khóa của bạn
   Widget _buildHighlightedText(
       String text, {
         required TextStyle style,
@@ -134,7 +119,7 @@ class NoteCard extends StatelessWidget {
         text: text.substring(index, index + query.length),
         style: style.copyWith(
           backgroundColor: Colors.yellow.shade300,
-          color: Colors.black87, // Làm chữ màu đen đậm hơn một chút cho dễ đọc trên nền vàng
+          color: Colors.black87,
         ),
       ));
       start = index + query.length;

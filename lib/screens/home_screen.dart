@@ -6,6 +6,8 @@ import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
+import '../widgets/main_drawer.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,11 +25,16 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async { // 1. Thêm async ở đây
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.isAuthenticated) {
-        Provider.of<NoteProvider>(context, listen: false)
-            .fetchNotes(auth.userId!);
+        final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+        // 2. Thêm await để ép buộc đợi nạp xong Note thường và kéo data từ Cloud về SQLite hoàn tất
+        await noteProvider.fetchNotes(auth.userId!);
+
+        // 3. Đợi xong bước trên mới bắt đầu quét dữ liệu rác trong SQLite lên UI
+        await noteProvider.fetchTrashNotes(auth.userId!);
       }
     });
   }
@@ -46,29 +53,44 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {}); // Rebuild để cập nhật sự ẩn/hiện của nút xóa nhanh (X)
   }
 
-  Future<void> _confirmDeleteSelected(NoteProvider provider) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Xóa ghi chú?'),
-        content: Text(
-            'Bạn có chắc muốn xóa ${provider.selectedNoteIds.length} ghi chú đã chọn?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
-    );
+  Future<void> _moveToTrashSelected(NoteProvider provider) async {
+    final deletedIds = provider.selectedNoteIds.toList();
+    final count = deletedIds.length;
 
-    if (confirm == true) {
-      await provider.deleteSelectedNotes();
+    await provider.deleteSelectedNotes();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã chuyển $count ghi chú vào thùng rác'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(12),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Huỷ',
+            textColor: const Color(0xFF2E75B6),
+            onPressed: () async {
+              // Ẩn popup ngay lập tức khi bấm Hoàn tác
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+              for (final id in deletedIds) {
+                await provider.restoreNote(id);
+              }
+            },
+          ),
+        ),
+      );
+
+      // THÊM ĐOẠN NÀY: Ép buộc hệ thống dọn dẹp popup đúng sau 4 giây
+      Timer(const Duration(seconds: 4), () {
+        if (mounted) {
+          // Lệnh này sẽ thu hồi SnackBar hiện tại bất chấp cài đặt của Hệ điều hành
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        }
+      });
     }
   }
 
@@ -79,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final isSelectionMode = noteProvider.isSelectionMode;
 
         return Scaffold(
+          drawer: const MainDrawer(currentRoute: '/home'),
           // Tự động hoán đổi giữa AppBar lựa chọn hàng loạt và AppBar thiết kế mới
           appBar: isSelectionMode
               ? _selectionAppBar(noteProvider)
@@ -157,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Text(
-                  '📌 GHI CHÚ GHIM',
+                  'Được ghim',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
@@ -185,35 +208,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
 
-    return GestureDetector(
-      onLongPress: () {
-        provider.toggleSelection(note.id);
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? _primary : Colors.transparent,
-            width: 2,
-          ),
-          color: isSelected ? _primary.withOpacity(0.05) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: isSelected ? _primary : Colors.transparent,
+          width: 2,
         ),
-        child: NoteCard(
-          note: note,
-          searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
-          onTap: () {
-            if (isSelectionMode) {
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Material(
+          // Hiển thị màu nền xanh nhạt khi được tích chọn
+          color: isSelected ? _primary.withOpacity(0.05) : Colors.white,
+          child: InkWell(
+            // 1. NHẤN GIỮ: Bật/tắt chế độ chọn nhiều mục
+            onLongPress: () {
               provider.toggleSelection(note.id);
-            } else {
-              _openEditor(note);
-            }
-          },
+            },
+            // 2. CHẠM NHẸ: Tích chọn tiếp HOẶC Mở màn hình soạn thảo công việc công nghệ
+            onTap: () {
+              if (isSelectionMode) {
+                provider.toggleSelection(note.id);
+              } else {
+                _openEditor(note);
+              }
+            },
+            child: NoteCard(
+              note: note,
+              searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
+            ),
+          ),
         ),
       ),
     );
   }
-
   // ── APP BAR THEO THIẾT KẾ MỚI (CỦA BẠN YÊU CẦU) ──
   // ── APP BAR THEO THIẾT KẾ MỚI ──
   AppBar _normalAppBar() {
@@ -221,47 +251,11 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 0,
       backgroundColor: Colors.transparent,
 
-      // 1. GÓC TRÁI: Menu 3 chấm (Thùng rác, Cài đặt)
-      leading: PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert, color: Colors.black87), // Dấu 3 chấm dọc
-        tooltip: 'Menu',
-        offset: const Offset(0, 40), // Đẩy menu đổ xuống dưới icon một chút
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        onSelected: (value) {
-          if (value == 'trash') {
-            // TODO: Màn hình thùng rác
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng Thùng rác đang được phát triển')),
-            );
-          } else if (value == 'settings') {
-            // TODO: Màn hình cài đặt
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng Cài đặt đang được phát triển')),
-            );
-          }
-        },
-        itemBuilder: (BuildContext context) => [
-          const PopupMenuItem<String>(
-            value: 'trash',
-            child: Row(
-              children: [
-                Icon(Icons.delete_outline, color: Colors.black87, size: 20),
-                SizedBox(width: 12),
-                Text('Thùng rác'),
-              ],
-            ),
-          ),
-          const PopupMenuItem<String>(
-            value: 'settings',
-            child: Row(
-              children: [
-                Icon(Icons.settings_outlined, color: Colors.black87, size: 20),
-                SizedBox(width: 12),
-                Text('Cài đặt'),
-              ],
-            ),
-          ),
-        ],
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu, color: Colors.black87),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
       ),
 
       // 2. CHÍNH GIỮ: Ô Tìm Kiếm (Search Box) tinh gọn
@@ -302,9 +296,27 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, auth, child) => PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'logout') {
+                final userId = auth.userId; // Lấy userId trước khi đăng xuất
+
+                // 1. Đăng xuất khỏi Firebase Auth
                 await auth.signOut();
-                if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
+
+                // 2. Dọn dẹp dữ liệu thông qua Provider
+                if (context.mounted && userId != null) {
+                  final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+                  // Xóa vật lý dưới CSDL Local
+                  await noteProvider.clearLocalData(userId);
+
+                  // Xóa dữ liệu rác trên RAM (UI)
+                  noteProvider.clearNotes();
+
+                  // Chuyển về màn hình Login và xóa lịch sử
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        (Route<dynamic> route) => false,
+                  );
                 }
               }
             },
@@ -372,8 +384,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red),
-          tooltip: 'Xóa hàng loạt',
-          onPressed: () => _confirmDeleteSelected(provider),
+          tooltip: 'Chuyển vào thùng rác',
+          onPressed: () => _moveToTrashSelected(provider),
         ),
       ],
     );

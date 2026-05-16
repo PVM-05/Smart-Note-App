@@ -89,6 +89,7 @@ class Note {
     String? content,
     String? status,
     bool? isSynced,
+    DateTime? updatedAt
   }) =>
       Note(
         id: id,
@@ -98,6 +99,6 @@ class Note {
         status: status ?? this.status,
         isSynced: isSynced ?? this.isSynced,
         createdAt: createdAt,
-        updatedAt: DateTime.now(), // luôn cập nhật updatedAt khi copyWith
+        updatedAt: updatedAt ?? DateTime.now(), // luôn cập nhật updatedAt khi copyWith
       );
 }
