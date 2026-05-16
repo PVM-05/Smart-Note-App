@@ -123,7 +123,7 @@ class _TrashScreenState extends State<TrashScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Material(
-          color: isSelected ? _primary.withOpacity(0.05) : Colors.white,
+          color: isSelected ? _primary.withValues(alpha: 0.05) : Colors.white,
           child: InkWell(
             // NHẤN GIỮ: Bật chế độ chọn
             onLongPress: () {

@@ -88,7 +88,7 @@ class MainDrawer extends StatelessWidget {
           ),
         ),
         selected: isSelected,
-        selectedTileColor: const Color(0xFF2E75B6).withOpacity(0.1),
+        selectedTileColor: const Color(0xFF2E75B6).withValues(alpha: 0.1),
         onTap: onTap,
       ),
     );

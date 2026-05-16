@@ -5,12 +5,33 @@ import '../models/note_model.dart';
 class NoteCard extends StatelessWidget {
   final Note note;
   final String? searchQuery;
+  final VoidCallback? onMenuPressed;
 
   const NoteCard({
     super.key,
     required this.note,
     this.searchQuery,
+    this.onMenuPressed,
   });
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'th 1', 'th 2', 'th 3', 'th 4', 'th 5', 'th 6',
+      'th 7', 'th 8', 'th 9', 'th 10', 'th 11', 'th 12'
+    ];
+    return 'Ngày ${date.day} ${months[date.month - 1]}, ${date.year}';
+  }
+
+  Color _getNoteColor(String id) {
+    final colors = [
+      const Color(0xFFFFD8A8), // Cam nhạt
+      const Color(0xFFA2D2FF), // Xanh dương nhạt
+      const Color(0xFFC1E1C1), // Xanh lá nhạt
+      const Color(0xFFFDE2E4), // Hồng nhạt
+      const Color(0xFFFEFAE0), // Vàng nhạt
+    ];
+    return colors[id.hashCode % colors.length];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,34 +41,49 @@ class NoteCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── PHẦN HEADER: TIÊU ĐỀ & ICON GHIM ──
+          // ── HEADER: TIÊU ĐỀ & MENU ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: note.title.isNotEmpty
-                    ? _buildHighlightedText(
-                  note.title,
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
-                  ),
-                  maxLines: 3,
-                )
-                    : const SizedBox.shrink(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (note.title.isNotEmpty)
+                      _buildHighlightedText(
+                        note.title,
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                        maxLines: 2,
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatDate(note.updatedAt),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              if (note.status == 'pinned') ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.push_pin_rounded, size: 18, color: Color(0xFF2E75B6)),
-              ]
+              if (onMenuPressed != null)
+                IconButton(
+                  icon: const Icon(Icons.more_vert, size: 20, color: Color(0xFF94A3B8)),
+                  onPressed: onMenuPressed,
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                ),
             ],
           ),
 
           if (note.title.isNotEmpty && note.content.isNotEmpty)
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-          // ── PHẦN NỘI DUNG ──
+          // ── NỘI DUNG ──
           if (note.content.isNotEmpty)
             _buildHighlightedText(
               note.content,
@@ -56,29 +92,45 @@ class NoteCard extends StatelessWidget {
                 color: const Color(0xFF475569),
                 height: 1.5,
               ),
-              maxLines: 8,
+              maxLines: 6,
             ),
 
-          // ── PHẦN FOOTER: TRẠNG THÁI ĐỒNG BỘ ──
-          if (!note.isSynced) ...[
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(
-                  Icons.cloud_upload_outlined,
-                  size: 16,
-                  color: Colors.grey.shade400,
+          const SizedBox(height: 12),
+
+          // ── FOOTER: TRẠNG THÁI & CHẤM MÀU ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (note.status == 'pinned')
+                const Padding(
+                  padding: EdgeInsets.only(right: 8.0),
+                  child: Icon(Icons.push_pin_rounded, size: 14, color: Color(0xFF2E75B6)),
                 ),
-              ],
-            ),
-          ]
+              if (!note.isSynced)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Icon(
+                    Icons.cloud_upload_outlined,
+                    size: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              // Chấm màu đại diện theo thiết kế mới
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: _getNoteColor(note.id),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          )
         ],
       ),
     );
   }
 
-  // Khung xử lý Highlight từ khóa của bạn
   Widget _buildHighlightedText(
       String text, {
         required TextStyle style,
@@ -118,7 +170,7 @@ class NoteCard extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
         style: style.copyWith(
-          backgroundColor: Colors.yellow.shade300,
+          backgroundColor: Colors.yellow.shade200,
           color: Colors.black87,
         ),
       ));
