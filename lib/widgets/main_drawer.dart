@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../screens/home_screen.dart';
-import '../screens/trash_screen.dart';
+import '../screens/main_shell.dart';
 
 class MainDrawer extends StatelessWidget {
   final String currentRoute;
@@ -35,10 +34,10 @@ class MainDrawer extends StatelessWidget {
             onTap: () {
               Navigator.pop(context); // Đóng drawer trước
               if (currentRoute != '/home') {
-                // Điều hướng về Home an toàn bằng MaterialPageRoute
+                // Điều hướng về Home an toàn
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  MaterialPageRoute(builder: (context) => const MainShell(initialIndex: 0)),
                 );
               }
             },
@@ -56,7 +55,7 @@ class MainDrawer extends StatelessWidget {
                 // Điều hướng sang Thùng rác an toàn
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (context) => const TrashScreen()),
+                  MaterialPageRoute(builder: (context) => const MainShell(initialIndex: 1)),
                 );
               }
             },
@@ -88,7 +87,7 @@ class MainDrawer extends StatelessWidget {
           ),
         ),
         selected: isSelected,
-        selectedTileColor: const Color(0xFF2E75B6).withOpacity(0.1),
+        selectedTileColor: const Color(0xFF2E75B6).withValues(alpha: 0.1),
         onTap: onTap,
       ),
     );

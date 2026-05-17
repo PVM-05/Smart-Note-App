@@ -30,10 +30,12 @@
 flowchart TB
     subgraph UI["🖥️ UI Layer (screens/ + widgets/)"]
         direction LR
+        MS[MainShell\n(Bottom Nav)]
         HS[HomeScreen]
         ES[EditorScreen]
         DS[DetailScreen]
         SS[SettingsScreen]
+        MS --> HS
     end
 
     subgraph STATE["⚙️ State Layer (providers/)"]
@@ -96,7 +98,7 @@ graph LR
     ROOT --> PROVIDERS["📁 providers/\n─ NoteProvider\n─ AuthProvider\n─ SyncProvider\n─ ThemeProvider"]
     ROOT --> REPOS["📁 repositories/\n─ NoteRepository (abstract)\n─ UserRepository (abstract)\n─ SyncRepository (abstract)"]
     ROOT --> SERVICES["📁 services/\n─ LocalNoteService\n─ FirestoreService\n─ StorageService\n─ SyncService\n─ BiometricService"]
-    ROOT --> SCREENS["📁 screens/\n─ SplashScreen\n─ HomeScreen\n─ EditorScreen\n─ DetailScreen\n─ ArchiveScreen\n─ TrashScreen\n─ SettingsScreen"]
+    ROOT --> SCREENS["📁 screens/\n─ SplashScreen\n─ MainShell\n─ HomeScreen\n─ EditorScreen\n─ DetailScreen\n─ ArchiveScreen\n─ TrashScreen\n─ SettingsScreen"]
     ROOT --> WIDGETS["📁 widgets/\n─ NoteCard\n─ TagChip\n─ AudioPlayer\n─ SyncStatusIcon\n─ FABAdaptive"]
     ROOT --> UTILS["📁 utils/\n─ ImageCompressor\n─ DateFormatter\n─ ConnectivityHelper\n─ DataPrinter (Generic)"]
 
@@ -522,18 +524,16 @@ flowchart TD
     SPLASH[🚀 SplashScreen\n2s animation] --> AUTH_CHECK{Đã\nđăng nhập?}
 
     AUTH_CHECK -- Không --> LOGIN[🔐 LoginScreen\nGoogle / Email]
-    LOGIN --> HOME[🏠 HomeScreen\nStaggered Grid\n🔍 Search inline - AppBar]
+    LOGIN --> MAIN_SHELL[📱 MainShell\nBottom Navigation]
+    MAIN_SHELL --> HOME[🏠 HomeScreen\nStaggered Grid\n🔍 Search inline - AppBar]
+    MAIN_SHELL --> TRASH[🗑️ TrashScreen]
 
-    AUTH_CHECK -- Có --> HOME
+    AUTH_CHECK -- Có --> MAIN_SHELL
 
     HOME --> EDITOR_NEW[📝 EditorScreen\nTạo ghi chú mới]
     HOME --> DETAIL[👁️ DetailScreen\nXem chi tiết]
-    HOME --> MENU[☰ Navigation Drawer]
 
-    MENU --> ARCHIVE[🗄️ ArchiveScreen]
-    MENU --> TRASH[🗑️ TrashScreen]
-    MENU --> TAGS[🏷️ TagManagerScreen]
-    MENU --> SETTINGS[⚙️ SettingsScreen]
+    TRASH --> SETTINGS[⚙️ SettingsScreen\n(Tương lai)]
 
     DETAIL --> EDITOR_EDIT[📝 EditorScreen\nChỉnh sửa]
     DETAIL --> BIO[🔒 BiometricPrompt\n(nếu isLocked=true)]

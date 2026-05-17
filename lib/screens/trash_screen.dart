@@ -62,7 +62,7 @@ class _TrashScreenState extends State<TrashScreen> {
         final isSelectionMode = provider.isTrashSelectionMode;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: const Color(0xFFF8FAFC),
           drawer: const MainDrawer(currentRoute: '/trash'),
 
           // Chuyển mạch AppBar tùy theo trạng thái chọn
@@ -123,7 +123,7 @@ class _TrashScreenState extends State<TrashScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Material(
-          color: isSelected ? _primary.withOpacity(0.05) : Colors.white,
+          color: isSelected ? _primary.withValues(alpha: 0.05) : Colors.white,
           child: InkWell(
             // NHẤN GIỮ: Bật chế độ chọn
             onLongPress: () {
@@ -150,8 +150,9 @@ class _TrashScreenState extends State<TrashScreen> {
   // APPBAR BÌNH THƯỜNG
   AppBar _normalAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       elevation: 0,
+      automaticallyImplyLeading: false,
       leading: Builder(
         builder: (context) => IconButton(
           icon: const Icon(Icons.menu, color: Colors.black87),
@@ -253,9 +254,35 @@ class _TrashScreenState extends State<TrashScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.delete_outline, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          const Text('Thùng rác trống', style: TextStyle(color: Colors.grey)),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.delete_outline,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Thùng rác trống',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Không có ghi chú nào bị xóa gần đây.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+            ),
+          ),
         ],
       ),
     );
