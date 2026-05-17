@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../screens/main_shell.dart';
+import '../screens/home_screen.dart';
+import '../screens/trash_screen.dart';
+
 
 class MainDrawer extends StatelessWidget {
   final String currentRoute;
@@ -32,12 +34,11 @@ class MainDrawer extends StatelessWidget {
             label: 'Ghi chú',
             isSelected: currentRoute == '/home',
             onTap: () {
-              Navigator.pop(context); // Đóng drawer trước
+              Navigator.pop(context);
               if (currentRoute != '/home') {
-                // Điều hướng về Home an toàn
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (context) => const MainShell(initialIndex: 0)),
+                  MaterialPageRoute(builder: (_) => const HomeScreen()),
                 );
               }
             },
@@ -50,12 +51,11 @@ class MainDrawer extends StatelessWidget {
             label: 'Thùng rác',
             isSelected: currentRoute == '/trash',
             onTap: () {
-              Navigator.pop(context); // Đóng drawer trước
+              Navigator.pop(context);
               if (currentRoute != '/trash') {
-                // Điều hướng sang Thùng rác an toàn
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (context) => const MainShell(initialIndex: 1)),
+                  MaterialPageRoute(builder: (_) => const TrashScreen()),
                 );
               }
             },
