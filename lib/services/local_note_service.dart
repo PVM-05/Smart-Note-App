@@ -48,8 +48,11 @@ class LocalNoteService {
   Future<void> insertNote(Note note) async {
     if (kIsWeb) {
       final i = _webNotes.indexWhere((n) => n.id == note.id);
-      if (i != -1) _webNotes[i] = note;
-      else _webNotes.add(note);
+      if (i != -1) {
+        _webNotes[i] = note;
+      } else {
+        _webNotes.add(note);
+      }
       return;
     }
     final database = await db;
