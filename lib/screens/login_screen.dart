@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 // import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/connectivity_helper.dart';
 import 'syncing_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -144,15 +145,35 @@ class _LoginScreenState extends State<LoginScreen> {
                             () => _obscurePassword = !_obscurePassword,
                           ),
                         ),
+                        // Thay thế khối if (auth.error != null) cũ bằng đoạn này:
                         if (auth.error != null) ...[
                           const SizedBox(height: 16),
-                          Text(
-                            auth.error!,
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 13,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.red.shade200),
                             ),
-                            textAlign: TextAlign.center,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.error_outline_rounded,
+                                    color: Colors.red.shade700, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    auth.error!,
+                                    style: GoogleFonts.outfit(
+                                      color: Colors.red.shade800,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                         const SizedBox(height: 32),
@@ -316,19 +337,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // AUTH: LOGIC ĐĂNG NHẬP VÀ ĐĂNG KÝ
   // Data Flow: Email/Pass -> AuthProvider -> Firebase Auth -> Firestore Profile -> SyncingScreen
+  // AUTH: LOGIC ĐĂNG NHẬP VÀ ĐĂNG KÝ
   Future<void> _handleLogin(BuildContext context, AuthProvider auth) async {
+    // 1. Kiểm tra mạng ngay lập tức
+    final isOnline = await ConnectivityHelper().isOnline();
+    if (!isOnline) {
+      auth.setError('Không có kết nối mạng.');
+      return;
+    }
+
+    // 2. Validate input
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      auth.setError('Vui lòng nhập đầy đủ thông tin');
+      auth.setError('Vui lòng nhập đầy đủ Email và Mật khẩu.');
       return;
     }
 
+    // 3. Tiến hành gọi Firebase
     final success = _isLogin
         ? await auth.signInWithEmail(email, password)
         : await auth.registerWithEmail(email, password);
 
+    // 4. Chuyển trang nếu thành công
     if (success && context.mounted) {
       Navigator.pushReplacement(
         context,

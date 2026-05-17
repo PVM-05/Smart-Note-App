@@ -127,15 +127,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ==================================================================
-  // 🔐 AUTH LOGIC: EMAIL SIGN IN
-  // DATA FLOW: FE (Input) -> Firebase Auth (Validate) -> Update _user
-  // ==================================================================
-  // ==================================================================
-  // 🔐 AUTH LOGIC: EMAIL SIGN IN
-  // DATA FLOW: FE (Input) -> Firebase Auth (Validate) -> Update _user
-  // ==================================================================
-  // ✅ EMAIL LOGIN (FIX - Dùng Firebase trực tiếp)
+  // ✅ EMAIL LOGIN
   Future<bool> signInWithEmail(String email, String password) async {
     _isLoading = true;
     _error = null;
@@ -149,25 +141,10 @@ class AuthProvider extends ChangeNotifier {
       log('✅ Email login: ${_user?.uid}');
       return true;
     } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'user-not-found':
-          _error = 'Không tìm thấy tài khoản';
-          break;
-        case 'wrong-password':
-          _error = 'Sai mật khẩu';
-          break;
-        case 'invalid-email':
-          _error = 'Email không hợp lệ';
-          break;
-        case 'user-disabled':
-          _error = 'Tài khoản đã bị vô hiệu hóa';
-          break;
-        default:
-          _error = 'Lỗi đăng nhập: ${e.message}';
-      }
+      _error = _translateAuthError(e.code); // Dùng hàm dịch lỗi
       return false;
     } catch (e) {
-      _error = 'Lỗi không xác định: $e';
+      _error = 'Đã xảy ra lỗi không xác định. Vui lòng thử lại.';
       return false;
     } finally {
       _isLoading = false;
@@ -175,16 +152,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ==================================================================
-  // 🔐 AUTH LOGIC: EMAIL REGISTER
-  // DATA FLOW: FE (Input) -> Firebase Auth (Create) -> [TODO: Create Firestore Profile] -> Update _user
-  // LƯU Ý: Bước tạo Profile trên Firestore nên được gọi ở layer sau khi đăng ký thành công.
-  // ==================================================================
-  // ==================================================================
-  // 🔐 AUTH LOGIC: EMAIL REGISTER
-  // DATA FLOW: FE (Input) -> Firebase Auth (Create) -> Update _user
-  // ==================================================================
-  // ✅ REGISTER (FIX - Firebase trực tiếp)
+  // ✅ REGISTER
   Future<bool> registerWithEmail(String email, String password) async {
     _isLoading = true;
     _error = null;
@@ -193,34 +161,48 @@ class AuthProvider extends ChangeNotifier {
     try {
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-            email: email.trim(),
-            password: password,
-          );
+        email: email.trim(),
+        password: password,
+      );
       _user = userCredential.user;
       if (_user != null) await _syncUserProfile(_user!);
       log('✅ Register: ${_user?.uid}');
       return true;
     } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'email-already-in-use':
-          _error = 'Email đã được sử dụng';
-          break;
-        case 'weak-password':
-          _error = 'Mật khẩu quá yếu (ít nhất 6 ký tự)';
-          break;
-        case 'invalid-email':
-          _error = 'Email không hợp lệ';
-          break;
-        default:
-          _error = 'Lỗi đăng ký: ${e.message}';
-      }
+      _error = _translateAuthError(e.code); // Dùng hàm dịch lỗi
       return false;
     } catch (e) {
-      _error = 'Lỗi không xác định: $e';
+      _error = 'Đã xảy ra lỗi không xác định. Vui lòng thử lại.';
       return false;
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // 📝 HÀM DỊCH MÃ LỖI FIREBASE SANG TIẾNG VIỆT
+  String _translateAuthError(String errorCode) {
+    switch (errorCode) {
+      case 'user-not-found':
+        return 'Tài khoản không tồn tại. Vui lòng kiểm tra lại email.';
+      case 'wrong-password':
+        return 'Mật khẩu không chính xác.';
+      case 'invalid-credential':
+        return 'Email hoặc mật khẩu không chính xác.';
+      case 'invalid-email':
+        return 'Định dạng email không hợp lệ.';
+      case 'user-disabled':
+        return 'Tài khoản này đã bị vô hiệu hóa.';
+      case 'email-already-in-use':
+        return 'Email này đã được sử dụng cho một tài khoản khác.';
+      case 'weak-password':
+        return 'Mật khẩu quá yếu (cần ít nhất 6 ký tự).';
+      case 'network-request-failed':
+        return 'Không có kết nối mạng. Vui lòng kiểm tra lại WiFi/4G.';
+      case 'too-many-requests':
+        return 'Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau một lát.';
+      default:
+        return 'Lỗi đăng nhập: $errorCode';
     }
   }
 
