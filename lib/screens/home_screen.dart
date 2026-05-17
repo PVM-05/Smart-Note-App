@@ -28,13 +28,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = Provider.of<AuthProvider>(context, listen: false);
+
       if (auth.isAuthenticated) {
+        // 1. Kéo dữ liệu Profile (Tên, Ảnh đại diện) về trước
+        await auth.reloadUserData();
+
+        // 2. Sau đó mới ra lệnh kéo Note để không bị xung đột màn hình
         final noteProvider = Provider.of<NoteProvider>(context, listen: false);
-
-        // Thêm await để ép buộc đợi nạp xong Note thường và kéo data từ Cloud về SQLite hoàn tất
         await noteProvider.fetchNotes(auth.userId!);
-
-        // Đợi xong bước trên mới bắt đầu quét dữ liệu rác trong SQLite lên UI
         await noteProvider.fetchTrashNotes(auth.userId!);
       }
     });

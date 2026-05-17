@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../repositories/sync_repository.dart';
-import 'main_shell.dart';
+import 'home_screen.dart';
+
 
 class SyncingScreen extends StatefulWidget {
   const SyncingScreen({super.key});
@@ -58,10 +59,9 @@ class _SyncingScreenState extends State<SyncingScreen> {
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const MainShell(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
+          pageBuilder: (_, __, ___) => const HomeScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 800),
         ),
       );
@@ -71,7 +71,10 @@ class _SyncingScreenState extends State<SyncingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi đồng bộ: $e. Tiếp tục vào Home.')),
         );
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const MainShell()));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
       }
     }
   }

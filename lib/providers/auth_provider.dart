@@ -5,8 +5,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/local_note_service.dart';
 
-
-
 class AuthProvider extends ChangeNotifier {
   User? _user;
   bool _isLoading = false;
@@ -34,6 +32,9 @@ class AuthProvider extends ChangeNotifier {
     FirebaseAuth.instance.authStateChanges().listen((User? user) {
       _user = user;
       _error = null;
+      if (user == null) {
+        _userData = null; // Xóa data khi đăng xuất
+      }
       notifyListeners();
     });
   }
@@ -56,6 +57,33 @@ class AuthProvider extends ChangeNotifier {
       _userData = snapshot.data();
     }
     notifyListeners();
+  }
+
+  /// Reload lại userData từ Firestore sau khi cập nhật profile
+  Future<void> reloadUserData() async {
+    final currentUser = _user;
+    if (currentUser == null) return;
+    try {
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(currentUser.uid);
+      final snapshot = await userDoc.get();
+
+      if (!snapshot.exists) {
+        // Tạo mới profile nếu trên Firestore chưa có
+        await userDoc.set({
+          'email': currentUser.email,
+          'displayName': currentUser.displayName ?? '',
+          'photoUrl': currentUser.photoURL ?? '',
+          'bio': '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        _userData = (await userDoc.get()).data();
+      } else {
+        _userData = snapshot.data();
+      }
+      notifyListeners();
+    } catch (e) {
+      log('❌ reloadUserData error: $e');
+    }
   }
 
   // ==================================================================

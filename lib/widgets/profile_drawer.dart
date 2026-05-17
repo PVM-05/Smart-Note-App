@@ -1,197 +1,176 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../screens/profile_screen.dart';
 import '../screens/login_screen.dart';
 
-class ProfileDrawer extends StatefulWidget {
+class ProfileDrawer extends StatelessWidget {
   const ProfileDrawer({super.key});
-
-  @override
-  State<ProfileDrawer> createState() => _ProfileDrawerState();
-}
-
-class _ProfileDrawerState extends State<ProfileDrawer> {
-  int _currentPage = 0;
 
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
+    final photoUrl = auth.userData?['photoUrl'] ?? '';
+    final displayName = auth.userData?['displayName'] ?? 'Người dùng';
+    final email = auth.email ?? '';
 
     return Drawer(
-      // Độ rộng chiếm 85% màn hình tạo cảm giác như một trang riêng trượt ra
-      width: MediaQuery.of(context).size.width * 0.85,
+      width: MediaQuery.of(context).size.width * 0.82,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(left: Radius.circular(0)),
+      ),
       child: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ── KHU VỰC HEADER CUSTOM THEO YÊU CẦU ──
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Stack(
-                alignment: Alignment.topCenter,
-                children: [
-                  // 1. Dấu X ở góc phải để thoát
-                  Positioned(
-                    top: 0,
-                    right: 8,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.black54),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ),
-
-                  // Khối thông tin xếp dọc chính giữa
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 12), // Tạo khoảng cách với lề trên
-
-                      // 2. Trên cùng là tên email
-                      Text(
-                        auth.email ?? 'example@gmail.com',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 3. Dưới email là avatar
-                      CircleAvatar(
-                        radius: 44,
-                        backgroundColor: const Color(0xFF2E75B6),
-                        child: Text(
-                          auth.email?.substring(0, 1).toUpperCase() ?? 'U',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 4. Dưới cùng là tên tài khoản
-                      Text(
-                        auth.userData?['displayName'] ?? 'Người dùng',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+            // ── CLOSE BUTTON ──
+            Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.black54),
+                onPressed: () => Navigator.pop(context),
               ),
             ),
 
-            const SizedBox(height: 16),
-            const Divider(height: 1),
             const SizedBox(height: 8),
 
-            // ── DANH SÁCH MENU CHỨC NĂNG BÊN DƯỚI ──
-            _buildMenuItem(
-              icon: Icons.account_circle_outlined,
-              label: 'Quản lý tài khoản của bạn',
-              onTap: () {
-                Navigator.pop(context); // Đóng drawer trước khi chuyển trang
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                );
-              },
+            // ── AVATAR ──
+            CircleAvatar(
+              radius: 42,
+              backgroundColor: const Color(0xFF2E75B6),
+              backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+              child: photoUrl.isEmpty
+                  ? Text(
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
+                style: GoogleFonts.outfit(
+                    fontSize: 30, color: Colors.white, fontWeight: FontWeight.bold),
+              )
+                  : null,
             ),
-            const Spacer(),
-            const Divider(height: 1),
-            _buildMenuItem(
-              icon: Icons.logout,
-              label: 'Đăng xuất',
-              textColor: Colors.redAccent,
-              iconColor: Colors.redAccent,
-              onTap: () async {
-                Navigator.pop(context);
-                final userId = auth.userId;
-                await auth.signOut();
-                if (context.mounted && userId != null) {
-                  final noteProvider = Provider.of<NoteProvider>(context, listen: false);
-                  await noteProvider.clearLocalData(userId);
-                  noteProvider.clearNotes();
-                  Navigator.pushAndRemoveUntil(
+
+            const SizedBox(height: 12),
+
+            // ── TÊN ──
+            Text(
+              displayName,
+              style: GoogleFonts.outfit(
+                  fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black87),
+            ),
+
+            const SizedBox(height: 4),
+
+            // ── EMAIL ──
+            Text(
+              email,
+              style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[500]),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── QUẢN LÝ TÀI KHOẢN ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                        (Route<dynamic> route) => false,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
                   );
-                }
-              },
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: const BorderSide(color: Color(0xFFDADADA)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.manage_accounts_outlined,
+                        size: 18, color: Colors.black54),
+                    const SizedBox(width: 8),
+                    Text('Quản lý tài khoản',
+                        style: GoogleFonts.outfit(
+                            fontSize: 14, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
+
+            const Spacer(),
+
+            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+
+            // ── ĐĂNG XUẤT ──
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
+              title: Text(
+                'Đăng xuất',
+                style: GoogleFonts.outfit(
+                    color: Colors.red, fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+              onTap: () => _signOut(context, auth),
+            ),
+
+            const SizedBox(height: 8),
           ],
         ),
       ),
     );
   }
 
-  // Khối hỗ trợ vẽ thẻ vuốt ngang tinh gọn
-  Widget _buildSwipeableCard({
-    required String title,
-    required String desc,
-    required Color cardColor,
-    required IconData icon,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: const Color(0xFF2E75B6)),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            desc,
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+  Future<void> _signOut(BuildContext context, AuthProvider auth) async {
+    // 1. Lưu lại NavigatorState và Provider TRƯỚC KHI đóng Drawer
+    final navigator = Navigator.of(context);
+    final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+    final userId = auth.userId;
+
+    // 2. Đóng Drawer
+    navigator.pop();
+
+    // 3. Hiển thị Dialog (dùng navigator.context để đảm bảo context còn sống)
+    final confirm = await showDialog<bool>(
+      context: navigator.context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Đăng xuất?',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Text('Bạn có chắc muốn đăng xuất không?',
+            style: GoogleFonts.outfit()),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Hủy', style: GoogleFonts.outfit())),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Đăng xuất',
+                style: GoogleFonts.outfit(
+                    color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
-  }
 
-  // Khối hỗ trợ tạo danh sách nút bấm đồng bộ thiết kế
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color textColor = Colors.black87,
-    Color iconColor = Colors.black54,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        leading: Icon(icon, color: iconColor),
-        title: Text(
-          label,
-          style: TextStyle(color: textColor, fontWeight: FontWeight.w500, fontSize: 15),
-        ),
-        onTap: onTap,
-      ),
+    // Nếu người dùng hủy thì dừng lại
+    if (confirm != true) return;
+
+    // 4. Thực hiện đăng xuất ở Firebase/Google
+    await auth.signOut();
+
+    // 5. Xóa dữ liệu local và điều hướng về LoginScreen
+    if (userId != null) {
+      noteProvider.clearLocalData(userId);
+      noteProvider.clearNotes();
+    }
+
+    // pushAndRemoveUntil sẽ xóa toàn bộ lịch sử trang (kể cả HomeScreen)
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (_) => false,
     );
   }
 }

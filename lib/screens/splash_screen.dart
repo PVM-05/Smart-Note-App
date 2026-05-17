@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
-import 'main_shell.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -43,11 +43,10 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, anim, secondAnim) =>
-              auth.isAuthenticated ? const MainShell() : const LoginScreen(),
-          transitionsBuilder: (context, anim, secondAnim, child) {
-            return FadeTransition(opacity: anim, child: child);
-          },
+          pageBuilder: (_, __, ___) =>
+          auth.isAuthenticated ? const HomeScreen() : const LoginScreen(),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 800),
         ),
       );
