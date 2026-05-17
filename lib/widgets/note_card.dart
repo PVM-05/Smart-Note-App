@@ -6,12 +6,14 @@ class NoteCard extends StatelessWidget {
   final Note note;
   final String? searchQuery;
   final VoidCallback? onMenuPressed;
+  final bool isGrid;
 
   const NoteCard({
     super.key,
     required this.note,
     this.searchQuery,
     this.onMenuPressed,
+    this.isGrid = true,
   });
 
   String _formatDate(DateTime date) {
@@ -22,13 +24,14 @@ class NoteCard extends StatelessWidget {
     return 'Ngày ${date.day} ${months[date.month - 1]}, ${date.year}';
   }
 
-  Color _getNoteColor(String id) {
+  static Color getNoteColor(String id) {
+    // Bảng màu sắp xếp tương phản (đối diện trên bánh xe màu)
     final colors = [
-      const Color(0xFFFFD8A8), // Cam nhạt
-      const Color(0xFFA2D2FF), // Xanh dương nhạt
-      const Color(0xFFC1E1C1), // Xanh lá nhạt
-      const Color(0xFFFDE2E4), // Hồng nhạt
-      const Color(0xFFFEFAE0), // Vàng nhạt
+      const Color(0xFFEF9A9A), // Đỏ nhạt
+      const Color(0xFF90CAF9), // Xanh dương nhạt (đối lập đỏ)
+      const Color(0xFFFFE082), // Vàng nhạt
+      const Color(0xFFA5D6A7), // Xanh lá nhạt (đối lập vàng/cam)
+      const Color(0xFFFFAB91), // Cam nhạt (đối lập xanh dương)
     ];
     return colors[id.hashCode % colors.length];
   }
@@ -53,17 +56,19 @@ class NoteCard extends StatelessWidget {
                       _buildHighlightedText(
                         note.title,
                         style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1E293B),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1A202C),
+                          letterSpacing: -0.3,
                         ),
                         maxLines: 2,
                       ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       _formatDate(note.updatedAt),
                       style: GoogleFonts.outfit(
-                        fontSize: 12,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
                         color: const Color(0xFF94A3B8),
                       ),
                     ),
@@ -72,7 +77,7 @@ class NoteCard extends StatelessWidget {
               ),
               if (onMenuPressed != null)
                 IconButton(
-                  icon: const Icon(Icons.more_vert, size: 20, color: Color(0xFF94A3B8)),
+                  icon: const Icon(Icons.more_vert, size: 18, color: Color(0xFF94A3B8)),
                   onPressed: onMenuPressed,
                   constraints: const BoxConstraints(),
                   padding: EdgeInsets.zero,
@@ -81,51 +86,36 @@ class NoteCard extends StatelessWidget {
           ),
 
           if (note.title.isNotEmpty && note.content.isNotEmpty)
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
           // ── NỘI DUNG ──
           if (note.content.isNotEmpty)
             _buildHighlightedText(
               note.content,
               style: GoogleFonts.outfit(
-                fontSize: 14,
-                color: const Color(0xFF475569),
-                height: 1.5,
+                fontSize: 13,
+                color: const Color(0xFF475569).withValues(alpha: 0.85),
+                height: 1.55,
               ),
               maxLines: 6,
             ),
 
-          const SizedBox(height: 12),
-
-          // ── FOOTER: TRẠNG THÁI & CHẤM MÀU ──
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (note.status == 'pinned')
-                const Padding(
-                  padding: EdgeInsets.only(right: 8.0),
-                  child: Icon(Icons.push_pin_rounded, size: 14, color: Color(0xFF2E75B6)),
-                ),
-              if (!note.isSynced)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: Icon(
-                    Icons.cloud_upload_outlined,
-                    size: 14,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-              // Chấm màu đại diện theo thiết kế mới
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: _getNoteColor(note.id),
-                  shape: BoxShape.circle,
-                ),
+          // ── FOOTER: TRẠNG THÁI ──
+          if (note.status == 'pinned' || !note.isSynced)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                children: [
+                  if (note.status == 'pinned')
+                    const Icon(Icons.push_pin_rounded, size: 13, color: Color(0xFF2E75B6)),
+                  if (!note.isSynced)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Icon(Icons.cloud_upload_outlined, size: 13, color: Colors.grey.shade500),
+                    ),
+                ],
               ),
-            ],
-          )
+            ),
         ],
       ),
     );

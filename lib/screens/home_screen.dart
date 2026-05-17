@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../providers/auth_provider.dart';
@@ -25,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Layout State
   bool _isGrid = true;
-  double _turns = 0.0;
+  bool _isSearchFocused = false;
 
   // Premium Colors
   static const _primary = Color(0xFF2E75B6);
@@ -36,6 +37,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Ngày search bar dược focus/unfocus
+    _searchFocus.addListener(() {
+      setState(() => _isSearchFocused = _searchFocus.hasFocus);
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.isAuthenticated) {
@@ -65,7 +71,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _toggleLayout() {
     setState(() {
       _isGrid = !_isGrid;
-      _turns += 0.5; // Xoay 180 độ
     });
   }
 
@@ -111,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final isSelectionMode = noteProvider.isSelectionMode;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: const Color(0xFFF8FAFC), // Nền xám nhạt
           drawer: const MainDrawer(currentRoute: '/home'),
           appBar: isSelectionMode
               ? _selectionAppBar(noteProvider)
@@ -119,14 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
           body: _buildBody(noteProvider),
           floatingActionButton: isSelectionMode
               ? null
-              : FloatingActionButton(
-                  onPressed: () => _openEditor(null),
-                  backgroundColor: _primary,
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  child: const Icon(Icons.add, color: Colors.white, size: 28),
-                ),
+              : HoverFab(onPressed: () => _openEditor(null)),
         );
       },
     );
@@ -145,73 +143,90 @@ class _HomeScreenState extends State<HomeScreen> {
       automaticallyImplyLeading: false,
       leading: Builder(
         builder: (context) => IconButton(
-          icon: const Icon(Icons.menu_rounded, color: _navy),
+          icon: const Icon(Icons.menu, color: Color(0xFF334155), size: 24),
+          hoverColor: const Color(0xFFF1F5F9), // Light gray hover
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
       title: const Text(
         'Smart Note',
         style: TextStyle(
-          color: _navy,
-          fontSize: 26,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
+          color: Color(0xFF0F172A), // Slate 900
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
         ),
       ),
       actions: [
         // Sync Icon
         Consumer<SyncProvider>(
           builder: (context, syncProvider, child) {
-            IconData icon = Icons.cloud_queue_rounded;
-            Color iconColor = _navy;
+            // Theo UX, dùng nét Medium (cloud_outlined) để cân bằng với font Bold của tiêu đề.
+            IconData icon = Icons.cloud_outlined; 
+            Color iconColor = const Color(0xFF64748B); // Slate gray
+
             if (syncProvider.status == SyncStatus.syncing) {
-              icon = Icons.cloud_sync_rounded;
+              icon = Icons.cloud_sync_outlined;
               iconColor = _primary;
             } else if (syncProvider.status == SyncStatus.error) {
-              icon = Icons.cloud_off_rounded;
-              iconColor = Colors.red;
+              icon = Icons.cloud_off_outlined;
+              iconColor = const Color(0xFFEF4444); // Red
             } else if (syncProvider.status == SyncStatus.success) {
-              icon = Icons.cloud_done_rounded;
-              iconColor = Colors.green;
+              icon = Icons.cloud_done_outlined;
+              iconColor = const Color(0xFF10B981); // Emerald green (như ảnh reference)
             }
             return IconButton(
-              icon: Icon(icon, color: iconColor, size: 26),
+              icon: Icon(icon, color: iconColor, size: 24),
+              hoverColor: const Color(0xFFF1F5F9), // Light gray hover
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => syncProvider.syncNow(),
             );
           },
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
 
         // Grid/List Toggle with Rotation Animation
-        AnimatedRotation(
-          turns: _turns,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOutCubic,
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          transitionBuilder: (child, animation) {
+            final rotateAnim =
+                Tween<double>(begin: -0.25, end: 0.0).animate(animation);
+            return RotationTransition(
+              turns: rotateAnim,
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
           child: IconButton(
+            key: ValueKey(_isGrid),
             icon: Icon(
-              _isGrid ? Icons.grid_view_rounded : Icons.view_agenda_rounded,
-              color: _navy,
-              size: 24,
+              _isGrid ? Icons.grid_view_outlined : Icons.format_list_bulleted_rounded,
+              color: const Color(0xFF64748B), // Slate gray
+              size: 24, 
             ),
+            hoverColor: const Color(0xFFF1F5F9), // Light gray hover
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
             onPressed: _toggleLayout,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
 
         // Circular Avatar
         PopupMenuButton<String>(
-          offset: const Offset(0, 40),
+          offset: const Offset(0, 48),
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           onSelected: (value) async {
             if (value == 'logout') {
               final userId = auth.userId;
               await auth.signOut();
-              if (context.mounted && userId != null) {
-                if (!context.mounted) return;
+              if (mounted && userId != null) {
                 final np = Provider.of<NoteProvider>(context, listen: false);
                 await np.clearLocalData(userId);
-                if (!context.mounted) return;
+                if (!mounted) return;
                 np.clearNotes();
                 Navigator.pushAndRemoveUntil(
                   context,
@@ -226,22 +241,22 @@ class _HomeScreenState extends State<HomeScreen> {
               value: 'logout',
               child: Row(
                 children: [
-                  Icon(Icons.logout, color: Colors.redAccent, size: 20),
-                  SizedBox(width: 8),
-                  Text('Đăng xuất', style: TextStyle(color: Colors.redAccent)),
+                  Icon(Icons.logout, color: Color(0xFFEF4444), size: 20),
+                  SizedBox(width: 12),
+                  Text('Đăng xuất', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
           ],
           child: Padding(
-            padding: const EdgeInsets.only(right: 20),
+            padding: const EdgeInsets.only(right: 16),
             child: CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFF007AFF), // Bright blue
+              radius: 17,
+              backgroundColor: _primary.withValues(alpha: 0.15), // Soft pastel blue
               child: Text(
                 userLetter,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: _primary,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
@@ -250,6 +265,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(65),
+        child: Container(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+          ),
+          padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+          child: _buildSearchBar(),
+        ),
+      ),
     );
   }
 
@@ -300,9 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 2. SEARCH BAR ROW
-            _buildSearchBar(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
 
             if (noteProvider.isSearching && noteProvider.notes.isEmpty) ...[
               const SizedBox(height: 60),
@@ -318,14 +341,58 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               )
             ] else if (noteProvider.notes.isEmpty) ...[
-              const SizedBox(height: 60),
+              const SizedBox(height: 80),
               Center(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.note_add_outlined,
-                        size: 64, color: Colors.grey[300]),
-                    const SizedBox(height: 12),
-                    const Text('Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: _primary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.edit_document,
+                        size: 64,
+                        color: _primary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Chưa có ghi chú nào',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: _navy,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Hãy tạo ghi chú đầu tiên của bạn\nđể bắt đầu quản lý công việc.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        color: const Color(0xFF94A3B8),
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton.icon(
+                      onPressed: () => _openEditor(null),
+                      icon: const Icon(Icons.add, size: 20),
+                      label: const Text('Tạo ghi chú mới'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -356,13 +423,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── COMPONENTS ──
   Widget _buildSearchBar() {
+    final hasText = _searchController.text.isNotEmpty;
+    final isActive = _isSearchFocused || hasText;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        height: 48,
         decoration: BoxDecoration(
-          color: _bgGray,
-          borderRadius: BorderRadius.circular(26), // Bo góc mượt mà
+          color: isActive ? Colors.white : _bgGray,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(
+            color: isActive
+                ? _primary.withValues(alpha: 0.5)
+                : Colors.transparent,
+            width: 1.5,
+          ),
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                    color: _primary.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
         ),
         child: TextField(
           controller: _searchController,
@@ -370,15 +457,29 @@ class _HomeScreenState extends State<HomeScreen> {
           onChanged: _onSearchChanged,
           decoration: InputDecoration(
             hintText: 'Tìm kiếm ghi chú của bạn...',
-            hintStyle: const TextStyle(color: _textGray, fontSize: 15),
-            prefixIcon: const Padding(
-              padding: EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.search_rounded, size: 22, color: _textGray),
+            hintStyle: TextStyle(
+              color: isActive ? const Color(0xFFAEB5BC) : _textGray,
+              fontSize: 15,
             ),
-            suffixIcon: _searchController.text.isNotEmpty
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 14.0),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  Icons.search_rounded,
+                  key: ValueKey(isActive),
+                  size: 22,
+                  color: isActive ? _primary : _textGray,
+                ),
+              ),
+            ),
+            suffixIcon: hasText
                 ? IconButton(
-                    icon: const Icon(Icons.cancel_rounded,
-                        size: 20, color: _textGray),
+                    icon: Icon(
+                      Icons.cancel_rounded,
+                      size: 20,
+                      color: isActive ? _primary.withValues(alpha: 0.6) : _textGray,
+                    ),
                     onPressed: () {
                       _searchController.clear();
                       _onSearchChanged('');
@@ -386,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 : null,
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
           style: const TextStyle(fontSize: 15, color: _navy),
         ),
@@ -396,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategoryLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
       child: Text(
         text.toUpperCase(),
         style: const TextStyle(
@@ -437,9 +538,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return MasonryGridView.count(
       key: key,
       crossAxisCount: 2,
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: notes.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -452,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildListView(List<Note> notes, NoteProvider provider, {Key? key}) {
     return ListView.separated(
       key: key,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: notes.length,
@@ -466,37 +567,36 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildNoteItem(Note note, NoteProvider provider, int index) {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
+    final noteColor = NoteCard.getNoteColor(note.id);
 
-    // Design layout: List -> Viền trái, Grid -> Viền trên
-    final borderStyle = _isGrid
-        ? Border(
-            top: BorderSide(
-                color: isSelected ? _primary : const Color(0xFFE5E5EA),
-                width: 5))
-        : Border(
-            left: BorderSide(
-                color: isSelected ? _primary : const Color(0xFFE5E5EA),
-                width: 5));
+    // Grid: nền đậm hơn (28%) như Stickify | List: nền nhạt hơn (14%) thanh lịch
+    final bgOpacity = _isGrid ? 0.28 : 0.14;
+    final cardColor = isSelected
+        ? _primary.withValues(alpha: 0.15)
+        : noteColor.withValues(alpha: bgOpacity);
 
     final card = Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: borderStyle,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected
+              ? _primary.withValues(alpha: 0.6)
+              : noteColor.withValues(alpha: 0.35),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          )
+            color: noteColor.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(15),
         child: Material(
-          color: isSelected
-              ? _primary.withValues(alpha: 0.08)
-              : Colors.transparent,
+          color: Colors.transparent,
           child: InkWell(
             onLongPress: () => provider.toggleSelection(note.id),
             onTap: () {
@@ -506,20 +606,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 _openEditor(note);
               }
             },
+            splashColor: noteColor.withValues(alpha: 0.3),
+            highlightColor: noteColor.withValues(alpha: 0.15),
             child: NoteCard(
               note: note,
               searchQuery: _searchController.text.isNotEmpty
                   ? _searchController.text
                   : null,
+              isGrid: _isGrid,
+              onMenuPressed: () {
+                ScaffoldMessenger.of(context).clearSnackBars();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Tính năng này đang phát triển')),
+                );
+              },
             ),
           ),
         ),
       ),
     );
 
-    // Hiệu ứng Fade-In bay nhẹ lên
-    return FadeInItem(
-      delay: Duration(milliseconds: index * 40),
+    return WaveStaggerItem(
+      delay: Duration(milliseconds: index * 50),
+      isGrid: _isGrid,
       child: card,
     );
   }
@@ -532,33 +641,64 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── CUSTOM FADE-IN ANIMATION WIDGET ──
-class FadeInItem extends StatefulWidget {
-  final Widget child;
-  final Duration delay;
-
-  const FadeInItem({super.key, required this.child, required this.delay});
+// ── HOVER FAB ──
+class HoverFab extends StatefulWidget {
+  final VoidCallback onPressed;
+  const HoverFab({super.key, required this.onPressed});
 
   @override
-  State<FadeInItem> createState() => _FadeInItemState();
+  State<HoverFab> createState() => _HoverFabState();
 }
 
-class _FadeInItemState extends State<FadeInItem>
+class _HoverFabState extends State<HoverFab> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: _isHovered ? 1.1 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        child: FloatingActionButton(
+          onPressed: widget.onPressed,
+          backgroundColor: _isHovered ? const Color(0xFF1E40AF) : const Color(0xFF2E75B6),
+          elevation: _isHovered ? 6 : 2,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.add, color: Colors.white, size: 28),
+        ),
+      ),
+    );
+  }
+}
+
+// ── CUSTOM WAVE STAGGER ANIMATION WIDGET ──
+class WaveStaggerItem extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+  final bool isGrid;
+
+  const WaveStaggerItem(
+      {super.key,
+      required this.child,
+      required this.delay,
+      required this.isGrid});
+
+  @override
+  State<WaveStaggerItem> createState() => _WaveStaggerItemState();
+}
+
+class _WaveStaggerItemState extends State<WaveStaggerItem>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double> _fade;
-  late Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 500));
-    _fade = Tween<double>(begin: 0, end: 1)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _slide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-
+        vsync: this, duration: const Duration(milliseconds: 300));
     Future.delayed(widget.delay, () {
       if (mounted) _ctrl.forward();
     });
@@ -572,12 +712,35 @@ class _FadeInItemState extends State<FadeInItem>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: widget.child,
-      ),
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, child) {
+        final curve = Curves.easeOutCubic.transform(_ctrl.value);
+        final opacity = Curves.easeOut.transform(_ctrl.value);
+
+        double dx = 0;
+        double dy = 0;
+        double scale = 1.0;
+
+        if (widget.isGrid) {
+          dx = 20.0 * (1 - curve);
+          scale = 0.8 + (0.2 * curve);
+        } else {
+          dy = 20.0 * (1 - curve); // Chỉ trượt từ dưới lên y như bản React
+        }
+
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(dx, dy),
+            child: Transform.scale(
+              scale: scale,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
