@@ -105,7 +105,7 @@ class _SplashScreenState extends State<SplashScreen>
                   opacity: _fadeAnim,
                   child: Text(
                     'SMART NOTE',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 42,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
@@ -116,7 +116,7 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 8),
                 Text(
                   'CAPTURE IDEAS INSTANTLY',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     fontSize: 14,
                     color: Colors.white.withValues(alpha: 0.7),
                     letterSpacing: 2,
@@ -143,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen>
                   const SizedBox(height: 20),
                   Text(
                     'Version 2.0.0',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 12,
                       color: Colors.white24,
                     ),

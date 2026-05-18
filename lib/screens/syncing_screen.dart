@@ -100,7 +100,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                 const SizedBox(height: 32),
                 Text(
                   'Đang đồng bộ dữ liệu',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -109,7 +109,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'Vui lòng chờ trong giây lát...',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     fontSize: 14,
                     color: Colors.white70,
                   ),
@@ -178,7 +178,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                               const SizedBox(width: 16),
                               Text(
                                 _steps[index],
-                                style: GoogleFonts.outfit(
+                                style: GoogleFonts.roboto(
                                   color: Colors.white,
                                   fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
                                 ),
