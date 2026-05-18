@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -32,9 +32,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProxyProvider<AuthProvider, NoteProvider>(
           create: (_) => NoteProvider(NoteRepositoryImpl()),
           update: (context, auth, noteProvider) {
-            if (auth.isAuthenticated && auth.user != null) {
-              noteProvider?.fetchNotes(auth.user!.uid);
-            } else {
+            if (!auth.isAuthenticated || auth.user == null) {
               noteProvider?.clearNotes();
             }
             return noteProvider!;
