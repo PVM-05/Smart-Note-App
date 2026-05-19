@@ -379,17 +379,11 @@ class NoteCard extends StatelessWidget {
     while (true) {
       final index = lowerText.indexOf(lowerQuery, start);
       if (index == -1) {
-        spans.add(TextSpan(
-          text: text.substring(start),
-          style: style,
-        ));
+        spans.add(TextSpan(text: text.substring(start), style: style));
         break;
       }
       if (index > start) {
-        spans.add(TextSpan(
-          text: text.substring(start, index),
-          style: style,
-        ));
+        spans.add(TextSpan(text: text.substring(start, index), style: style));
       }
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),

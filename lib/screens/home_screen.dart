@@ -1,3 +1,4 @@
+// lib/screens/home_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -34,10 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
 
       if (auth.isAuthenticated) {
-        // 1. Kéo dữ liệu Profile (Tên, Ảnh đại diện) về trước
         await auth.reloadUserData();
-
-        // 2. Sau đó mới ra lệnh kéo Note để không bị xung đột màn hình
         final noteProvider = Provider.of<NoteProvider>(context, listen: false);
         await noteProvider.fetchNotes(auth.userId!);
         await noteProvider.fetchTrashNotes(auth.userId!);
@@ -56,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     Provider.of<NoteProvider>(context, listen: false)
         .search(query, auth.userId ?? '');
-    setState(() {}); // Rebuild để cập nhật sự ẩn/hiện của nút xóa nhanh (X)
+    setState(() {});
   }
 
   Future<void> _moveToTrashSelected(NoteProvider provider) async {
@@ -94,6 +92,54 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     }
+  }
+
+  // ── ĐIỀU HƯỚNG HIỂN THỊ HỘP THOẠI CHỌN NHÃN HÀNG LOẠT ──
+  void _showBatchTagDialog(BuildContext context, NoteProvider provider) {
+    final labels = provider.allLabels;
+
+    if (labels.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hệ thống chưa có nhãn nào. Vui lòng tạo nhãn bên trong ghi chú trước.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thêm nhãn dán hàng loạt', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: labels.length,
+            itemBuilder: (context, index) {
+              final label = labels[index];
+              return ListTile(
+                leading: const Icon(Icons.label_outline, size: 20),
+                title: Text(label, style: const TextStyle(fontSize: 14)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await provider.addLabelToSelectedNotes(label);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đã thêm nhãn "$label" cho các ghi chú được chọn')),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -135,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               closedBuilder: (context, openContainer) {
                 return FloatingActionButton(
-                  elevation: 0, // Elevation đã được OpenContainer quản lý
+                  elevation: 0,
                   backgroundColor: Colors.transparent,
                   onPressed: () {
                     if (!isSelectionMode) openContainer();
@@ -180,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(Icons.note_add_outlined, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 12),
-            const Text('Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
+            Text(noteProvider.selectedLabel != null
+                ? 'Không có ghi chú nào thuộc nhãn này'
+                : 'Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
           ],
         ),
       );
@@ -290,7 +338,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        // SỬ DỤNG OPENCONTAINER Ở ĐÂY
         child: OpenContainer(
           transitionType: ContainerTransitionType.fade,
           transitionDuration: const Duration(milliseconds: 400),
@@ -302,16 +349,13 @@ class _HomeScreenState extends State<HomeScreen> {
           closedColor: isSelected ? _primary.withValues(alpha: 0.05) : Colors.white,
           middleColor: Colors.white,
           openColor: Theme.of(context).scaffoldBackgroundColor,
-          // Màn hình mở ra
           openBuilder: (context, _) => EditorScreen(note: note),
-          // Hàm chạy khi đóng (quay lại từ EditorScreen)
           onClosed: (_) async {
             final auth = Provider.of<AuthProvider>(context, listen: false);
             if (auth.isAuthenticated && auth.userId != null) {
               await provider.fetchNotes(auth.userId!);
             }
           },
-          // Card hiển thị khi đóng
           closedBuilder: (context, openContainer) {
             return Material(
               color: Colors.transparent,
@@ -321,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (isSelectionMode) {
                     provider.toggleSelection(note.id);
                   } else {
-                    openContainer(); // Gọi hàm này để kích hoạt animation Mở
+                    openContainer();
                   }
                 },
                 child: NoteCard(
@@ -511,6 +555,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       actions: [
+        // NÚT THÊM NHÃN DÁN HÀNG LOẠT (MỚI BỔ SUNG)
+        IconButton(
+          icon: const Icon(Icons.label_outline, color: Colors.black87),
+          tooltip: 'Thay đổi nhãn dán',
+          onPressed: () => _showBatchTagDialog(context, provider),
+        ),
         IconButton(
           icon: const Icon(Icons.push_pin_outlined, color: Colors.black87),
           tooltip: 'Ghim/Bỏ ghim hàng loạt',
