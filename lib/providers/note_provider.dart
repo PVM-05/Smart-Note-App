@@ -16,6 +16,7 @@ class NoteProvider extends ChangeNotifier {
   final Set<String> _selectedNoteIds = {};
   final Set<String> _selectedTrashNoteIds = {};
 
+  // Quản lý nhãn toàn cục và bộ lọc
   List<String> _customLabels = [];
   String? _selectedLabel;
 
@@ -45,6 +46,7 @@ class NoteProvider extends ChangeNotifier {
 
   NoteProvider(this._repository);
 
+  // Lấy ra tất cả các nhãn độc nhất (Unique) đang có trong ứng dụng để hiển thị thành danh sách lựa chọn
   List<String> get allLabels {
     final Set<String> labelSet = {};
     for (var note in _notes) {
@@ -64,6 +66,7 @@ class NoteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Thêm nhãn mới vào danh sách gợi ý toàn cục
   void addLabel(String labelName) {
     final trimmed = labelName.trim();
     if (trimmed.isNotEmpty && !allLabels.contains(trimmed)) {
@@ -72,7 +75,6 @@ class NoteProvider extends ChangeNotifier {
     }
   }
 
-  // ── THÊM MỘT NHÃN CHO TẤT CẢ CÁC GHI CHÚ ĐANG ĐƯỢC CHỌN VÀ ĐỒNG BỘ FIREBASE ──
   Future<void> addLabelToSelectedNotes(String labelName) async {
     final idsToLabel = _selectedNoteIds.toList();
     clearSelection(); // Xóa trạng thái chọn trên UI trước cho mượt mà
@@ -191,7 +193,7 @@ class NoteProvider extends ChangeNotifier {
   Future<void> addNote(Note note) async {
     _notes.insert(0, note);
     notifyListeners();
-    await _repository.saveNote(note);
+    await _repository.saveNote(note); // Tự động sync Local và Firebase
   }
 
   Future<void> updateNote(Note note) async {
@@ -199,7 +201,7 @@ class NoteProvider extends ChangeNotifier {
     if (index != -1) {
       _notes[index] = note;
       notifyListeners();
-      await _repository.saveNote(note);
+      await _repository.saveNote(note); // Tự động sync Local và Firebase
     }
   }
 

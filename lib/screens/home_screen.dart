@@ -95,41 +95,79 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── ĐIỀU HƯỚNG HIỂN THỊ HỘP THOẠI CHỌN NHÃN HÀNG LOẠT ──
+  // ── ĐIỀU HƯỚNG HIỂN THỊ HỘP THOẠI CHỌN NHÃN / TẠO NHÃN HÀNG LOẠT ──
   void _showBatchTagDialog(BuildContext context, NoteProvider provider) {
     final labels = provider.allLabels;
-
-    if (labels.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hệ thống chưa có nhãn nào. Vui lòng tạo nhãn bên trong ghi chú trước.')),
-      );
-      return;
-    }
+    final TextEditingController newLabelController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Thêm nhãn dán hàng loạt', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Gán nhãn dán', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        contentPadding: const EdgeInsets.only(top: 12, left: 0, right: 0, bottom: 0),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: labels.length,
-            itemBuilder: (context, index) {
-              final label = labels[index];
-              return ListTile(
-                leading: const Icon(Icons.label_outline, size: 20),
-                title: Text(label, style: const TextStyle(fontSize: 14)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await provider.addLabelToSelectedNotes(label);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Đã thêm nhãn "$label" cho các ghi chú được chọn')),
-                    );
-                  }
-                },
-              );
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Ô nhập để tạo nhãn mới ngay lập tức
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: TextField(
+                  controller: newLabelController,
+                  decoration: InputDecoration(
+                    hintText: 'Tạo nhãn mới...',
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.add_circle, color: Color(0xFF2E75B6)),
+                      onPressed: () async {
+                        final newTag = newLabelController.text.trim();
+                        if (newTag.isNotEmpty) {
+                          Navigator.pop(ctx);
+                          provider.addLabel(newTag); // Thêm vào hệ thống
+                          await provider.addLabelToSelectedNotes(newTag); // Gán cho các note
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Đã tạo và gán nhãn "$newTag"')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+
+              // 2. Danh sách các nhãn đang có sẵn
+              if (labels.isNotEmpty)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4, // Tránh tràn màn hình
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: labels.length,
+                    itemBuilder: (context, index) {
+                      final label = labels[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                        leading: const Icon(Icons.label_outline, size: 20),
+                        title: Text(label, style: const TextStyle(fontSize: 15)),
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          await provider.addLabelToSelectedNotes(label);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Đã gán nhãn "$label"')),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
         actions: [

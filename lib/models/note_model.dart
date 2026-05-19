@@ -37,7 +37,7 @@ class Note {
         'content': content,
         'status': status,
         'is_synced': isSynced ? 1 : 0,
-        'tags': jsonEncode(tags),
+        'tags': tags.join(','),
         'created_at': createdAt.millisecondsSinceEpoch,
         'updated_at': updatedAt.millisecondsSinceEpoch,
       };
@@ -49,7 +49,9 @@ class Note {
         content: m['content'],
         status: m['status'] ?? 'normal',
         isSynced: (m['is_synced'] ?? 0) == 1,
-        tags: m['tags'] != null ? List<String>.from(jsonDecode(m['tags'])) : [],
+        tags: (m['tags'] as String? ?? '').isEmpty // THÊM
+        ? []
+        : (m['tags'] as String).split(','),
         createdAt: DateTime.fromMillisecondsSinceEpoch(
           m['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
         ),
@@ -80,7 +82,7 @@ class Note {
         content: m['content'] ?? '',
         status: m['status'] ?? 'normal',
         isSynced: true, // lấy từ Firestore về → luôn là đã sync
-        tags: m['tags'] != null ? List<String>.from(m['tags']) : [],
+        tags: List<String>.from(m['tags'] ?? []),
         createdAt: m['created_at'] != null
             ? (m['created_at'] as Timestamp).toDate() // Timestamp → DateTime
             : DateTime.now(),
