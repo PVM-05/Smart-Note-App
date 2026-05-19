@@ -1,3 +1,4 @@
+// lib/providers/note_provider.dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
@@ -7,37 +8,146 @@ class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
   List<Note> _notes = [];
   List<Note> _filtered  = [];
-
-  // 1. Biến riêng biệt để quản lý Thùng rác
   List<Note> _trashNotes = [];
 
   bool _isLoading = false;
   bool _isSearching     = false;
   Timer? _debounce;
   final Set<String> _selectedNoteIds = {};
+  final Set<String> _selectedTrashNoteIds = {};
+
+  // Quản lý nhãn toàn cục và bộ lọc
+  List<String> _customLabels = [];
+  String? _selectedLabel;
 
   List<Note> get _activeList => _isSearching ? _filtered : _notes;
 
-  List<Note> get notes       => _activeList.where((n) => n.status != 'trash').toList();
-  List<Note> get pinnedNotes => _activeList.where((n) => n.status == 'pinned').toList();
-  List<Note> get normalNotes => _activeList.where((n) => n.status == 'normal').toList();
+  List<Note> get _filteredByLabel {
+    final list = _activeList.where((n) => n.status != 'trash').toList();
+    if (_selectedLabel != null) {
+      return list.where((n) => n.tags.contains(_selectedLabel)).toList();
+    }
+    return list;
+  }
 
-  // Expose mảng rác riêng cho TrashScreen đọc
+  List<Note> get notes       => _filteredByLabel;
+  List<Note> get pinnedNotes => _filteredByLabel.where((n) => n.status == 'pinned').toList();
+  List<Note> get normalNotes => _filteredByLabel.where((n) => n.status == 'normal').toList();
   List<Note> get trashNotes  => _trashNotes;
 
   bool get isLoading => _isLoading;
   bool get isSearching  => _isSearching;
   Set<String> get selectedNoteIds => _selectedNoteIds;
   bool get isSelectionMode => _selectedNoteIds.isNotEmpty;
-  // Chọn nhiều note trong trash
-  final Set<String> _selectedTrashNoteIds = {};
-
   Set<String> get selectedTrashNoteIds => _selectedTrashNoteIds;
   bool get isTrashSelectionMode => _selectedTrashNoteIds.isNotEmpty;
 
+  String? get selectedLabel => _selectedLabel;
+
   NoteProvider(this._repository);
 
-  // ── Thao tác chọn ──
+  // Lấy ra tất cả các nhãn độc nhất (Unique) đang có trong ứng dụng để hiển thị thành danh sách lựa chọn
+  List<String> get allLabels {
+    final Set<String> labelSet = {};
+    for (var note in _notes) {
+      labelSet.addAll(note.tags);
+    }
+    for (var note in _trashNotes) {
+      labelSet.addAll(note.tags);
+    }
+    labelSet.addAll(_customLabels);
+    final list = labelSet.toList();
+    list.sort();
+    return list;
+  }
+
+  void selectLabel(String? label) {
+    _selectedLabel = label;
+    notifyListeners();
+  }
+
+  // Thêm nhãn mới vào danh sách gợi ý toàn cục
+  void addLabel(String labelName) {
+    final trimmed = labelName.trim();
+    if (trimmed.isNotEmpty && !allLabels.contains(trimmed)) {
+      _customLabels.add(trimmed);
+      notifyListeners();
+    }
+  }
+
+  Future<void> addLabelToSelectedNotes(String labelName) async {
+    final idsToLabel = _selectedNoteIds.toList();
+    clearSelection(); // Xóa trạng thái chọn trên UI trước cho mượt mà
+
+    for (final id in idsToLabel) {
+      final index = _notes.indexWhere((n) => n.id == id);
+      if (index != -1) {
+        final note = _notes[index];
+        // Nếu ghi chú chưa có nhãn này thì tiến hành thêm vào
+        if (!note.tags.contains(labelName)) {
+          final updatedTags = List<String>.from(note.tags)..add(labelName);
+          _notes[index] = note.copyWith(tags: updatedTags, isSynced: false);
+
+          // Lưu xuống local SQLite và tự động đồng bộ sync lên Cloud Firebase
+          await _repository.saveNote(_notes[index]);
+        }
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> renameLabel(String oldName, String newName) async {
+    final trimmedNew = newName.trim();
+    if (trimmedNew.isEmpty || oldName == trimmedNew) return;
+
+    if (_customLabels.contains(oldName)) {
+      _customLabels.remove(oldName);
+      if (!_customLabels.contains(trimmedNew)) _customLabels.add(trimmedNew);
+    }
+
+    for (int i = 0; i < _notes.length; i++) {
+      if (_notes[i].tags.contains(oldName)) {
+        final updatedTags = _notes[i].tags.map((t) => t == oldName ? trimmedNew : t).toList();
+        _notes[i] = _notes[i].copyWith(tags: updatedTags, isSynced: false);
+        await _repository.saveNote(_notes[i]);
+      }
+    }
+
+    for (int i = 0; i < _trashNotes.length; i++) {
+      if (_trashNotes[i].tags.contains(oldName)) {
+        final updatedTags = _trashNotes[i].tags.map((t) => t == oldName ? trimmedNew : t).toList();
+        _trashNotes[i] = _trashNotes[i].copyWith(tags: updatedTags, isSynced: false);
+        await _repository.saveNote(_trashNotes[i]);
+      }
+    }
+
+    if (_selectedLabel == oldName) _selectedLabel = trimmedNew;
+    notifyListeners();
+  }
+
+  Future<void> deleteLabel(String labelName) async {
+    _customLabels.remove(labelName);
+
+    for (int i = 0; i < _notes.length; i++) {
+      if (_notes[i].tags.contains(labelName)) {
+        final updatedTags = _notes[i].tags.where((t) => t != labelName).toList();
+        _notes[i] = _notes[i].copyWith(tags: updatedTags, isSynced: false);
+        await _repository.saveNote(_notes[i]);
+      }
+    }
+
+    for (int i = 0; i < _trashNotes.length; i++) {
+      if (_trashNotes[i].tags.contains(labelName)) {
+        final updatedTags = _trashNotes[i].tags.where((t) => t != labelName).toList();
+        _trashNotes[i] = _trashNotes[i].copyWith(tags: updatedTags, isSynced: false);
+        await _repository.saveNote(_trashNotes[i]);
+      }
+    }
+
+    if (_selectedLabel == labelName) _selectedLabel = null;
+    notifyListeners();
+  }
+
   void toggleSelection(String id) {
     if (_selectedNoteIds.contains(id)) {
       _selectedNoteIds.remove(id);
@@ -52,22 +162,18 @@ class NoteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Thao tác hàng loạt (Batch Actions) ──
   Future<void> deleteSelectedNotes() async {
     final idsToDelete = _selectedNoteIds.toList();
-    clearSelection(); // Xóa UI trước để tạo cảm giác mượt mà
-
+    clearSelection();
     for (final id in idsToDelete) {
-      await deleteNote(id); // Gọi hàm xóa từng note đang có sẵn
+      await deleteNote(id);
     }
   }
 
   Future<void> togglePinSelectedNotes() async {
     final idsToToggle = _selectedNoteIds.toList();
     clearSelection();
-
     for (final id in idsToToggle) {
-      // Tìm note trong danh sách hiện tại để lấy data
       final note = _activeList.firstWhere((n) => n.id == id);
       await togglePin(note);
     }
@@ -85,12 +191,9 @@ class NoteProvider extends ChangeNotifier {
   }
 
   Future<void> addNote(Note note) async {
-    // Cập nhật UI ngay lập tức
     _notes.insert(0, note);
     notifyListeners();
-
-    // Chạy ngầm việc lưu trữ và đồng bộ
-    await _repository.saveNote(note);
+    await _repository.saveNote(note); // Tự động sync Local và Firebase
   }
 
   Future<void> updateNote(Note note) async {
@@ -98,60 +201,46 @@ class NoteProvider extends ChangeNotifier {
     if (index != -1) {
       _notes[index] = note;
       notifyListeners();
-      await _repository.saveNote(note);
+      await _repository.saveNote(note); // Tự động sync Local và Firebase
     }
   }
 
-  // ── XÓA MỀM (Chuyển vào thùng rác) ──
-  // 2. SỬA LẠI HÀM XÓA: Biến thành XÓA MỀM (Soft Delete)
   Future<void> deleteNote(String id) async {
     final index = _notes.indexWhere((note) => note.id == id);
     if (index != -1) {
       final trashedNote = _notes[index].copyWith(
         status: 'trash',
         isSynced: false,
-        updatedAt: DateTime.now(), // Đánh dấu mốc thời gian bắt đầu tính 7 ngày
+        updatedAt: DateTime.now(),
       );
-
       _notes.removeAt(index);
       _trashNotes.insert(0, trashedNote);
       notifyListeners();
-
-      // Ghi đè trạng thái 'trash' xuống SQLite và đẩy lên mây
       await _repository.saveNote(trashedNote);
     }
   }
 
-  // 3. THÊM HÀM NÀY: Nạp dữ liệu thùng rác + Tự động tiêu hủy sau 7 ngày
   Future<void> fetchTrashNotes(String userId) async {
     final allTrash = await _repository.getTrashNotes(userId);
     final now = DateTime.now();
-
     _trashNotes = [];
-
     for (final note in allTrash) {
-      // Tính toán số ngày đã nằm trong thùng rác kể từ lần update cuối (bấm nút xóa)
       final daysInTrash = now.difference(note.updatedAt).inDays;
-
       if (daysInTrash >= 7) {
-        // Quá hạn 7 ngày -> Gọi lệnh HARD DELETE (Xóa sạch hoàn toàn)
         await _repository.deleteNote(note.id);
       } else {
-        // Chưa quá hạn -> Giữ lại hiển thị trong thùng rác
         _trashNotes.add(note);
       }
     }
     notifyListeners();
   }
 
-  // 4. THÊM HÀM: Xóa vĩnh viễn thủ công
   Future<void> deleteNoteForever(String id) async {
     _trashNotes.removeWhere((n) => n.id == id);
     notifyListeners();
-    await _repository.deleteNote(id); // Hard delete vĩnh viễn dưới DB
+    await _repository.deleteNote(id);
   }
 
-  // 5. THÊM HÀM: Khôi phục ghi chú
   Future<void> restoreNote(String id) async {
     final index = _trashNotes.indexWhere((n) => n.id == id);
     if (index != -1) {
@@ -160,11 +249,9 @@ class NoteProvider extends ChangeNotifier {
         isSynced: false,
         updatedAt: DateTime.now(),
       );
-
       _trashNotes.removeAt(index);
       _notes.insert(0, restoredNote);
       notifyListeners();
-
       await _repository.saveNote(restoredNote);
     }
   }
@@ -185,7 +272,7 @@ class NoteProvider extends ChangeNotifier {
 
   Future<void> restoreSelectedTrashNotes() async {
     final idsToRestore = _selectedTrashNoteIds.toList();
-    clearTrashSelection(); // Xóa UI trước cho mượt
+    clearTrashSelection();
     for (final id in idsToRestore) {
       await restoreNote(id);
     }
@@ -203,7 +290,6 @@ class NoteProvider extends ChangeNotifier {
     final updatedNote = note.copyWith(
       status: note.status == 'pinned' ? 'normal' : 'pinned',
     );
-
     final index = _notes.indexWhere((n) => n.id == note.id);
     if (index != -1) {
       _notes[index] = updatedNote;
@@ -213,24 +299,18 @@ class NoteProvider extends ChangeNotifier {
   }
 
   void search(String query, String userId) {
-    // Hủy debounce cũ nếu user vẫn đang gõ
     _debounce?.cancel();
-
     if (query.trim().isEmpty) {
       _isSearching = false;
       _filtered    = [];
       notifyListeners();
       return;
     }
-
     _isSearching = true;
-    notifyListeners(); // hiện loading ngay
+    notifyListeners();
 
     _debounce = Timer(const Duration(milliseconds: 400), () async {
-      _filtered = await _repository.searchNotes(
-        userId: userId,
-        query: query,
-      );
+      _filtered = await _repository.searchNotes(userId: userId, query: query);
       notifyListeners();
     });
   }
@@ -242,20 +322,19 @@ class NoteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Xóa sạch bách toàn bộ trạng thái khi đăng xuất
   void clearNotes() {
     _notes = [];
     _filtered = [];
     _trashNotes = [];
+    _customLabels = [];
+    _selectedLabel = null;
     _selectedNoteIds.clear();
     _selectedTrashNoteIds.clear();
     _isSearching = false;
     notifyListeners();
   }
 
-  // 2. Thêm hàm public này để HomeScreen gọi xóa dữ liệu dưới SQLite
   Future<void> clearLocalData(String userId) async {
-    // Gọi xuống repository thay vì để UI gọi trực tiếp
     await _repository.clearLocalData(userId);
   }
 }
