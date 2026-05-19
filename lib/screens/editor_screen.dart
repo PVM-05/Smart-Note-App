@@ -5,7 +5,7 @@ import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
 
 class EditorScreen extends StatefulWidget {
-  final Note? note; // null = tạo mới, có giá trị = chỉnh sửa
+  final Note? note;
 
   const EditorScreen({super.key, this.note});
 
@@ -16,6 +16,7 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  List<String> _tags = []; // Quản lý danh sách tag ở local
   bool _hasChanges = false;
 
   static const _primary = Color(0xFF2E75B6);
@@ -25,10 +26,10 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    _titleController   = TextEditingController(text: widget.note?.title ?? '');
+    _titleController = TextEditingController(text: widget.note?.title ?? '');
     _contentController = TextEditingController(text: widget.note?.content ?? '');
+    _tags = List.from(widget.note?.tags ?? []); // Lấy danh sách tag từ note cũ nếu có
 
-    // Theo dõi thay đổi để bật/tắt nút lưu
     _titleController.addListener(_onChanged);
     _contentController.addListener(_onChanged);
   }
@@ -51,7 +52,89 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
-  // ── Lưu ghi chú ──
+  // ── Bottom Sheet Thêm Nhãn (Google Keep Style) ──
+  void _showTagBottomSheet() {
+    final TextEditingController tagController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            void addTag(String val) {
+              final newTag = val.trim();
+              if (newTag.isNotEmpty && !_tags.contains(newTag)) {
+                setState(() {
+                  _tags.add(newTag);
+                  _hasChanges = true;
+                });
+                setModalState(() {});
+                tagController.clear();
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                top: 16, left: 16, right: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Thêm nhãn',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: tagController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Nhập tên nhãn...',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.check, color: _primary),
+                        onPressed: () => addTag(tagController.text),
+                      ),
+                      border: const UnderlineInputBorder(),
+                    ),
+                    onSubmitted: addTag,
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _tags.map((tag) => InputChip(
+                      label: Text(tag),
+                      deleteIcon: const Icon(Icons.close, size: 16),
+                      onDeleted: () {
+                        setState(() {
+                          _tags.remove(tag);
+                          _hasChanges = true;
+                        });
+                        setModalState(() {});
+                      },
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      backgroundColor: Colors.transparent,
+                      side: BorderSide(color: Colors.grey.shade300),
+                    )).toList(),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ── Lưu ghi chú ──
   Future<void> _save() async {
     final title = _titleController.text.trim();
@@ -66,31 +149,25 @@ class _EditorScreenState extends State<EditorScreen> {
 
     if (_isEditing) {
       final updated = widget.note!.copyWith(
-        title:   title,
+        title: title,
         content: _contentController.text.trim(),
+        tags: _tags, // Truyền tags vào đây
         isSynced: false,
       );
       await provider.updateNote(updated);
     } else {
-      // 1. Lấy thông tin tài khoản đang hoạt động từ AuthProvider
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = auth.userId ?? '';
 
-      // Phòng trường hợp hy hữu session bị mất đột ngột
-      if (currentUserId.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lỗi: Phiên đăng nhập hết hạn. Vui lòng thử lại.')),
-        );
-        return;
-      }
+      if (currentUserId.isEmpty) return;
 
-      // 2. Đóng gói dữ liệu với đầy đủ thông tin chủ sở hữu
       final newNote = Note(
-        id:      DateTime.now().millisecondsSinceEpoch.toString(),
-        userId:  currentUserId, // Vá lỗ hổng userId bị rỗng tại đây
-        title:   title,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        userId: currentUserId,
+        title: title,
         content: _contentController.text.trim(),
-        status:  'normal',
+        tags: _tags, // Truyền tags vào đây
+        status: 'normal',
         isSynced: false,
       );
       await provider.addNote(newNote);
@@ -99,18 +176,15 @@ class _EditorScreenState extends State<EditorScreen> {
     if (mounted) Navigator.pop(context);
   }
 
-  // ── Xóa ghi chú (chỉ khi đang edit) ──
   Future<void> _delete() async {
+    // ... code cũ không đổi (có thể copy từ bản gốc nếu cần)
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xóa ghi chú?'),
         content: const Text('Hành động này không thể hoàn tác.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -121,37 +195,26 @@ class _EditorScreenState extends State<EditorScreen> {
     );
 
     if (confirm == true && mounted) {
-      await Provider.of<NoteProvider>(context, listen: false)
-          .deleteNote(widget.note!.id);
+      await Provider.of<NoteProvider>(context, listen: false).deleteNote(widget.note!.id);
       if (mounted) Navigator.pop(context);
     }
   }
 
-  // ── Pin/Unpin (chỉ khi đang edit) ──
   Future<void> _togglePin() async {
-    await Provider.of<NoteProvider>(context, listen: false)
-        .togglePin(widget.note!);
-    if (mounted) Navigator.pop(context); // quay về HomeScreen sau khi pin
+    await Provider.of<NoteProvider>(context, listen: false).togglePin(widget.note!);
+    if (mounted) Navigator.pop(context);
   }
 
-  // ── Hỏi trước khi thoát nếu có thay đổi chưa lưu ──
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
-
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Bỏ thay đổi?'),
         content: const Text('Thay đổi chưa được lưu sẽ bị mất.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Tiếp tục sửa'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Bỏ qua'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Tiếp tục sửa')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Bỏ qua')),
         ],
       ),
     );
@@ -174,35 +237,21 @@ class _EditorScreenState extends State<EditorScreen> {
           backgroundColor: _primary,
           foregroundColor: Colors.white,
           actions: [
-            // Nút pin (chỉ hiện khi đang edit)
             if (_isEditing)
               IconButton(
-                icon: Icon(
-                  widget.note!.status == 'pinned'
-                      ? Icons.push_pin
-                      : Icons.push_pin_outlined,
-                ),
+                icon: Icon(widget.note!.status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined),
                 tooltip: widget.note!.status == 'pinned' ? 'Bỏ ghim' : 'Ghim',
                 onPressed: _togglePin,
               ),
-
-            // Nút xóa (chỉ hiện khi đang edit)
             if (_isEditing)
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Xóa',
-                onPressed: _delete,
-              ),
-
-            // Nút lưu
+              IconButton(icon: const Icon(Icons.delete_outline), tooltip: 'Xóa', onPressed: _delete),
             TextButton(
               onPressed: _hasChanges ? _save : null,
               child: Text(
                 'Lưu',
                 style: TextStyle(
                   color: _hasChanges ? Colors.white : Colors.white38,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontWeight: FontWeight.bold, fontSize: 16,
                 ),
               ),
             ),
@@ -211,32 +260,22 @@ class _EditorScreenState extends State<EditorScreen> {
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Tiêu đề
               TextField(
                 controller: _titleController,
                 autofocus: !_isEditing,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 decoration: const InputDecoration(
                   hintText: 'Tiêu đề...',
                   border: InputBorder.none,
-                  hintStyle: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
+                  hintStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey),
                 ),
                 textCapitalization: TextCapitalization.sentences,
-                maxLines: null, // tự xuống dòng nếu dài
+                maxLines: null,
               ),
-
               const Divider(height: 1),
               const SizedBox(height: 8),
-
-              // Nội dung — chiếm phần còn lại của màn hình
               Expanded(
                 child: TextField(
                   controller: _contentController,
@@ -253,34 +292,66 @@ class _EditorScreenState extends State<EditorScreen> {
                   textCapitalization: TextCapitalization.sentences,
                 ),
               ),
+
+              // ── HIỂN THỊ DANH SÁCH NHÃN (Nếu có) ──
+              if (_tags.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Wrap(
+                    spacing: 8,
+                    children: _tags.map((tag) => ActionChip(
+                      label: Text(tag, style: const TextStyle(fontSize: 12)),
+                      onPressed: _showTagBottomSheet,
+                      backgroundColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    )).toList(),
+                  ),
+                ),
             ],
           ),
         ),
 
-        // Thanh dưới hiển thị metadata khi đang edit
-        bottomNavigationBar: _isEditing
-            ? Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: Colors.grey.shade200),
+        // ── THANH CÔNG CỤ DƯỚI CÙNG (Google Keep Style) ──
+        bottomNavigationBar: BottomAppBar(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          elevation: 0,
+          child: Container(
+            height: 50,
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.label_outline, color: Colors.black54),
+                      tooltip: 'Thêm nhãn',
+                      onPressed: _showTagBottomSheet,
+                    ),
+                  ],
+                ),
+                if (_isEditing)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Text(
+                      'Sửa đổi ${_formatDate(widget.note!.updatedAt)}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ),
+              ],
             ),
           ),
-          child: Text(
-            'Cập nhật lúc ${_formatDate(widget.note!.updatedAt)}  •  '
-                '${widget.note!.isSynced ? "☁️ Đã đồng bộ" : "⏳ Chờ đồng bộ"}',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-            textAlign: TextAlign.center,
-          ),
-        )
-            : null,
+        ),
       ),
     );
   }
 
   String _formatDate(DateTime dt) {
-    return '${dt.day}/${dt.month}/${dt.year} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
+    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }

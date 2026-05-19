@@ -1,3 +1,5 @@
+// lib/services/local_note_service.dart
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -16,7 +18,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 3,
+      version: 4, // 1. NÂNG LÊN VERSION 4 ĐỂ KÍCH HOẠT QUÁ TRÌNH NÂNG CẤP SCHEMA
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -26,6 +28,7 @@ class LocalNoteService {
             content TEXT,
             status TEXT DEFAULT 'normal',
             is_synced INTEGER DEFAULT 0,
+            tags TEXT,          -- 2. THÊM CỘT TAGS ĐỂ LƯU CHUỖI JSON TAG CHO THIẾT BỊ MỚI CÀI APP
             created_at INTEGER,
             updated_at INTEGER
           )
@@ -40,6 +43,10 @@ class LocalNoteService {
         }
         if (oldVersion < 3) {
           await db.execute("ALTER TABLE notes ADD COLUMN user_id TEXT DEFAULT ''");
+        }
+        // 3. THÊM LOGIC DI CƯ (MIGRATION): THÊM CỘT TAGS VÀO CHO CÁC THIẾT BỊ ĐANG CHẠY BẢN CŨ (V3)
+        if (oldVersion < 4) {
+          await db.execute("ALTER TABLE notes ADD COLUMN tags TEXT");
         }
       },
     );
@@ -123,7 +130,6 @@ class LocalNoteService {
   }
 
   // Lấy các ghi chú đang nằm trong thùng rác
-  // THÊM HÀM NÀY: Chỉ truy vấn các ghi chú có trạng thái đúng là 'trash'
   Future<List<Note>> getTrashNotes({required String userId}) async {
     if (kIsWeb) {
       return _webNotes.where((n) => n.userId == userId && n.status == 'trash').toList();

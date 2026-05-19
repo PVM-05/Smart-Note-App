@@ -1,4 +1,6 @@
 // lib/models/note_model.dart
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Note {
@@ -10,6 +12,7 @@ class Note {
   final bool isSynced;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<String> tags;
 
   Note({
     required this.id,
@@ -18,6 +21,7 @@ class Note {
     required this.content,
     this.status = 'normal',
     this.isSynced = false,
+    this.tags = const [],
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -33,6 +37,7 @@ class Note {
         'content': content,
         'status': status,
         'is_synced': isSynced ? 1 : 0,
+        'tags': jsonEncode(tags),
         'created_at': createdAt.millisecondsSinceEpoch,
         'updated_at': updatedAt.millisecondsSinceEpoch,
       };
@@ -44,6 +49,7 @@ class Note {
         content: m['content'],
         status: m['status'] ?? 'normal',
         isSynced: (m['is_synced'] ?? 0) == 1,
+        tags: m['tags'] != null ? List<String>.from(jsonDecode(m['tags'])) : [],
         createdAt: DateTime.fromMillisecondsSinceEpoch(
           m['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
         ),
@@ -61,6 +67,7 @@ class Note {
         'title': title,
         'content': content,
         'status': status,
+        'tags': tags,
         'created_at': Timestamp.fromDate(createdAt), // DateTime → Timestamp
         'updated_at': Timestamp.fromDate(updatedAt),
         // KHÔNG lưu isSynced lên cloud — field này chỉ có nghĩa ở local
@@ -73,6 +80,7 @@ class Note {
         content: m['content'] ?? '',
         status: m['status'] ?? 'normal',
         isSynced: true, // lấy từ Firestore về → luôn là đã sync
+        tags: m['tags'] != null ? List<String>.from(m['tags']) : [],
         createdAt: m['created_at'] != null
             ? (m['created_at'] as Timestamp).toDate() // Timestamp → DateTime
             : DateTime.now(),
@@ -89,6 +97,7 @@ class Note {
     String? content,
     String? status,
     bool? isSynced,
+    List<String>? tags,
     DateTime? updatedAt
   }) =>
       Note(
@@ -98,6 +107,7 @@ class Note {
         content: content ?? this.content,
         status: status ?? this.status,
         isSynced: isSynced ?? this.isSynced,
+        tags: tags ?? this.tags,
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now(), // luôn cập nhật updatedAt khi copyWith
       );

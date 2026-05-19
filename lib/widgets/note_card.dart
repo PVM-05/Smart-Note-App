@@ -24,18 +24,6 @@ class NoteCard extends StatelessWidget {
     return 'Ngày ${date.day} ${months[date.month - 1]}, ${date.year}';
   }
 
-  static Color getNoteColor(String id) {
-    // Bảng màu sắp xếp tương phản (đối diện trên bánh xe màu)
-    final colors = [
-      const Color(0xFFEF9A9A), // Đỏ nhạt
-      const Color(0xFF90CAF9), // Xanh dương nhạt (đối lập đỏ)
-      const Color(0xFFFFE082), // Vàng nhạt
-      const Color(0xFFA5D6A7), // Xanh lá nhạt (đối lập vàng/cam)
-      const Color(0xFFFFAB91), // Cam nhạt (đối lập xanh dương)
-    ];
-    return colors[id.hashCode % colors.length];
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -100,7 +88,35 @@ class NoteCard extends StatelessWidget {
               maxLines: 6,
             ),
 
-          // ── FOOTER: TRẠNG THÁI ──
+          // ── DANH SÁCH THẺ (TAGS) - Chuẩn Google Keep ──
+          if (note.tags.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0),
+              child: Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: note.tags.map((tag) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      border: Border.all(color: Colors.grey.shade300, width: 1),
+                      borderRadius: BorderRadius.circular(16), // Bo tròn thành viên thuốc
+                    ),
+                    child: Text(
+                      tag,
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
+          // ── FOOTER: TRẠNG THÁI (Ghim / Đồng bộ) ──
           if (note.status == 'pinned' || !note.isSynced)
             Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -145,17 +161,11 @@ class NoteCard extends StatelessWidget {
     while (true) {
       final index = lowerText.indexOf(lowerQuery, start);
       if (index == -1) {
-        spans.add(TextSpan(
-          text: text.substring(start),
-          style: style,
-        ));
+        spans.add(TextSpan(text: text.substring(start), style: style));
         break;
       }
       if (index > start) {
-        spans.add(TextSpan(
-          text: text.substring(start, index),
-          style: style,
-        ));
+        spans.add(TextSpan(text: text.substring(start, index), style: style));
       }
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
