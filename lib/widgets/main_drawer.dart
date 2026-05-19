@@ -110,7 +110,7 @@ class MainDrawer extends StatelessWidget {
             // ── 2. NAVIGATION MENU ──
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: 12),
                 children: [
                   _buildDrawerItem(
                     context,
