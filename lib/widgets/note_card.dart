@@ -106,17 +106,6 @@ class NoteCard extends StatelessWidget {
           if (note.status == 'pinned' || !note.isSynced)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Row(
-                children: [
-                  if (note.status == 'pinned')
-                    const Icon(Icons.push_pin_rounded, size: 13, color: Color(0xFF2E75B6)),
-                  if (!note.isSynced)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: Icon(Icons.cloud_upload_outlined, size: 13, color: Colors.grey.shade500),
-                    ),
-                ],
-              ),
             ),
         ],
       ),
