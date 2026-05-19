@@ -44,7 +44,7 @@ class ProfileDrawer extends StatelessWidget {
               child: photoUrl.isEmpty
                   ? Text(
                 displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                     fontSize: 30, color: Colors.white, fontWeight: FontWeight.bold),
               )
                   : null,
@@ -55,7 +55,7 @@ class ProfileDrawer extends StatelessWidget {
             // ── TÊN ──
             Text(
               displayName,
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                   fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black87),
             ),
 
@@ -64,7 +64,7 @@ class ProfileDrawer extends StatelessWidget {
             // ── EMAIL ──
             Text(
               email,
-              style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey[500]),
+              style: GoogleFonts.roboto(fontSize: 13, color: Colors.grey[500]),
             ),
 
             const SizedBox(height: 20),
@@ -94,7 +94,7 @@ class ProfileDrawer extends StatelessWidget {
                         size: 18, color: Colors.black54),
                     const SizedBox(width: 8),
                     Text('Quản lý tài khoản',
-                        style: GoogleFonts.outfit(
+                        style: GoogleFonts.roboto(
                             fontSize: 14, fontWeight: FontWeight.w500)),
                   ],
                 ),
@@ -110,7 +110,7 @@ class ProfileDrawer extends StatelessWidget {
               leading: const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
               title: Text(
                 'Đăng xuất',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                     color: Colors.red, fontWeight: FontWeight.w600, fontSize: 15),
               ),
               onTap: () => _signOut(context, auth),
@@ -138,17 +138,17 @@ class ProfileDrawer extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Đăng xuất?',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+            style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
         content: Text('Bạn có chắc muốn đăng xuất không?',
-            style: GoogleFonts.outfit()),
+            style: GoogleFonts.roboto()),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Hủy', style: GoogleFonts.outfit())),
+              child: Text('Hủy', style: GoogleFonts.roboto())),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('Đăng xuất',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                     color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
