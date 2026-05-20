@@ -216,19 +216,24 @@ class AuthProvider extends ChangeNotifier {
   // ==================================================================
   // ✅ LOGOUT
   Future<void> signOut() async {
+    _isLoading = true;
+    notifyListeners();
+
     try {
-      // Xóa data local của user này trước khi đăng xuất
-      final uid = _user?.uid;
-      if (uid != null) {
-        await LocalNoteService().clearUserNotes(uid);
-      }
+      // KHÔNG gọi LocalNoteService().clearUserNotes(uid) ở đây nữa!
+      // Việc giữ lại data giúp bảo vệ các ghi chú offline chưa kịp sync.
+
+      // Đăng xuất khỏi Firebase và Google
       await FirebaseAuth.instance.signOut();
       await GoogleSignIn().signOut();
     } catch (e) {
-      log('Logout error: $e');
+      log('❌ Soft Logout error: $e');
+    } finally {
+      _user = null;
+      _userData = null; // Xóa thông tin profile trong RAM
+      _error = null;
+      _isLoading = false;
+      notifyListeners();
     }
-    _user = null;
-    _error = null;
-    notifyListeners();
   }
 }

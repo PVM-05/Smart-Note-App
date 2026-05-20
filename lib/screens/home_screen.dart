@@ -63,27 +63,36 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  // Giải pháp tối ưu cho hàm xóa tại home_screen.dart
   Future<void> _moveToTrashSelected(NoteProvider provider) async {
-    final deletedIds = provider.selectedNoteIds.toList();
+    // 1. Đóng băng bản sao danh sách ID được chọn để tránh bị clear trong lúc xử lý async
+    final deletedIds = List<String>.from(provider.selectedNoteIds);
     final count = deletedIds.length;
 
+    // 2. Thực hiện lệnh chuyển vào thùng rác dưới database
     await provider.deleteSelectedNotes();
 
     if (mounted) {
+      // 3. XÓA SẠCH các SnackBar cũ đang xếp hàng chờ hiển thị trước đó
       ScaffoldMessenger.of(context).clearSnackBars();
 
+      // 4. Hiển thị SnackBar mới và để Flutter tự quản lý việc tắt sau 4 giây
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Đã chuyển $count ghi chú vào thùng rác'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 4), // 🟢 Hệ thống tự tắt chuẩn xác sau 4s
           action: SnackBarAction(
-            label: 'Huỷ',
+            label: 'Hoàn tác',
             textColor: const Color(0xFF2E75B6),
             onPressed: () async {
+              // Ẩn ngay SnackBar hiện tại khi người dùng click vào nút hành động
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+              // Thực hiện khôi phục lại các ghi chú vừa xóa
               for (final id in deletedIds) {
                 await provider.restoreNote(id);
               }
@@ -92,11 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-      Timer(const Duration(seconds: 4), () {
-        if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        }
-      });
+      // ❌ XÓA BỎ HOÀN TOÀN cụm Timer hoặc các hàm ẩn thủ công sau 4s ở phía dưới này
     }
   }
 
@@ -130,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           provider.addLabel(newTag);
                           await provider.addLabelToSelectedNotes(newTag);
                           if (context.mounted) {
+                            ScaffoldMessenger.of(context).clearSnackBars();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Đã tạo và gán nhãn "$newTag"')),
                             );
@@ -159,6 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.pop(ctx);
                           await provider.addLabelToSelectedNotes(label);
                           if (context.mounted) {
+                            ScaffoldMessenger.of(context).clearSnackBars();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Đã gán nhãn "$label"')),
                             );
@@ -404,6 +411,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             _buildNotesSection(searchNotes, noteProvider),
           ] else ...[
+
+            // ── CÓ NOTE GHIM → HIỆN "ĐƯỢC GHIM" + "KHÁC"
             if (pinnedNotes.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -417,22 +426,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+
               _buildNotesSection(pinnedNotes, noteProvider),
+
               const SizedBox(height: 16),
-            ],
-            if (normalNotes.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: Text(
-                  'Khác',
-                  style: GoogleFonts.roboto(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
-                    letterSpacing: 0.5,
+
+              if (normalNotes.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Text(
+                    'Khác',
+                    style: GoogleFonts.roboto(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500],
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
-              ),
+
+                _buildNotesSection(normalNotes, noteProvider),
+              ],
+            ]
+
+            // ── KHÔNG CÓ NOTE GHIM → HIỆN NOTE THƯỜNG THÔI (KHÔNG CÓ CHỮ "KHÁC")
+            else ...[
               _buildNotesSection(normalNotes, noteProvider),
             ],
           ],
@@ -512,6 +530,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await provider.archiveNote(id);
     }
     if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Đã lưu trữ $count ghi chú'),

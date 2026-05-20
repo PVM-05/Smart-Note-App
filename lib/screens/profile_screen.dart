@@ -155,6 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: GoogleFonts.roboto()),
       backgroundColor: isError ? Colors.red[700] : const Color(0xFF388E3C),

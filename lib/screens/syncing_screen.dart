@@ -68,6 +68,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
     } catch (e) {
       debugPrint('Sync error: $e');
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Lỗi đồng bộ: $e. Tiếp tục vào Home.')),
         );

@@ -185,8 +185,19 @@ class LocalNoteService {
   }
 
   Future<void> clearUserNotes(String userId) async {
-    if (kIsWeb) { _webNotes.removeWhere((n) => n.userId == userId); return; }
+    if (kIsWeb) {
+      // Chỉ loại bỏ những ghi chú đã đồng bộ lên cloud trên môi trường Web
+      _webNotes.removeWhere((n) => n.userId == userId && n.isSynced == true);
+      return;
+    }
+    /// Xóa sạch các ghi chú cục bộ của user để giải phóng bộ nhớ thiết bị.
+    /// ⚠️ CỰC KỲ QUAN TRỌNG: Chỉ cho phép xóa các ghi chú ĐÃ ĐỒNG BỘ THÀNH CÔNG (is_synced = 1).
+    /// Giữ lại tuyệt đối các ghi chú offline (is_synced = 0) để không làm mất data của user.
     final database = await db;
-    await database.delete('notes', where: 'user_id = ?', whereArgs: [userId]);
+    await database.delete(
+      'notes',
+      where: 'user_id = ? AND is_synced = ?',
+      whereArgs: [userId, 1], // Chỉ xóa hàng có is_synced = 1
+    );
   }
 }
