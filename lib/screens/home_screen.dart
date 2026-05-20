@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:animations/animations.dart'; // THÊM IMPORT NÀY
+import 'package:animations/animations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../providers/auth_provider.dart';
@@ -20,11 +20,17 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+enum SortType {
+  updatedNewest,
+  createdNewest,
+  titleAZ,
+}
+
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   bool _isGrid = false;
-  bool _isSortDescending = true;
+  SortType _sortType = SortType.updatedNewest;
 
   static const _primary = Color(0xFF2E75B6);
 
@@ -94,42 +100,75 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // ── ĐIỀU HƯỚNG HIỂN THỊ HỘP THOẠI CHỌN NHÃN HÀNG LOẠT ──
   void _showBatchTagDialog(BuildContext context, NoteProvider provider) {
     final labels = provider.allLabels;
-
-    if (labels.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hệ thống chưa có nhãn nào. Vui lòng tạo nhãn bên trong ghi chú trước.')),
-      );
-      return;
-    }
+    final TextEditingController newLabelController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Thêm nhãn dán hàng loạt', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Gán nhãn dán', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        contentPadding: const EdgeInsets.only(top: 12, left: 0, right: 0, bottom: 0),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: labels.length,
-            itemBuilder: (context, index) {
-              final label = labels[index];
-              return ListTile(
-                leading: const Icon(Icons.label_outline, size: 20),
-                title: Text(label, style: const TextStyle(fontSize: 14)),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await provider.addLabelToSelectedNotes(label);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Đã thêm nhãn "$label" cho các ghi chú được chọn')),
-                    );
-                  }
-                },
-              );
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: TextField(
+                  controller: newLabelController,
+                  decoration: InputDecoration(
+                    hintText: 'Tạo nhãn mới...',
+                    isDense: true,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.add_circle, color: Color(0xFF2E75B6)),
+                      onPressed: () async {
+                        final newTag = newLabelController.text.trim();
+                        if (newTag.isNotEmpty) {
+                          Navigator.pop(ctx);
+                          provider.addLabel(newTag);
+                          await provider.addLabelToSelectedNotes(newTag);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Đã tạo và gán nhãn "$newTag"')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              if (labels.isNotEmpty)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: labels.length,
+                    itemBuilder: (context, index) {
+                      final label = labels[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                        leading: const Icon(Icons.label_outline, size: 20),
+                        title: Text(label, style: const TextStyle(fontSize: 15)),
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          await provider.addLabelToSelectedNotes(label);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Đã gán nhãn "$label"')),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
         actions: [
@@ -142,6 +181,105 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ── HÀM HIỂN THỊ BOTTOM SHEET SẮP XẾP ĐƯỢC THÊM MỚI ──
+  void _showSortBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Text(
+                  'Sắp xếp theo',
+                  style: GoogleFonts.roboto(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              const Divider(),
+              _buildSortOption(
+                type: SortType.updatedNewest,
+                icon: Icons.history,
+                title: 'Mới chỉnh sửa gần đây',
+              ),
+              _buildSortOption(
+                type: SortType.createdNewest,
+                icon: Icons.access_time,
+                title: 'Mới tạo gần đây',
+              ),
+              _buildSortOption(
+                type: SortType.titleAZ,
+                icon: Icons.sort_by_alpha,
+                title: 'Tiêu đề A → Z',
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Widget con để dựng các dòng tùy chọn trong Bottom Sheet sắp xếp
+  Widget _buildSortOption({
+    required SortType type,
+    required IconData icon,
+    required String title,
+  }) {
+    final isSelected = _sortType == type;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      leading: Icon(icon, color: isSelected ? _primary : const Color(0xFF64748B)),
+      title: Text(
+        title,
+        style: GoogleFonts.roboto(
+          fontSize: 15,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          color: isSelected ? _primary : const Color(0xFF1E293B),
+        ),
+      ),
+      trailing: isSelected ? const Icon(Icons.check, color: _primary, size: 20) : null,
+      onTap: () {
+        Navigator.pop(context);
+        setState(() {
+          _sortType = type;
+        });
+
+        String message = '';
+        switch (type) {
+          case SortType.updatedNewest:
+            message = 'Đang sắp xếp: Mới chỉnh sửa gần đây';
+            break;
+          case SortType.createdNewest:
+            message = 'Đang sắp xếp: Mới tạo gần đây';
+            break;
+          case SortType.titleAZ:
+            message = 'Đang sắp xếp: Tiêu đề A → Z';
+            break;
+        }
+
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message, style: GoogleFonts.roboto()),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<NoteProvider>(
@@ -149,16 +287,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final isSelectionMode = noteProvider.isSelectionMode;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF1F5F9), // Màu xanh xám nhạt nền màn hình giống ảnh của bạn
+          backgroundColor: const Color(0xFFF1F5F9),
           drawer: const MainDrawer(currentRoute: '/home'),
           endDrawer: const ProfileDrawer(),
-
-          appBar: isSelectionMode
-              ? _selectionAppBar(noteProvider)
-              : _normalAppBar(),
-
+          appBar: isSelectionMode ? _selectionAppBar(noteProvider) : _normalAppBar(),
           body: _buildBody(noteProvider),
-
           floatingActionButton: AnimatedScale(
             scale: isSelectionMode ? 0.0 : 1.0,
             duration: const Duration(milliseconds: 250),
@@ -168,9 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
               transitionDuration: const Duration(milliseconds: 400),
               closedElevation: 6,
               openElevation: 0,
-              closedShape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28), // Tròn hoàn toàn chuẩn Standard FAB
-              ),
+              closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
               closedColor: _primary,
               openBuilder: (context, _) => const EditorScreen(note: null),
               onClosed: (_) async {
@@ -210,10 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 12),
-            Text(
-              'Không tìm thấy ghi chú nào',
-              style: TextStyle(color: Colors.grey[500]),
-            ),
+            Text('Không tìm thấy ghi chú nào', style: TextStyle(color: Colors.grey[500])),
           ],
         ),
       );
@@ -239,10 +367,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Note> normalNotes = List<Note>.from(noteProvider.normalNotes);
 
     int sortCompare(Note a, Note b) {
-      if (_isSortDescending) {
-        return b.updatedAt.compareTo(a.updatedAt);
-      } else {
-        return a.updatedAt.compareTo(b.updatedAt);
+      switch (_sortType) {
+        case SortType.updatedNewest:
+          return b.updatedAt.compareTo(a.updatedAt);
+        case SortType.createdNewest:
+          return b.createdAt.compareTo(a.createdAt);
+        case SortType.titleAZ:
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
       }
     }
 
@@ -277,7 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: Text(
-                  '📌 ĐƯỢC GHIM',
+                  'Được ghim',
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -293,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: Text(
-                  'TẤT CẢ GHI CHÚ',
+                  'Khác',
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -321,16 +452,11 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, value, child) {
         return Transform.translate(
           offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: child,
-          ),
+          child: Opacity(opacity: value, child: child),
         );
       },
       child: Container(
-        margin: _isGrid
-            ? EdgeInsets.zero
-            : const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        margin: _isGrid ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           border: Border.all(
             color: isSelected ? _primary : Colors.transparent,
@@ -343,9 +469,7 @@ class _HomeScreenState extends State<HomeScreen> {
           transitionDuration: const Duration(milliseconds: 400),
           closedElevation: 0,
           openElevation: 0,
-          closedShape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           closedColor: isSelected ? _primary.withValues(alpha: 0.05) : Colors.white,
           middleColor: Colors.white,
           openColor: Theme.of(context).scaffoldBackgroundColor,
@@ -380,6 +504,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+  Future<void> _archiveSelectedNotes(NoteProvider provider) async {
+    final ids = provider.selectedNoteIds.toList();
+    final count = ids.length;
+    provider.clearSelection();
+    for (final id in ids) {
+      await provider.archiveNote(id);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã lưu trữ $count ghi chú'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(12),
+        ),
+      );
+    }
+  }
 
   AppBar _normalAppBar() {
     return AppBar(
@@ -403,8 +545,8 @@ class _HomeScreenState extends State<HomeScreen> {
         height: 44,
         margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
-          color: Colors.white, // Màu nền trắng #FFFFFF theo yêu cầu của bạn
-          borderRadius: BorderRadius.circular(24), // Bo góc tròn hoàn toàn của ảnh 1
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -463,6 +605,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
+
+            // ── ĐÃ THAY THẾ POPUMENUBUTTON THÀNH ICONBUTTON GỌI BOTTOM SHEET ──
             IconButton(
               icon: const Icon(
                 Icons.swap_vert,
@@ -475,27 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 splashFactory: InkSparkle.splashFactory,
                 padding: const EdgeInsets.all(8),
               ),
-              onPressed: () {
-                setState(() {
-                  _isSortDescending = !_isSortDescending;
-                });
-                ScaffoldMessenger.of(context).clearSnackBars();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      _isSortDescending
-                          ? 'Đã sắp xếp: Mới nhất trước'
-                          : 'Đã sắp xếp: Cũ nhất trước',
-                      style: GoogleFonts.roboto(),
-                    ),
-                    duration: const Duration(seconds: 1),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              },
+              onPressed: _showSortBottomSheet,
             ),
             const SizedBox(width: 6),
           ],
@@ -514,19 +638,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   child: CircleAvatar(
                     radius: 18,
-                    backgroundColor: const Color(0xFF2563EB), // Xanh dương đậm ảnh 2
+                    backgroundColor: const Color(0xFF2563EB),
                     backgroundImage: (auth.userData?['photoUrl'] != null && auth.userData!['photoUrl'].toString().isNotEmpty)
                         ? NetworkImage(auth.userData!['photoUrl'])
                         : null,
                     child: (auth.userData?['photoUrl'] == null || auth.userData!['photoUrl'].toString().isEmpty)
                         ? Text(
-                            auth.email?.substring(0, 1).toUpperCase() ?? 'U',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          )
+                      auth.email?.substring(0, 1).toUpperCase() ?? 'U',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    )
                         : null,
                   ),
                 ),
@@ -555,7 +679,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       actions: [
-        // NÚT THÊM NHÃN DÁN HÀNG LOẠT (MỚI BỔ SUNG)
         IconButton(
           icon: const Icon(Icons.label_outline, color: Colors.black87),
           tooltip: 'Thay đổi nhãn dán',
@@ -565,6 +688,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.push_pin_outlined, color: Colors.black87),
           tooltip: 'Ghim/Bỏ ghim hàng loạt',
           onPressed: () => provider.togglePinSelectedNotes(),
+        ),
+        IconButton(
+          icon: const Icon(Icons.archive_outlined, color: Colors.black87),
+          tooltip: 'Lưu trữ',
+          onPressed: () => _archiveSelectedNotes(provider),
         ),
         IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -788,7 +916,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── HIỆU ỨNG SKELETON SHIMMER CHUẨN UX (RIGHT PHONE - YES) ──
 class ShimmerPlaceholder extends StatefulWidget {
   final Widget child;
   const ShimmerPlaceholder({super.key, required this.child});

@@ -16,6 +16,7 @@ class NoteProvider extends ChangeNotifier {
   final Set<String> _selectedNoteIds = {};
   final Set<String> _selectedTrashNoteIds = {};
 
+  // Quản lý nhãn toàn cục và bộ lọc
   List<String> _customLabels = [];
   String? _selectedLabel;
 
@@ -40,11 +41,18 @@ class NoteProvider extends ChangeNotifier {
   bool get isSelectionMode => _selectedNoteIds.isNotEmpty;
   Set<String> get selectedTrashNoteIds => _selectedTrashNoteIds;
   bool get isTrashSelectionMode => _selectedTrashNoteIds.isNotEmpty;
+  // archived
+  List<Note> _archivedNotes = [];
+  final Set<String> _selectedArchiveNoteIds = {};
+  List<Note> get archivedNotes => _archivedNotes;
+  Set<String> get selectedArchiveNoteIds => _selectedArchiveNoteIds;
+  bool get isArchiveSelectionMode => _selectedArchiveNoteIds.isNotEmpty;
 
   String? get selectedLabel => _selectedLabel;
 
   NoteProvider(this._repository);
 
+  // Lấy ra tất cả các nhãn độc nhất (Unique) đang có trong ứng dụng để hiển thị thành danh sách lựa chọn
   List<String> get allLabels {
     final Set<String> labelSet = {};
     for (var note in _notes) {
@@ -64,6 +72,7 @@ class NoteProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Thêm nhãn mới vào danh sách gợi ý toàn cục
   void addLabel(String labelName) {
     final trimmed = labelName.trim();
     if (trimmed.isNotEmpty && !allLabels.contains(trimmed)) {
@@ -72,7 +81,6 @@ class NoteProvider extends ChangeNotifier {
     }
   }
 
-  // ── THÊM MỘT NHÃN CHO TẤT CẢ CÁC GHI CHÚ ĐANG ĐƯỢC CHỌN VÀ ĐỒNG BỘ FIREBASE ──
   Future<void> addLabelToSelectedNotes(String labelName) async {
     final idsToLabel = _selectedNoteIds.toList();
     clearSelection(); // Xóa trạng thái chọn trên UI trước cho mượt mà
@@ -191,7 +199,7 @@ class NoteProvider extends ChangeNotifier {
   Future<void> addNote(Note note) async {
     _notes.insert(0, note);
     notifyListeners();
-    await _repository.saveNote(note);
+    await _repository.saveNote(note); // Tự động sync Local và Firebase
   }
 
   Future<void> updateNote(Note note) async {
@@ -199,7 +207,7 @@ class NoteProvider extends ChangeNotifier {
     if (index != -1) {
       _notes[index] = note;
       notifyListeners();
-      await _repository.saveNote(note);
+      await _repository.saveNote(note); // Tự động sync Local và Firebase
     }
   }
 
@@ -296,6 +304,90 @@ class NoteProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> fetchArchivedNotes(String userId) async {
+    _archivedNotes = await _repository.getArchivedNotes(userId);
+    notifyListeners();
+  }
+
+  /// Lưu trữ một ghi chú từ HomeScreen
+  Future<void> archiveNote(String id) async {
+    final index = _notes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      final archivedNote = _notes[index].copyWith(
+        status: 'archived',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      _notes.removeAt(index);
+      _archivedNotes.insert(0, archivedNote);
+      notifyListeners();
+      await _repository.saveNote(archivedNote);
+    }
+  }
+
+  /// Bỏ lưu trữ — khôi phục về HomeScreen
+  Future<void> unarchiveNote(String id) async {
+    final index = _archivedNotes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      final restoredNote = _archivedNotes[index].copyWith(
+        status: 'normal',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      _archivedNotes.removeAt(index);
+      _notes.insert(0, restoredNote);
+      notifyListeners();
+      await _repository.saveNote(restoredNote);
+    }
+  }
+
+  /// Chuyển ghi chú lưu trữ vào thùng rác
+  Future<void> moveArchivedNoteToTrash(String id) async {
+    final index = _archivedNotes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      final trashedNote = _archivedNotes[index].copyWith(
+        status: 'trash',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      _archivedNotes.removeAt(index);
+      _trashNotes.insert(0, trashedNote);
+      notifyListeners();
+      await _repository.saveNote(trashedNote);
+    }
+  }
+
+  // Multi-select cho ArchiveScreen
+  void toggleArchiveSelection(String id) {
+    if (_selectedArchiveNoteIds.contains(id)) {
+      _selectedArchiveNoteIds.remove(id);
+    } else {
+      _selectedArchiveNoteIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void clearArchiveSelection() {
+    _selectedArchiveNoteIds.clear();
+    notifyListeners();
+  }
+
+  Future<void> unarchiveSelectedNotes() async {
+    final ids = _selectedArchiveNoteIds.toList();
+    clearArchiveSelection();
+    for (final id in ids) {
+      await unarchiveNote(id);
+    }
+  }
+
+  Future<void> deleteSelectedArchiveNotes() async {
+    final ids = _selectedArchiveNoteIds.toList();
+    clearArchiveSelection();
+    for (final id in ids) {
+      await moveArchivedNoteToTrash(id);
+    }
+  }
+
   void search(String query, String userId) {
     _debounce?.cancel();
     if (query.trim().isEmpty) {
@@ -329,6 +421,8 @@ class NoteProvider extends ChangeNotifier {
     _selectedNoteIds.clear();
     _selectedTrashNoteIds.clear();
     _isSearching = false;
+    _archivedNotes = [];
+    _selectedArchiveNoteIds.clear();
     notifyListeners();
   }
 
