@@ -171,6 +171,7 @@ class _TrashScreenState extends State<TrashScreen> {
           onPressed: () {
             if (Provider.of<NoteProvider>(context, listen: false).trashNotes.isNotEmpty) {
               // Bạn có thể viết thêm 1 hàm clearTrash() trong Provider nếu muốn
+              ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Tính năng dọn sạch đang phát triển')),
               );
@@ -230,6 +231,7 @@ class _TrashScreenState extends State<TrashScreen> {
               onTap: () {
                 provider.restoreNote(note.id);
                 Navigator.pop(context);
+                ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Đã khôi phục ghi chú')),
                 );

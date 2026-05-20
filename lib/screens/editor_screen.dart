@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
+import 'package:uuid/uuid.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -18,15 +19,16 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
-  List<String> _tags = []; // Quản lý danh sách tag của Note hiện tại
+  List<String> _tags = [];
 
-  // Các biến cố định cấu trúc Note phục vụ tính năng Auto-save
   late String _noteId;
   late DateTime _createdAt;
   late String _status;
-  bool _hasBeenSavedInSession = false; // Đánh dấu để biết lúc nào addNote, lúc nào updateNote
 
-  Timer? _autoSaveTimer; // Bộ đếm thời gian debounce để lưu ngầm
+  // Kiểm soát trạng thái ghi chú đã tồn tại thực sự dưới database hay chưa
+  bool _hasBeenSavedInDb = false;
+
+  Timer? _autoSaveTimer;
 
   static const _primary = Color(0xFF2E75B6);
   bool get _isEditing => widget.note != null;
@@ -34,40 +36,38 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    // Khởi tạo các giá trị cố định ngay từ đầu để tránh trùng lặp ghi chú khi tự động lưu
-    _noteId = widget.note?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    _noteId = widget.note?.id ?? const Uuid().v4();
     _createdAt = widget.note?.createdAt ?? DateTime.now();
     _status = widget.note?.status ?? 'normal';
-    _hasBeenSavedInSession = widget.note != null;
+
+    // Nếu truyền vào một note khác null, nghĩa là note này ĐÃ TỒN TẠI dưới DB từ trước
+    _hasBeenSavedInDb = widget.note != null;
 
     _titleController = TextEditingController(text: widget.note?.title ?? '');
     _contentController = TextEditingController(text: widget.note?.content ?? '');
     _tags = List.from(widget.note?.tags ?? []);
 
-    // Đăng ký bộ lắng nghe thay đổi ký tự
     _titleController.addListener(_onTextChanged);
     _contentController.addListener(_onTextChanged);
   }
 
-  // Khởi chạy đếm ngược 1000ms (1 giây) sau khi người dùng dừng nhập liệu để lưu ngầm
   void _onTextChanged() {
     _autoSaveTimer?.cancel();
     _autoSaveTimer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) {
-        _saveNote();
+        _saveNote(isAutosave: true);
       }
     });
   }
 
   @override
   void dispose() {
-    _autoSaveTimer?.cancel(); // Hủy bộ đếm tránh rò rỉ bộ nhớ
+    _autoSaveTimer?.cancel();
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
 
-  // ── MỞ TRANG QUẢN LÝ NHÃN ──
   void _openLabelSelectionPage() {
     Navigator.push(
       context,
@@ -78,15 +78,15 @@ class _EditorScreenState extends State<EditorScreen> {
             setState(() {
               _tags = updatedTags;
             });
-            _saveNote(); // Lưu ngay lập tức khi thay đổi nhãn dán
+            _saveNote(isAutosave: false); // Chọn nhãn xong -> Lưu hoặc kiểm tra tạo ngay
           },
         ),
       ),
     );
   }
 
-  // ── HÀM TỰ ĐỘNG LƯU GHI CHÚ (Auto-save Core) ──
-  Future<void> _saveNote() async {
+  // ── CORE AUTO-SAVE LUẬT GOOGLE KEEP ──
+  Future<void> _saveNote({required bool isAutosave}) async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
@@ -96,11 +96,24 @@ class _EditorScreenState extends State<EditorScreen> {
 
     final provider = Provider.of<NoteProvider>(context, listen: false);
 
-    // Luật Google Keep: Nếu ghi chú trống rỗng hoàn toàn và chưa từng được tạo, không lưu gì cả
-    if (title.isEmpty && content.isEmpty && _tags.isEmpty && !_hasBeenSavedInSession) {
+    // CHUẨN GOOGLE KEEP LOGIC:
+    // Nếu tất cả đều trống và ghi chú chưa từng được tạo thực sự ở DB -> KHÔNG LÀM GÌ CẢ
+    if (title.isEmpty && content.isEmpty && _tags.isEmpty && !_hasBeenSavedInDb) {
       return;
     }
 
+    // Nếu người dùng xóa sạch dữ liệu của một ghi chú ĐÃ TỒN TẠI dưới DB:
+    if (title.isEmpty && content.isEmpty && _tags.isEmpty && _hasBeenSavedInDb) {
+      // Nếu thoát trang bằng nút Back hành động thủ công, ta dọn dẹp xóa luôn bản ghi rỗng này dưới DB
+      if (!isAutosave) {
+        _autoSaveTimer?.cancel();
+        await provider.deleteNote(_noteId);
+        _hasBeenSavedInDb = false;
+      }
+      return;
+    }
+
+    // Khởi tạo thực thể Note hiện tại
     final noteToSave = Note(
       id: _noteId,
       userId: currentUserId,
@@ -113,13 +126,13 @@ class _EditorScreenState extends State<EditorScreen> {
       updatedAt: DateTime.now(),
     );
 
-    if (_hasBeenSavedInSession) {
-      // Nếu đã được lưu ít nhất 1 lần trong phiên này -> Gọi lệnh cập nhật
+    if (_hasBeenSavedInDb) {
+      // Đã có trong DB -> Chỉ cập nhật biến động dữ liệu
       await provider.updateNote(noteToSave);
     } else {
-      // Nếu là lần đầu tiên lưu mảnh ghi chú mới -> Gọi lệnh tạo mới
+      // Có dữ liệu thực sự lần đầu tiên -> INSERT mới vào cơ sở dữ liệu cục bộ
       await provider.addNote(noteToSave);
-      _hasBeenSavedInSession = true; // Chuyển trạng thái sang chỉnh sửa cho các lần gõ kế tiếp
+      _hasBeenSavedInDb = true; // Đóng băng trạng thái, chuyển sang chế độ Update
     }
   }
 
@@ -141,14 +154,16 @@ class _EditorScreenState extends State<EditorScreen> {
     );
 
     if (confirm == true && mounted) {
-      _autoSaveTimer?.cancel(); // Ngắt auto save nếu thực hiện hành động xóa
-      await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
+      _autoSaveTimer?.cancel();
+      if (_hasBeenSavedInDb) {
+        await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
+      }
       if (mounted) Navigator.pop(context);
     }
   }
 
   Future<void> _togglePin() async {
-    if (widget.note != null) {
+    if (_hasBeenSavedInDb && widget.note != null) {
       await Provider.of<NoteProvider>(context, listen: false).togglePin(widget.note!);
       if (mounted) Navigator.pop(context);
     }
@@ -157,15 +172,16 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Chặn đóng màn hình mặc định để xử lý việc lưu khẩn cấp trước khi thoát
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
 
-        _autoSaveTimer?.cancel(); // Hủy hẹn giờ lưu ngầm
-        await _saveNote(); // Ép hệ thống thực hiện lưu dữ liệu cuối cùng lập tức
+        _autoSaveTimer?.cancel();
+        // Gọi hàm xử lý với isAutosave = false để thực hiện dọn dẹp ghi chú rỗng khẩn cấp
+        await _saveNote(isAutosave: false);
 
         if (context.mounted) {
-          Navigator.pop(context); // Sau khi lưu xong thì đóng trang an toàn
+          Navigator.pop(context);
         }
       },
       child: Scaffold(
@@ -175,19 +191,17 @@ class _EditorScreenState extends State<EditorScreen> {
           foregroundColor: Colors.white,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context), // Kích hoạt sự kiện PopScope để tự lưu
+            onPressed: () => Navigator.pop(context),
           ),
           actions: [
-            if (_isEditing)
+            if (_hasBeenSavedInDb)
               IconButton(
                 icon: Icon(_status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined),
                 tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim',
                 onPressed: _togglePin,
               ),
-            if (_isEditing)
+            if (_hasBeenSavedInDb)
               IconButton(icon: const Icon(Icons.delete_outline), tooltip: 'Xóa', onPressed: _delete),
-
-            // XÓA BỎ NÚT CHỮ "LƯU" THỦ CÔNG CHUẨN GOOGLE KEEP STYLE
           ],
         ),
         body: Padding(
@@ -225,8 +239,6 @@ class _EditorScreenState extends State<EditorScreen> {
                   textCapitalization: TextCapitalization.sentences,
                 ),
               ),
-
-              // ── HIỂN THỊ DANH SÁCH NHÃN ĐÃ CHỌN ──
               if (_tags.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -246,8 +258,6 @@ class _EditorScreenState extends State<EditorScreen> {
             ],
           ),
         ),
-
-        // ── THANH CÔNG CỤ Ở DƯỚI CÙNG ──
         bottomNavigationBar: BottomAppBar(
           color: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
@@ -268,14 +278,6 @@ class _EditorScreenState extends State<EditorScreen> {
                     ),
                   ],
                 ),
-                // if (_isEditing)
-                //   Padding(
-                //     padding: const EdgeInsets.only(right: 16),
-                //     child: Text(
-                //       'Sửa đổi ${_formatDate(widget.note!.updatedAt)}',
-                //       style: const TextStyle(fontSize: 11, color: Colors.grey),
-                //     ),
-                //   ),
               ],
             ),
           ),
@@ -283,14 +285,10 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
     );
   }
-
-  String _formatDate(DateTime dt) {
-    return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
 }
 
 // ============================================================================
-// WIDGET TRANG QUẢN LÝ NHÃN (FULL SCREEN PAGE)
+// WIDGET TRANG QUẢN LÝ NHÃN (Giữ nguyên cấu trúc của bạn)
 // ============================================================================
 class _LabelSelectionScreen extends StatefulWidget {
   final List<String> initialTags;
