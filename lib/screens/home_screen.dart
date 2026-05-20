@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
 
       if (auth.isAuthenticated) {
-        await auth.reloadUserData();
+        // await auth.reloadUserData();
         final noteProvider = Provider.of<NoteProvider>(context, listen: false);
         await noteProvider.fetchNotes(auth.userId!);
         await noteProvider.fetchTrashNotes(auth.userId!);

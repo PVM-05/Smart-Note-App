@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
+import 'package:uuid/uuid.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -34,8 +35,8 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    // Khởi tạo các giá trị cố định ngay từ đầu để tránh trùng lặp ghi chú khi tự động lưu
-    _noteId = widget.note?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    _noteId = widget.note?.id ?? const Uuid().v4();
+
     _createdAt = widget.note?.createdAt ?? DateTime.now();
     _status = widget.note?.status ?? 'normal';
     _hasBeenSavedInSession = widget.note != null;
@@ -44,7 +45,6 @@ class _EditorScreenState extends State<EditorScreen> {
     _contentController = TextEditingController(text: widget.note?.content ?? '');
     _tags = List.from(widget.note?.tags ?? []);
 
-    // Đăng ký bộ lắng nghe thay đổi ký tự
     _titleController.addListener(_onTextChanged);
     _contentController.addListener(_onTextChanged);
   }
