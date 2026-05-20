@@ -129,6 +129,22 @@ class LocalNoteService {
     await database.delete('notes', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<List<Note>> getArchivedNotes({required String userId}) async {
+    if (kIsWeb) {
+      return _webNotes
+          .where((n) => n.userId == userId && n.status == 'archived')
+          .toList();
+    }
+    final database = await db;
+    final maps = await database.query(
+      'notes',
+      where: 'status = ? AND user_id = ?',
+      whereArgs: ['archived', userId],
+      orderBy: 'updated_at DESC',
+    );
+    return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
   // Lấy các ghi chú đang nằm trong thùng rác
   Future<List<Note>> getTrashNotes({required String userId}) async {
     if (kIsWeb) {

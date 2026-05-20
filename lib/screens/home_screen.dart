@@ -504,6 +504,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+  Future<void> _archiveSelectedNotes(NoteProvider provider) async {
+    final ids = provider.selectedNoteIds.toList();
+    final count = ids.length;
+    provider.clearSelection();
+    for (final id in ids) {
+      await provider.archiveNote(id);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã lưu trữ $count ghi chú'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(12),
+        ),
+      );
+    }
+  }
 
   AppBar _normalAppBar() {
     return AppBar(
@@ -670,6 +688,11 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: const Icon(Icons.push_pin_outlined, color: Colors.black87),
           tooltip: 'Ghim/Bỏ ghim hàng loạt',
           onPressed: () => provider.togglePinSelectedNotes(),
+        ),
+        IconButton(
+          icon: const Icon(Icons.archive_outlined, color: Colors.black87),
+          tooltip: 'Lưu trữ',
+          onPressed: () => _archiveSelectedNotes(provider),
         ),
         IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red),

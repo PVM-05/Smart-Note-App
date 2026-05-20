@@ -268,14 +268,14 @@ class _EditorScreenState extends State<EditorScreen> {
                     ),
                   ],
                 ),
-                if (_isEditing)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Text(
-                      'Sửa đổi ${_formatDate(widget.note!.updatedAt)}',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ),
+                // if (_isEditing)
+                //   Padding(
+                //     padding: const EdgeInsets.only(right: 16),
+                //     child: Text(
+                //       'Sửa đổi ${_formatDate(widget.note!.updatedAt)}',
+                //       style: const TextStyle(fontSize: 11, color: Colors.grey),
+                //     ),
+                //   ),
               ],
             ),
           ),
