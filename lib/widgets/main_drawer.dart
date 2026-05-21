@@ -1,11 +1,10 @@
-// lib/widgets/main_drawer.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/note_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/manage_labels_screen.dart';
 import '../screens/trash_screen.dart';
+import '../screens/archive_screen.dart';
 
 class MainDrawer extends StatelessWidget {
   final String currentRoute;
@@ -209,7 +208,27 @@ class MainDrawer extends StatelessWidget {
 
             // ================= TRASH =================
 
+
+
             _sectionDivider(context),
+
+            _buildKeepDrawerItem(
+              context,
+              icon: Icons.archive_outlined,
+              label: 'Lưu trữ',
+              isSelected: currentRoute == '/archive',
+              onTap: () {
+                Navigator.pop(context);
+                if (currentRoute != '/archive') {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ArchiveScreen(),
+                    ),
+                  );
+                }
+              },
+            ),
 
             _buildKeepDrawerItem(
               context,

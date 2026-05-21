@@ -41,6 +41,12 @@ class NoteProvider extends ChangeNotifier {
   bool get isSelectionMode => _selectedNoteIds.isNotEmpty;
   Set<String> get selectedTrashNoteIds => _selectedTrashNoteIds;
   bool get isTrashSelectionMode => _selectedTrashNoteIds.isNotEmpty;
+  // archived
+  List<Note> _archivedNotes = [];
+  final Set<String> _selectedArchiveNoteIds = {};
+  List<Note> get archivedNotes => _archivedNotes;
+  Set<String> get selectedArchiveNoteIds => _selectedArchiveNoteIds;
+  bool get isArchiveSelectionMode => _selectedArchiveNoteIds.isNotEmpty;
 
   String? get selectedLabel => _selectedLabel;
 
@@ -298,6 +304,90 @@ class NoteProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> fetchArchivedNotes(String userId) async {
+    _archivedNotes = await _repository.getArchivedNotes(userId);
+    notifyListeners();
+  }
+
+  /// Lưu trữ một ghi chú từ HomeScreen
+  Future<void> archiveNote(String id) async {
+    final index = _notes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      final archivedNote = _notes[index].copyWith(
+        status: 'archived',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      _notes.removeAt(index);
+      _archivedNotes.insert(0, archivedNote);
+      notifyListeners();
+      await _repository.saveNote(archivedNote);
+    }
+  }
+
+  /// Bỏ lưu trữ — khôi phục về HomeScreen
+  Future<void> unarchiveNote(String id) async {
+    final index = _archivedNotes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      final restoredNote = _archivedNotes[index].copyWith(
+        status: 'normal',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      _archivedNotes.removeAt(index);
+      _notes.insert(0, restoredNote);
+      notifyListeners();
+      await _repository.saveNote(restoredNote);
+    }
+  }
+
+  /// Chuyển ghi chú lưu trữ vào thùng rác
+  Future<void> moveArchivedNoteToTrash(String id) async {
+    final index = _archivedNotes.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      final trashedNote = _archivedNotes[index].copyWith(
+        status: 'trash',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
+      _archivedNotes.removeAt(index);
+      _trashNotes.insert(0, trashedNote);
+      notifyListeners();
+      await _repository.saveNote(trashedNote);
+    }
+  }
+
+  // Multi-select cho ArchiveScreen
+  void toggleArchiveSelection(String id) {
+    if (_selectedArchiveNoteIds.contains(id)) {
+      _selectedArchiveNoteIds.remove(id);
+    } else {
+      _selectedArchiveNoteIds.add(id);
+    }
+    notifyListeners();
+  }
+
+  void clearArchiveSelection() {
+    _selectedArchiveNoteIds.clear();
+    notifyListeners();
+  }
+
+  Future<void> unarchiveSelectedNotes() async {
+    final ids = _selectedArchiveNoteIds.toList();
+    clearArchiveSelection();
+    for (final id in ids) {
+      await unarchiveNote(id);
+    }
+  }
+
+  Future<void> deleteSelectedArchiveNotes() async {
+    final ids = _selectedArchiveNoteIds.toList();
+    clearArchiveSelection();
+    for (final id in ids) {
+      await moveArchivedNoteToTrash(id);
+    }
+  }
+
   void search(String query, String userId) {
     _debounce?.cancel();
     if (query.trim().isEmpty) {
@@ -331,6 +421,8 @@ class NoteProvider extends ChangeNotifier {
     _selectedNoteIds.clear();
     _selectedTrashNoteIds.clear();
     _isSearching = false;
+    _archivedNotes = [];
+    _selectedArchiveNoteIds.clear();
     notifyListeners();
   }
 

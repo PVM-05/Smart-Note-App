@@ -17,6 +17,8 @@ abstract class NoteRepository {
   });
   Future<List<Note>> getTrashNotes(String userId);
   Future<void> clearLocalData(String userId);
+
+  Future<List<Note>> getArchivedNotes(String userId);
 }
 
 class NoteRepositoryImpl implements NoteRepository {
@@ -158,5 +160,10 @@ class NoteRepositoryImpl implements NoteRepository {
   @override
   Future<void> clearLocalData(String userId) async {
     await _localService.clearUserNotes(userId); // Hàm này bạn đã viết sẵn trong LocalNoteService rồi
+  }
+
+  @override
+  Future<List<Note>> getArchivedNotes(String userId) async {
+    return await _localService.getArchivedNotes(userId: userId);
   }
 }
