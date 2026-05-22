@@ -583,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 focusNode: _searchFocus,
                 onChanged: _onSearchChanged,
                 decoration: InputDecoration(
-                  hintText: 'Tìm kiếm trên Smart Note...',
+                  hintText: 'Tìm kiếm',
                   hintStyle: GoogleFonts.roboto(color: const Color(0xFF64748B), fontSize: 14, fontWeight: FontWeight.w400),
                   border: InputBorder.none,
                   isDense: true,

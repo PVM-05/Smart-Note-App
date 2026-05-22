@@ -2,6 +2,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../repositories/sync_repository.dart';
+import '../models/sync_status.dart';
 
 class SyncProvider extends ChangeNotifier {
   final SyncRepository _syncRepo;
