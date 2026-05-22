@@ -12,6 +12,7 @@ import '../widgets/note_card.dart';
 import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/profile_drawer.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,8 +29,6 @@ enum SortType {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _scrollController = ScrollController();
-  final _searchController = TextEditingController();
-  final _searchFocus = FocusNode();
   bool _isGrid = false;
   SortType _sortType = SortType.updatedNewest;
 
@@ -43,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
 
       if (auth.isAuthenticated) {
-        // await auth.reloadUserData();
         final noteProvider = Provider.of<NoteProvider>(context, listen: false);
 
         // 1. Tải cực nhanh dữ liệu từ SQLite local lên UI trước để người dùng không phải chờ
@@ -57,8 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _searchController.dispose();
-    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -73,27 +69,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onSearchChanged(String query) {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    Provider.of<NoteProvider>(context, listen: false)
-        .search(query, auth.userId ?? '');
-    setState(() {});
-  }
-
   // Giải pháp tối ưu cho hàm xóa tại home_screen.dart
   Future<void> _moveToTrashSelected(NoteProvider provider) async {
-    // 1. Đóng băng bản sao danh sách ID được chọn để tránh bị clear trong lúc xử lý async
     final deletedIds = List<String>.from(provider.selectedNoteIds);
     final count = deletedIds.length;
 
-    // 2. Thực hiện lệnh chuyển vào thùng rác dưới database
     await provider.deleteSelectedNotes();
 
     if (mounted) {
-      // 3. XÓA SẠCH các SnackBar cũ đang xếp hàng chờ hiển thị trước đó
-      ScaffoldMessenger.of(context).clearSnackBars();
-
-      // 4. Hiển thị SnackBar mới và để Flutter tự quản lý việc tắt sau 4 giây
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -101,15 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 4), // 🟢 Hệ thống tự tắt chuẩn xác sau 4s
+          duration: const Duration(seconds: 4),
           action: SnackBarAction(
             label: 'Hoàn tác',
             textColor: const Color(0xFF2E75B6),
             onPressed: () async {
-              // Ẩn ngay SnackBar hiện tại khi người dùng click vào nút hành động
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-              // Thực hiện khôi phục lại các ghi chú vừa xóa
               for (final id in deletedIds) {
                 await provider.restoreNote(id);
               }
@@ -117,8 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       );
-
-      // ❌ XÓA BỎ HOÀN TOÀN cụm Timer hoặc các hàm ẩn thủ công sau 4s ở phía dưới này
     }
   }
 
@@ -205,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── HÀM HIỂN THỊ BOTTOM SHEET SẮP XẾP ĐƯỢC THÊM MỚI ──
   void _showSortBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -253,7 +230,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget con để dựng các dòng tùy chọn trong Bottom Sheet sắp xếp
   Widget _buildSortOption({
     required SortType type,
     required IconData icon,
@@ -312,7 +288,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           backgroundColor: const Color(0xFFF1F5F9),
-          drawer: const MainDrawer(currentRoute: '/home'),
+          drawer: MainDrawer(
+            currentRoute: '/home',
+            onLabelSelected: () {
+              if (_scrollController.hasClients) {
+                _scrollController.jumpTo(0);
+              }
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              if (auth.isAuthenticated) {
+                Provider.of<NoteProvider>(context, listen: false).refreshNotes(auth.userId!);
+              }
+            },
+          ),
           endDrawer: const ProfileDrawer(),
           appBar: isSelectionMode ? _selectionAppBar(noteProvider) : _normalAppBar(),
           body: _buildBody(noteProvider),
@@ -358,19 +345,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (noteProvider.isSearching && noteProvider.notes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
-            const SizedBox(height: 12),
-            Text('Không tìm thấy ghi chú nào', style: TextStyle(color: Colors.grey[500])),
-          ],
-        ),
-      );
-    }
-
     if (noteProvider.notes.isEmpty) {
       return Center(
         child: Column(
@@ -386,7 +360,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final List<Note> searchNotes = List<Note>.from(noteProvider.notes);
     final List<Note> pinnedNotes = List<Note>.from(noteProvider.pinnedNotes);
     final List<Note> normalNotes = List<Note>.from(noteProvider.normalNotes);
 
@@ -401,7 +374,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    searchNotes.sort(sortCompare);
     pinnedNotes.sort(sortCompare);
     normalNotes.sort(sortCompare);
 
@@ -411,15 +383,16 @@ class _HomeScreenState extends State<HomeScreen> {
         await noteProvider.refreshNotes(auth.userId!);
       },
       child: CustomScrollView(
-        controller: _scrollController, // Quản lý cuộn mượt mà tập trung
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          if (noteProvider.isSearching) ...[
+          // ── CÓ NOTE GHIM → HIỆN KHU VỰC "ĐƯỢC GHIM"
+          if (pinnedNotes.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Text(
-                  '${searchNotes.length} KẾT QUẢ TÌM THẤY',
+                  'Được ghim',
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -429,15 +402,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            _buildNotesSliverSection(searchNotes, noteProvider),
-          ] else ...[
-            // ── CÓ NOTE GHIM → HIỆN KHU VỰC "ĐƯỢC GHIM"
-            if (pinnedNotes.isNotEmpty) ...[
+            _buildNotesSliverSection(pinnedNotes, noteProvider),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            if (normalNotes.isNotEmpty) ...[
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Text(
-                    'Được ghim',
+                    'Khác',
                     style: GoogleFonts.roboto(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -447,37 +421,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              _buildNotesSliverSection(pinnedNotes, noteProvider),
-
-              // Khoảng cách giữa 2 section
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-              if (normalNotes.isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                    child: Text(
-                      'Khác',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[500],
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-                _buildNotesSliverSection(normalNotes, noteProvider),
-              ],
-            ]
-            // ── KHÔNG CÓ NOTE GHIM → HIỆN THẲNG NOTE THƯỜNG
-            else ...[
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
               _buildNotesSliverSection(normalNotes, noteProvider),
             ],
+          ]
+          // ── KHÔNG CÓ NOTE GHIM → HIỆN THẲNG NOTE THƯỜNG
+          else ...[
+            const SliverToBoxAdapter(child: SizedBox(height: 8)),
+            _buildNotesSliverSection(normalNotes, noteProvider),
           ],
 
-          // Progress Indicator load thêm dữ liệu ở cuối mượt mà
+          // Progress Indicator load thêm dữ liệu
           if (noteProvider.isLoadingMore)
             const SliverToBoxAdapter(
               child: Padding(
@@ -491,12 +444,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-          // Thêm một khoảng đệm nhỏ dưới đáy tránh FAB đè lên nội dung
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
     );
   }
+
   Widget _buildNoteItem(Note note, NoteProvider provider) {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
@@ -550,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 child: NoteCard(
                   note: note,
-                  searchQuery: _searchController.text.isNotEmpty ? _searchController.text : null,
+                  searchQuery: null,
                   isGrid: _isGrid,
                 ),
               ),
@@ -560,10 +513,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
   Future<void> _archiveSelectedNotes(NoteProvider provider) async {
     final count = provider.selectedNoteIds.length;
-
-    // Gọi hàm xử lý hàng loạt tập trung
     await provider.archiveSelectedNotes();
 
     if (mounted) {
@@ -615,33 +567,33 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const SizedBox(width: 16),
             Expanded(
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                onChanged: _onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: 'Tìm kiếm',
-                  hintStyle: GoogleFonts.roboto(color: const Color(0xFF64748B), fontSize: 14, fontWeight: FontWeight.w400),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const SearchScreen(),
+                      transitionsBuilder: (_, animation, __, child) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
+                    ),
+                  );
+                },
+                child: Container(
+                  height: double.infinity,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Tìm kiếm',
+                    style: GoogleFonts.roboto(
+                      color: const Color(0xFF64748B),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                 ),
-                style: GoogleFonts.roboto(fontSize: 14, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
               ),
             ),
-            if (_searchController.text.isNotEmpty)
-              IconButton(
-                icon: const Icon(Icons.clear, size: 18, color: Color(0xFF64748B)),
-                style: IconButton.styleFrom(
-                  hoverColor: const Color(0xFFE2E8F0),
-                  highlightColor: const Color(0xFFCBD5E1),
-                  splashFactory: InkSparkle.splashFactory,
-                ),
-                onPressed: () {
-                  _searchController.clear();
-                  _onSearchChanged('');
-                },
-              ),
             const SizedBox(width: 4),
             IconButton(
               icon: Icon(
@@ -661,8 +613,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 });
               },
             ),
-
-            // ── ĐÃ THAY THẾ POPUMENUBUTTON THÀNH ICONBUTTON GỌI BOTTOM SHEET ──
             IconButton(
               icon: const Icon(
                 Icons.swap_vert,
@@ -761,7 +711,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildNotesSliverSection(List<Note> notes, NoteProvider noteProvider) {
     if (_isGrid) {
-      // Sử dụng SliverMasonryGrid của gói flutter_staggered_grid_view thay cho MasonryGridView
       return SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         sliver: SliverMasonryGrid.count(
@@ -775,7 +724,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else {
-      // Sử dụng SliverList.builder để giải phóng RAM tối đa cho dạng danh sách dòng
       return SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         sliver: SliverList.builder(
