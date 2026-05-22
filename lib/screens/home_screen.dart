@@ -27,6 +27,7 @@ enum SortType {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _scrollController = ScrollController();
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   bool _isGrid = false;
@@ -37,12 +38,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = Provider.of<AuthProvider>(context, listen: false);
 
       if (auth.isAuthenticated) {
         // await auth.reloadUserData();
         final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+        // 1. Tải cực nhanh dữ liệu từ SQLite local lên UI trước để người dùng không phải chờ
         await noteProvider.fetchNotes(auth.userId!);
         await noteProvider.fetchTrashNotes(auth.userId!);
       }
@@ -51,9 +55,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      // Khi cuộn cách đáy màn hình 200px, tự động trigger tải dữ liệu trang tiếp theo
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+      if (auth.isAuthenticated && !noteProvider.isSearching) {
+        noteProvider.fetchMoreNotes(auth.userId!);
+      }
+    }
   }
 
   void _onSearchChanged(String query) {
@@ -394,6 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await noteProvider.fetchNotes(auth.userId!);
       },
       child: ListView(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         children: [
           if (noteProvider.isSearching) ...[
@@ -523,12 +541,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
   Future<void> _archiveSelectedNotes(NoteProvider provider) async {
-    final ids = provider.selectedNoteIds.toList();
-    final count = ids.length;
-    provider.clearSelection();
-    for (final id in ids) {
-      await provider.archiveNote(id);
-    }
+    final count = provider.selectedNoteIds.length;
+
+    // Gọi hàm xử lý hàng loạt tập trung
+    await provider.archiveSelectedNotes();
+
     if (mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(

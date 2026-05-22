@@ -67,20 +67,52 @@ class LocalNoteService {
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<List<Note>> getAllNotes({required String userId}) async {
+  Future<List<Note>> getAllNotes({
+    required String userId,
+    int? limit,
+    int? offset,
+  }) async {
     if (kIsWeb) {
-      return _webNotes
-          .where((n) => n.userId == userId && n.status != 'trash')
+      final notes = _webNotes
+          .where(
+            (n) =>
+        n.userId == userId &&
+            n.status != 'trash',
+      )
           .toList();
+      // Sort newest first
+      notes.sort(
+            (a, b) => b.updatedAt.compareTo(a.updatedAt),
+      );
+      // Pagination for web
+      if (offset != null && limit != null) {
+        final start = offset;
+        final end =
+        (offset + limit > notes.length)
+            ? notes.length
+            : offset + limit;
+        if (start >= notes.length) {
+          return [];
+        }
+        return notes.sublist(start, end);
+      }
+      return notes;
     }
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: 'status != ? AND user_id = ?',
-      whereArgs: ['trash', userId],
+      where: 'user_id = ? AND status != ?',
+      whereArgs: [
+        userId,
+        'trash',
+      ],
       orderBy: 'updated_at DESC',
+      limit: limit,
+      offset: offset,
     );
-    return maps.map((m) => Note.fromMap(m)).toList();
+    return maps
+        .map((m) => Note.fromMap(m))
+        .toList();
   }
 
   // ── Search full-text: tìm trong title VÀ content ──
