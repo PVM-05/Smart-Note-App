@@ -408,34 +408,18 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         final auth = Provider.of<AuthProvider>(context, listen: false);
-        await noteProvider.fetchNotes(auth.userId!);
+        await noteProvider.refreshNotes(auth.userId!);
       },
-      child: ListView(
-        controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        children: [
+      child: CustomScrollView(
+        controller: _scrollController, // Quản lý cuộn mượt mà tập trung
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
           if (noteProvider.isSearching) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(
-                '${searchNotes.length} KẾT QUẢ TÌM THẤY',
-                style: GoogleFonts.roboto(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[500],
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-            _buildNotesSection(searchNotes, noteProvider),
-          ] else ...[
-
-            // ── CÓ NOTE GHIM → HIỆN "ĐƯỢC GHIM" + "KHÁC"
-            if (pinnedNotes.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Text(
-                  'Được ghim',
+                  '${searchNotes.length} KẾT QUẢ TÌM THẤY',
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -444,16 +428,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-
-              _buildNotesSection(pinnedNotes, noteProvider),
-
-              const SizedBox(height: 16),
-
-              if (normalNotes.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            ),
+            _buildNotesSliverSection(searchNotes, noteProvider),
+          ] else ...[
+            // ── CÓ NOTE GHIM → HIỆN KHU VỰC "ĐƯỢC GHIM"
+            if (pinnedNotes.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: Text(
-                    'Khác',
+                    'Được ghim',
                     style: GoogleFonts.roboto(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -462,21 +446,57 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+              ),
+              _buildNotesSliverSection(pinnedNotes, noteProvider),
 
-                _buildNotesSection(normalNotes, noteProvider),
+              // Khoảng cách giữa 2 section
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+              if (normalNotes.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Text(
+                      'Khác',
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[500],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+                _buildNotesSliverSection(normalNotes, noteProvider),
               ],
             ]
-
-            // ── KHÔNG CÓ NOTE GHIM → HIỆN NOTE THƯỜNG THÔI (KHÔNG CÓ CHỮ "KHÁC")
+            // ── KHÔNG CÓ NOTE GHIM → HIỆN THẲNG NOTE THƯỜNG
             else ...[
-              _buildNotesSection(normalNotes, noteProvider),
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+              _buildNotesSliverSection(normalNotes, noteProvider),
             ],
           ],
+
+          // Progress Indicator load thêm dữ liệu ở cuối mượt mà
+          if (noteProvider.isLoadingMore)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2E75B6)),
+                  ),
+                ),
+              ),
+            ),
+
+          // Thêm một khoảng đệm nhỏ dưới đáy tránh FAB đè lên nội dung
+          const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
     );
   }
-
   Widget _buildNoteItem(Note note, NoteProvider provider) {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
@@ -739,31 +759,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNotesSection(List<Note> notes, NoteProvider noteProvider) {
+  Widget _buildNotesSliverSection(List<Note> notes, NoteProvider noteProvider) {
     if (_isGrid) {
-      return MasonryGridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: notes.length,
-        itemBuilder: (context, index) {
-          final note = notes[index];
-          return _buildNoteItem(note, noteProvider);
-        },
+      // Sử dụng SliverMasonryGrid của gói flutter_staggered_grid_view thay cho MasonryGridView
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        sliver: SliverMasonryGrid.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          itemBuilder: (context, index) {
+            return _buildNoteItem(notes[index], noteProvider);
+          },
+          childCount: notes.length,
+        ),
       );
     } else {
-      return ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        itemCount: notes.length,
-        itemBuilder: (context, index) {
-          final note = notes[index];
-          return _buildNoteItem(note, noteProvider);
-        },
+      // Sử dụng SliverList.builder để giải phóng RAM tối đa cho dạng danh sách dòng
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        sliver: SliverList.builder(
+          itemCount: notes.length,
+          itemBuilder: (context, index) {
+            return _buildNoteItem(notes[index], noteProvider);
+          },
+        ),
       );
     }
   }
