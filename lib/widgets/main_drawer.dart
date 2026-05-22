@@ -1,5 +1,7 @@
+// lib/widgets/main_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart'; // Đảm bảo import đầy đủ nếu có
 import '../providers/note_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/manage_labels_screen.dart';
@@ -8,10 +10,12 @@ import '../screens/archive_screen.dart';
 
 class MainDrawer extends StatelessWidget {
   final String currentRoute;
+  final VoidCallback? onLabelSelected; // <── THÊM DÒNG NÀY: Callback báo hiệu reset cuộn cho HomeScreen
 
   const MainDrawer({
     super.key,
     required this.currentRoute,
+    this.onLabelSelected, // <── THÊM DÒNG NÀY
   });
 
   static const Color primaryColor = Color(0xFF2E75B6);
@@ -19,6 +23,7 @@ class MainDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final noteProvider = Provider.of<NoteProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     final systemLabels = noteProvider.allLabels;
     final activeLabel = noteProvider.selectedLabel;
@@ -31,7 +36,6 @@ class MainDrawer extends StatelessWidget {
           padding: EdgeInsets.zero,
           children: [
             // ================= HEADER =================
-
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
               child: Column(
@@ -55,26 +59,24 @@ class MainDrawer extends StatelessWidget {
               ),
             ),
 
-            // ================= NOTES =================
-
+            // ================= NOTES (TẤT CẢ GHI CHÚ) =================
             _buildKeepDrawerItem(
               context,
               icon: Icons.lightbulb_outline,
               label: 'Ghi chú',
-              isSelected:
-              currentRoute == '/home' && activeLabel == null,
-              onTap: () {
+              isSelected: currentRoute == '/home' && activeLabel == null,
+              onTap: () async {
                 noteProvider.selectLabel(null);
-
                 Navigator.pop(context);
 
                 if (currentRoute != '/home') {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const HomeScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
                   );
+                } else {
+                  // Nếu đang ở sẵn HomeScreen -> kích hoạt callback làm mới và reset cuộn về đầu
+                  onLabelSelected?.call();
                 }
               },
             ),
@@ -82,7 +84,6 @@ class MainDrawer extends StatelessWidget {
             _sectionDivider(context),
 
             // ================= LABEL SECTION =================
-
             if (systemLabels.isEmpty) ...[
               _buildKeepDrawerItem(
                 context,
@@ -91,23 +92,17 @@ class MainDrawer extends StatelessWidget {
                 isSelected: false,
                 onTap: () {
                   Navigator.pop(context);
-
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                      const ManageLabelsScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const ManageLabelsScreen()),
                   );
                 },
               ),
             ] else ...[
               Padding(
-                padding:
-                const EdgeInsets.fromLTRB(24, 8, 16, 8),
+                padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
                 child: Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'NHÃN',
@@ -118,28 +113,17 @@ class MainDrawer extends StatelessWidget {
                         letterSpacing: 1,
                       ),
                     ),
-
                     TextButton(
                       style: TextButton.styleFrom(
-                        padding:
-                        const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         minimumSize: Size.zero,
-                        tapTargetSize:
-                        MaterialTapTargetSize
-                            .shrinkWrap,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       onPressed: () {
                         Navigator.pop(context);
-
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                            const ManageLabelsScreen(),
-                          ),
+                          MaterialPageRoute(builder: (_) => const ManageLabelsScreen()),
                         );
                       },
                       child: const Text(
@@ -156,37 +140,32 @@ class MainDrawer extends StatelessWidget {
               ),
 
               // Dynamic labels
-
               ...systemLabels.map((label) {
-                final isLabelSelected =
-                    currentRoute == '/home' &&
-                        activeLabel == label;
+                final isLabelSelected = currentRoute == '/home' && activeLabel == label;
 
                 return _buildKeepDrawerItem(
                   context,
                   icon: Icons.label_outline,
                   label: label,
                   isSelected: isLabelSelected,
-                  onTap: () {
+                  onTap: () async {
                     noteProvider.selectLabel(label);
-
                     Navigator.pop(context);
 
                     if (currentRoute != '/home') {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                          const HomeScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
                       );
+                    } else {
+                      // Nếu đang ở sẵn HomeScreen -> kích hoạt callback làm mới dữ liệu nhãn dán
+                      onLabelSelected?.call();
                     }
                   },
                 );
               }),
 
               // Create label button
-
               _buildKeepDrawerItem(
                 context,
                 icon: Icons.add,
@@ -194,22 +173,15 @@ class MainDrawer extends StatelessWidget {
                 isSelected: false,
                 onTap: () {
                   Navigator.pop(context);
-
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                      const ManageLabelsScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const ManageLabelsScreen()),
                   );
                 },
               ),
             ],
 
-            // ================= TRASH =================
-
-
-
+            // ================= TRASH & ARCHIVE =================
             _sectionDivider(context),
 
             _buildKeepDrawerItem(
@@ -222,9 +194,7 @@ class MainDrawer extends StatelessWidget {
                 if (currentRoute != '/archive') {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const ArchiveScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const ArchiveScreen()),
                   );
                 }
               },
@@ -237,27 +207,20 @@ class MainDrawer extends StatelessWidget {
               isSelected: currentRoute == '/trash',
               onTap: () {
                 Navigator.pop(context);
-
                 if (currentRoute != '/trash') {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                      const TrashScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const TrashScreen()),
                   );
                 }
               },
             ),
-
             const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-
-  // ================= DIVIDER =================
 
   Widget _sectionDivider(BuildContext context) {
     return Padding(
@@ -272,8 +235,6 @@ class MainDrawer extends StatelessWidget {
     );
   }
 
-  // ================= DRAWER ITEM =================
-
   Widget _buildKeepDrawerItem(
       BuildContext context, {
         required IconData icon,
@@ -282,49 +243,30 @@ class MainDrawer extends StatelessWidget {
         required VoidCallback onTap,
       }) {
     return Padding(
-      padding:
-      const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeInOut,
         child: ListTile(
           dense: true,
-          visualDensity:
-          const VisualDensity(vertical: -1),
-
-          contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16),
-
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-
+          visualDensity: const VisualDensity(vertical: -1),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           selected: isSelected,
-
-          selectedTileColor:
-          primaryColor.withValues(alpha: 0.12),
-
+          selectedTileColor: primaryColor.withValues(alpha: 0.12),
           leading: Icon(
             icon,
             size: 22,
-            color: isSelected
-                ? primaryColor
-                : Colors.black87,
+            color: isSelected ? primaryColor : Colors.black87,
           ),
-
           title: Text(
             label,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: isSelected
-                  ? FontWeight.w700
-                  : FontWeight.w500,
-              color: isSelected
-                  ? primaryColor
-                  : Colors.black87,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? primaryColor : Colors.black87,
             ),
           ),
-
           onTap: onTap,
         ),
       ),

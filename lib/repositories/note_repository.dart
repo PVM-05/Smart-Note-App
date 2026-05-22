@@ -7,7 +7,7 @@ import '../services/firestore_note_service.dart';
 import '../services/pending_delete_service.dart';
 
 abstract class NoteRepository {
-  Future<List<Note>> getNotes(String userId);
+  Future<List<Note>> getNotes(String userId, {int limit, int offset});
   Future<void> saveNote(Note note);
   Future<void> deleteNote(String id);
   Future<List<Note>> getUnsyncedNotes(String userId);
@@ -17,6 +17,7 @@ abstract class NoteRepository {
   });
   Future<List<Note>> getTrashNotes(String userId);
   Future<void> clearLocalData(String userId);
+  Future<void> deleteNoteForever(String id);
 
   Future<List<Note>> getArchivedNotes(String userId);
 }
@@ -35,17 +36,20 @@ class NoteRepositoryImpl implements NoteRepository {
 
   // ── Lấy danh sách notes ──
   @override
-  Future<List<Note>> getNotes(String userId) async {
-    final localNotes = await _localService.getAllNotes(userId: userId);
+  Future<List<Note>> getNotes(String userId, {int? limit, int? offset}) async {
+    // Lấy dữ liệu phân trang từ Local SQLite
+    final localNotes = await _localService.getAllNotes(
+      userId: userId,
+      limit: limit,
+      offset: offset,
+    );
 
-    if (localNotes.isEmpty && await _canSync()) {
-      // Lần đầu đăng nhập → pull cloud về
+    // Nếu là trang đầu tiên (offset == 0) và trống, tiến hành kéo từ Cloud về
+    if (offset == 0 && localNotes.isEmpty && await _canSync()) {
       await _pullFromCloud();
-      return await _localService.getAllNotes(userId: userId);
+      return await _localService.getAllNotes(userId: userId, limit: limit, offset: offset);
     }
 
-    // Có data local → sync ngầm
-    _syncInBackground(userId);
     return localNotes;
   }
 
@@ -90,6 +94,24 @@ class NoteRepositoryImpl implements NoteRepository {
     } else {
       await _pendingDeleteSvc.add(id);
       log('📋 Delete queued for later: $id');
+    }
+  }
+
+  @override
+  Future<void> deleteNoteForever(String id) async {
+    // Xóa cứng tại SQLite local
+    await _localService.deleteNote(id);
+
+    if (await _canSync()) {
+      try {
+        // Xóa cứng document trên Cloud Firebase
+        await _firestoreService.deleteNote(id);
+        await _pendingDeleteSvc.remove(id);
+      } catch (e) {
+        await _pendingDeleteSvc.add(id);
+      }
+    } else {
+      await _pendingDeleteSvc.add(id);
     }
   }
 

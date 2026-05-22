@@ -67,46 +67,140 @@ class LocalNoteService {
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<List<Note>> getAllNotes({required String userId}) async {
+  Future<List<Note>> getAllNotes({
+    required String userId,
+    int? limit,
+    int? offset,
+  }) async {
     if (kIsWeb) {
-      return _webNotes
-          .where((n) => n.userId == userId && n.status != 'trash')
+      final notes = _webNotes
+          .where(
+            (n) =>
+        n.userId == userId &&
+            n.status != 'trash',
+      )
           .toList();
+      // Sort newest first
+      notes.sort(
+            (a, b) => b.updatedAt.compareTo(a.updatedAt),
+      );
+      // Pagination for web
+      if (offset != null && limit != null) {
+        final start = offset;
+        final end =
+        (offset + limit > notes.length)
+            ? notes.length
+            : offset + limit;
+        if (start >= notes.length) {
+          return [];
+        }
+        return notes.sublist(start, end);
+      }
+      return notes;
     }
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: 'status != ? AND user_id = ?',
-      whereArgs: ['trash', userId],
+      where: 'user_id = ? AND status != ?',
+      whereArgs: [
+        userId,
+        'trash',
+      ],
       orderBy: 'updated_at DESC',
+      limit: limit,
+      offset: offset,
     );
-    return maps.map((m) => Note.fromMap(m)).toList();
+    return maps
+        .map((m) => Note.fromMap(m))
+        .toList();
   }
 
-  // ── Search full-text: tìm trong title VÀ content ──
+  // ── Search nâng cao: Hỗ trợ Filter Tokens (is:pinned, has:image, label:"...") ──
   Future<List<Note>> searchNotes({
     required String userId,
     required String query,
   }) async {
     if (query.trim().isEmpty) return getAllNotes(userId: userId);
 
-    final keyword = '%${query.trim()}%';
+    String q = query.trim();
+    String whereString = 'user_id = ? AND status != ?';
+    List<dynamic> whereArgs = [userId, 'trash'];
 
+    // --- XỬ LÝ TRÊN MÔI TRƯỜNG WEB ---
     if (kIsWeb) {
-      final q = query.trim().toLowerCase();
       return _webNotes.where((n) {
-        return n.userId == userId &&
-            n.status != 'trash' &&
-            (n.title.toLowerCase().contains(q) ||
-                n.content.toLowerCase().contains(q));
+        bool match = n.userId == userId && n.status != 'trash';
+        String qWeb = query.trim();
+
+        if (qWeb.contains('is:pinned')) { match = match && n.status == 'pinned'; qWeb = qWeb.replaceAll('is:pinned', '').trim(); }
+        else if (qWeb.contains('is:archived')) { match = match && n.status == 'archived'; qWeb = qWeb.replaceAll('is:archived', '').trim(); }
+
+        if (qWeb.contains('has:image')) { match = match && n.content.contains('!['); qWeb = qWeb.replaceAll('has:image', '').trim(); }
+        if (qWeb.contains('has:url')) { match = match && n.content.contains('http'); qWeb = qWeb.replaceAll('has:url', '').trim(); }
+        if (qWeb.contains('has:list')) { match = match && (n.content.contains('- ') || n.content.contains('[ ]')); qWeb = qWeb.replaceAll('has:list', '').trim(); }
+
+        final labelRegExp = RegExp(r'label:"([^"]+)"|label:([^\s]+)');
+        for (final m in labelRegExp.allMatches(qWeb)) {
+          final label = m.group(1) ?? m.group(2);
+          if (label != null) match = match && n.tags.contains(label);
+        }
+        qWeb = qWeb.replaceAll(labelRegExp, '').trim().toLowerCase();
+
+        if (qWeb.isNotEmpty) {
+          match = match && (n.title.toLowerCase().contains(qWeb) || n.content.toLowerCase().contains(qWeb));
+        }
+        return match;
       }).toList();
+    }
+
+    // --- XỬ LÝ TRÊN MÔI TRƯỜNG SQLITE MOBILE ---
+
+    // 1. Phân tích trạng thái
+    if (q.contains('is:pinned')) {
+      whereString += " AND status = 'pinned'";
+      q = q.replaceAll('is:pinned', '').trim();
+    } else if (q.contains('is:archived')) {
+      whereString += " AND status = 'archived'";
+      q = q.replaceAll('is:archived', '').trim();
+    }
+
+    // 2. Phân tích loại nội dung (Markdown)
+    if (q.contains('has:image')) {
+      whereString += " AND content LIKE '%![%'";
+      q = q.replaceAll('has:image', '').trim();
+    }
+    if (q.contains('has:url')) {
+      whereString += " AND content LIKE '%http%'";
+      q = q.replaceAll('has:url', '').trim();
+    }
+    if (q.contains('has:list')) {
+      whereString += " AND (content LIKE '%- %' OR content LIKE '%[ ]%' OR content LIKE '%[x]%')";
+      q = q.replaceAll('has:list', '').trim();
+    }
+
+    // 3. Phân tích Nhãn dán (Label)
+    final labelRegExp = RegExp(r'label:"([^"]+)"|label:([^\s]+)');
+    final matches = labelRegExp.allMatches(q);
+    for (final match in matches) {
+      final label = match.group(1) ?? match.group(2);
+      if (label != null) {
+        whereString += " AND tags LIKE ?";
+        whereArgs.add('%"$label"%'); // Tìm chuỗi chứa tên label chính xác trong JSON Array
+      }
+    }
+    q = q.replaceAll(labelRegExp, '').trim();
+
+    // 4. Đoạn text còn lại chính là từ khóa người dùng muốn tìm
+    if (q.isNotEmpty) {
+      whereString += ' AND (title LIKE ? OR content LIKE ?)';
+      whereArgs.addAll(['%$q%', '%$q%']);
     }
 
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: 'user_id = ? AND status != ? AND (title LIKE ? OR content LIKE ?)',
-      whereArgs: [userId, 'trash', keyword, keyword],
+      where: whereString,
+      whereArgs: whereArgs,
       orderBy: 'updated_at DESC',
     );
     return maps.map((m) => Note.fromMap(m)).toList();

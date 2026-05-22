@@ -569,28 +569,14 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
           const SizedBox(height: 24),
 
           Text(
-            'Chưa có ghi chú lưu trữ',
-
+            'Ghi chú đã được lưu trữ của bạn sẽ xuất hiện ở đây',
             style: GoogleFonts.roboto(
-              fontSize: 20,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
           ),
-
           const SizedBox(height: 8),
-
-          Text(
-            'Ghi chú được lưu trữ sẽ xuất hiện ở đây.',
-
-            textAlign: TextAlign.center,
-
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              color: Colors.grey,
-              height: 1.5,
-            ),
-          ),
         ],
       ),
     );

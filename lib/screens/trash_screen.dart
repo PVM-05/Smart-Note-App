@@ -270,21 +270,14 @@ class _TrashScreenState extends State<TrashScreen> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Thùng rác trống',
+            'Không có ghi chú nào trong Thùng rác',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Không có ghi chú nào bị xóa gần đây.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
         ],
       ),
     );
