@@ -69,6 +69,162 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _showModernQuickMenu(BuildContext context, GlobalKey<OpenContainerState> openContainerKey) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierDismissible: true,
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
+        pageBuilder: (context, animation, secondaryAnimation) {
+
+          final List<Map<String, dynamic>> menuItems = [
+            {'icon': Icons.mic_none_outlined, 'title': 'Âm thanh', 'action': () {}},
+            {'icon': Icons.image_outlined, 'title': 'Hình ảnh', 'action': () {}},
+            {'icon': Icons.brush_outlined, 'title': 'Bản vẽ', 'action': () {}},
+            {'icon': Icons.check_box_outlined, 'title': 'Danh sách', 'action': () {}},
+            {'icon': Icons.text_fields_outlined, 'title': 'Văn bản', 'action': () => openContainerKey.currentState?.openContainer()},
+          ];
+
+          return Stack(
+            children: [
+              // 1. Lớp nền mờ kính chuyển động
+              // Nền phủ tối nhẹ kiểu Google Keep
+              AnimatedBuilder(
+                animation: animation,
+                builder: (context, child) {
+                  return Container(
+                    color: Colors.black.withOpacity(
+                      (animation.value * 0.5).clamp(0.0, 1.0),
+                    ),
+                  );
+                },
+              ),
+
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                behavior: HitTestBehavior.opaque,
+                child: const SizedBox.expand(),
+              ),
+
+              // 2. GIẢI PHÁP: Bọc SafeArea bảo vệ bên ngoài khu vực nút bấm
+              SafeArea(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      bottom: 16, // Khoảng cách 16px an toàn từ đáy màn hình ứng dụng
+                      right: 16,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Các khối Option tách rời bo tròn
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: List.generate(menuItems.length, (index) {
+                              final item = menuItems[index];
+
+                              final double startDelay = (menuItems.length - 1 - index) * 0.08;
+                              final double endDelay = (startDelay + 0.5).clamp(0.0, 1.0);
+
+                              final scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+                                CurvedAnimation(
+                                  parent: animation,
+                                  curve: Interval(startDelay, endDelay, curve: Curves.easeOutBack),
+                                ),
+                              );
+
+                              return ScaleTransition(
+                                scale: scaleAnimation,
+                                alignment: Alignment.bottomRight,
+                                child: FadeTransition(
+                                  opacity: animation,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        )
+                                      ],
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(20),
+                                        onTap: () {
+                                          Navigator.pop(context);
+                                          (item['action'] as VoidCallback)();
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                item['title'] as String,
+                                                style: GoogleFonts.roboto(
+                                                  fontSize: 14.5,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: const Color(0xFF3C4043),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 14),
+                                              Icon(item['icon'] as IconData, color: const Color(0xFF5F6368), size: 22),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Nút FAB giả lập - chỉ xoay icon dấu cộng bên trong
+                          FloatingActionButton(
+                            elevation: 4,
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            child: AnimatedBuilder(
+                              animation: animation,
+                              builder: (context, child) {
+                                return Transform.rotate(
+                                  angle: animation.value * 2.35619, // Xoay 135 độ chuẩn
+                                  child: child,
+                                );
+                              },
+                              child: const Icon(
+                                Icons.add,
+                                color: _primary,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   // Giải pháp tối ưu cho hàm xóa tại home_screen.dart
   Future<void> _moveToTrashSelected(NoteProvider provider) async {
     final deletedIds = List<String>.from(provider.selectedNoteIds);
@@ -228,7 +384,9 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+
   }
+
 
   Widget _buildSortOption({
     required SortType type,
@@ -303,40 +461,64 @@ class _HomeScreenState extends State<HomeScreen> {
           endDrawer: const ProfileDrawer(),
           appBar: isSelectionMode ? _selectionAppBar(noteProvider) : _normalAppBar(),
           body: _buildBody(noteProvider),
-          floatingActionButton: AnimatedScale(
-            scale: isSelectionMode ? 0.0 : 1.0,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutBack,
-            child: OpenContainer(
-              transitionType: ContainerTransitionType.fade,
-              transitionDuration: const Duration(milliseconds: 400),
-              closedElevation: 6,
-              openElevation: 0,
-              closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              closedColor: _primary,
-              openBuilder: (context, _) => const EditorScreen(note: null),
-              onClosed: (_) async {
-                final auth = Provider.of<AuthProvider>(context, listen: false);
-                if (auth.isAuthenticated && auth.userId != null) {
-                  await Provider.of<NoteProvider>(context, listen: false).fetchNotes(auth.userId!);
-                }
-              },
-              closedBuilder: (context, openContainer) {
-                return FloatingActionButton(
-                  elevation: 0,
-                  backgroundColor: Colors.transparent,
-                  onPressed: () {
-                    if (!isSelectionMode) openContainer();
+          floatingActionButton: Consumer<NoteProvider>(
+            builder: (context, provider, _) {
+              final isSelectionMode = provider.isSelectionMode;
+              final GlobalKey<OpenContainerState> openContainerKey = GlobalKey<OpenContainerState>();
+
+              return AnimatedScale(
+                scale: isSelectionMode ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutBack,
+                child: GestureDetector(
+                  onLongPress: () {
+                    // 🌟 NHẤN GIỮ: Hiện menu nổi đè màn hình + Xoay FAB + Blur nền
+                    _showModernQuickMenu(context, openContainerKey);
                   },
-                  child: const Icon(Icons.add, color: Colors.white),
-                );
-              },
-            ),
+                  child: OpenContainer(
+                    key: openContainerKey,
+                    transitionType: ContainerTransitionType.fadeThrough,
+                    transitionDuration: const Duration(milliseconds: 400),
+                    closedElevation: 3,
+                    openElevation: 0,
+                    closedShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    closedColor: Colors.white,
+                    openBuilder: (context, _) => const EditorScreen(note: null),
+                    onClosed: (_) {
+                      provider.notifyListeners();
+                    },
+                    closedBuilder: (context, openContainer) {
+                      return FloatingActionButton(
+                        elevation: 0,
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        onPressed: () {
+                          // 🌟 ẤN NHANH: Mở thẳng trình tạo note văn bản
+                          if (!isSelectionMode) {
+                            openContainer();
+                          }
+                        },
+                        child: const Icon(
+                          Icons.add,
+                          color: _primary,
+                          size: 28,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
     );
   }
+
 
   Widget _buildBody(NoteProvider noteProvider) {
     if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
@@ -454,57 +636,74 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = provider.selectedNoteIds.contains(note.id);
     final isSelectionMode = provider.isSelectionMode;
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutQuint,
-      builder: (context, value, child) {
-        return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: Opacity(opacity: value, child: child),
-        );
-      },
-      child: Container(
-        margin: _isGrid ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? _primary : Colors.transparent,
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
+    // Định nghĩa tĩnh các hằng số màu sắc tránh gây rò rỉ bộ nhớ (memory allocation) khi render 60fps
+    const Color selectBorderColor = Color(0xFF2E75B6);
+    const Color selectBgColor = Color(0x0F2E75B6);
+
+    return Container(
+      margin: _isGrid
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      // ⚡ TỐI ƯU GPU: Đẩy AnimatedScale ra lớp ngoài cùng bọc OpenContainer để ép GPU xử lý độc lập
+      child: AnimatedScale(
+        scale: isSelected ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOutCubic,
         child: OpenContainer(
           transitionType: ContainerTransitionType.fade,
-          transitionDuration: const Duration(milliseconds: 400),
+          transitionDuration: const Duration(milliseconds: 320), // Tốc độ Material 3 chuẩn (300-350ms)
           closedElevation: 0,
           openElevation: 0,
-          closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          closedColor: isSelected ? _primary.withValues(alpha: 0.05) : Colors.white,
-          middleColor: Colors.white,
+          tappable: false,
+          closedColor: Colors.transparent,
+          middleColor: Colors.transparent,
           openColor: Theme.of(context).scaffoldBackgroundColor,
+          closedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           openBuilder: (context, _) => EditorScreen(note: note),
-          onClosed: (_) async {
-            final auth = Provider.of<AuthProvider>(context, listen: false);
-            if (auth.isAuthenticated && auth.userId != null) {
-              await provider.fetchNotes(auth.userId!);
-            }
+          onClosed: (_) {
+            // Trì hoãn re-fetch data sau khi card đã thu nhỏ hoàn toàn
+            Future.delayed(const Duration(milliseconds: 320), () async {
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              if (auth.isAuthenticated && auth.userId != null) {
+                await provider.fetchNotes(auth.userId!);
+              }
+            });
           },
           closedBuilder: (context, openContainer) {
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onLongPress: () => provider.toggleSelection(note.id),
-                onTap: () {
-                  if (isSelectionMode) {
-                    provider.toggleSelection(note.id);
-                  } else {
-                    openContainer();
-                  }
-                },
-                child: NoteCard(
-                  note: note,
-                  searchQuery: null,
-                  isGrid: _isGrid,
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOutCubic,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? selectBorderColor : Colors.transparent,
+                  width: 2,
+                ),
+                color: isSelected ? selectBgColor : Colors.white,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  splashColor: selectBgColor,
+                  highlightColor: Colors.transparent,
+                  onLongPress: () => provider.toggleSelection(note.id),
+                  onTap: () {
+                    if (isSelectionMode) {
+                      provider.toggleSelection(note.id);
+                    } else {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      openContainer();
+                    }
+                  },
+                  child: NoteCard(
+                    note: note,
+                    searchQuery: null,
+                    isGrid: _isGrid,
+                  ),
                 ),
               ),
             );

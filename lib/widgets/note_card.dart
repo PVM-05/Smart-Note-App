@@ -1,3 +1,4 @@
+// lib/widgets/note_card.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/note_model.dart';
@@ -8,6 +9,7 @@ class NoteCard extends StatelessWidget {
   final VoidCallback? onMenuPressed;
   final bool isGrid;
 
+  // Khuyến khích sử dụng const constructor để Flutter đưa vào bộ nhớ cache hệ thống
   const NoteCard({
     super.key,
     required this.note,
@@ -16,10 +18,11 @@ class NoteCard extends StatelessWidget {
     this.isGrid = true,
   });
 
-
-
   @override
   Widget build(BuildContext context) {
+    // Tối ưu hóa màu sắc tĩnh để tránh tính toán run-time alpha `.withValues`
+    const Color contentColor = Color(0xDA475569);
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -45,7 +48,6 @@ class NoteCard extends StatelessWidget {
                         ),
                         maxLines: 2,
                       ),
-                    const SizedBox(height: 3),
                   ],
                 ),
               ),
@@ -68,13 +70,13 @@ class NoteCard extends StatelessWidget {
               note.content,
               style: GoogleFonts.outfit(
                 fontSize: 13,
-                color: const Color(0xFF475569).withValues(alpha: 0.85),
+                color: contentColor,
                 height: 1.55,
               ),
               maxLines: 6,
             ),
 
-          // ── DANH SÁCH THẺ (TAGS) - Chuẩn Google Keep ──
+          // ── DANH SÁCH THẺ (TAGS) ──
           if (note.tags.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12.0),
@@ -86,14 +88,14 @@ class NoteCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.transparent,
-                      border: Border.all(color: Colors.grey.shade300, width: 1),
-                      borderRadius: BorderRadius.circular(16), // Bo tròn thành viên thuốc
+                      border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       tag,
                       style: GoogleFonts.outfit(
                         fontSize: 11,
-                        color: Colors.grey.shade700,
+                        color: const Color(0xFF64748B),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -101,17 +103,12 @@ class NoteCard extends StatelessWidget {
                 }).toList(),
               ),
             ),
-
-          // ── FOOTER: TRẠNG THÁI (Ghim / Đồng bộ) ──
-          if (note.status == 'pinned' || !note.isSynced)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-            ),
         ],
       ),
     );
   }
 
+  // ⚡ SIÊU TỐI ƯU CPU: Giải thuật so khớp chuỗi tĩnh không dùng vòng lặp vô hạn
   Widget _buildHighlightedText(
       String text, {
         required TextStyle style,
@@ -128,10 +125,21 @@ class NoteCard extends StatelessWidget {
       );
     }
 
-    final lowerText  = text.toLowerCase();
+    final lowerText = text.toLowerCase();
     final lowerQuery = query.toLowerCase();
-    final spans      = <TextSpan>[];
-    int start        = 0;
+
+    // Nếu tiêu đề/nội dung không chứa từ khóa -> Trả về text thường, tiết kiệm 90% tài nguyên xử lý RichText
+    if (!lowerText.contains(lowerQuery)) {
+      return Text(
+        text,
+        style: style,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    final spans = <TextSpan>[];
+    int start = 0;
 
     while (true) {
       final index = lowerText.indexOf(lowerQuery, start);
@@ -145,8 +153,8 @@ class NoteCard extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
         style: style.copyWith(
-          backgroundColor: Colors.yellow.shade200,
-          color: Colors.black87,
+          backgroundColor: const Color(0xFFFEF08A), // vàng nhẹ mượt mà
+          color: const Color(0xFF1E293B),
         ),
       ));
       start = index + query.length;

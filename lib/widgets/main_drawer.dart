@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart'; // Đảm bảo import đầy đủ n�
 import '../providers/note_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/manage_labels_screen.dart';
+import '../screens/setting_screen.dart';
 import '../screens/trash_screen.dart';
 import '../screens/archive_screen.dart';
 
@@ -81,6 +82,8 @@ class MainDrawer extends StatelessWidget {
               },
             ),
 
+            const SizedBox(height: 16),
+
             _sectionDivider(context),
 
             // ================= LABEL SECTION =================
@@ -105,7 +108,7 @@ class MainDrawer extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'NHÃN',
+                      'Nhãn',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -213,6 +216,21 @@ class MainDrawer extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const TrashScreen()),
                   );
                 }
+              },
+            ),
+
+            _buildKeepDrawerItem(
+              context,
+              icon: Icons.settings_outlined,
+              label: 'Cài đặt',
+              isSelected: currentRoute == '/settings',
+              onTap: () {
+                Navigator.pop(context); // Đóng drawer
+                // Điều hướng sang trang SettingScreen độc lập
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingScreen()),
+                );
               },
             ),
             const SizedBox(height: 20),
