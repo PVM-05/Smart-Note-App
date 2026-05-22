@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'local_note_service.dart';
 import 'firestore_note_service.dart';
 import 'pending_delete_service.dart';
+import '../models/sync_status.dart';
 
-enum SyncStatus { idle, syncing, success, error }
 
 class SyncService {
   final _localService      = LocalNoteService();

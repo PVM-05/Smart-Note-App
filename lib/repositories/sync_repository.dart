@@ -2,8 +2,9 @@
 import '../models/note_model.dart';
 import '../services/local_note_service.dart';
 import '../services/firestore_note_service.dart';
+import '../models/sync_status.dart';
 
-enum SyncStatus { idle, syncing, success, error }
+
 
 abstract class SyncRepository {
   Future<void> syncNotesBatch(List<Note> notes);

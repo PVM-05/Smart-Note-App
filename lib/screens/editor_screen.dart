@@ -186,7 +186,7 @@ class _EditorScreenState extends State<EditorScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_isEditing ? 'Chỉnh sửa' : 'Ghi chú mới'),
+          // title: Text(_isEditing ? 'Chỉnh sửa' : 'Ghi chú mới'),
           backgroundColor: _primary,
           foregroundColor: Colors.white,
           leading: IconButton(
