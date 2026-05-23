@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:collection/collection.dart'; // Sử dụng thư viện collection có sẵn của Flutter để so sánh List
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
@@ -67,6 +68,29 @@ class _EditorScreenState extends State<EditorScreen> {
 
   bool get _isEditing => widget.note != null;
 
+  // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
+  bool _hasChanges() {
+    final originalTitle = widget.note?.title ?? '';
+    final originalContent = widget.note?.content ?? '';
+    final originalTags = widget.note?.tags ?? const [];
+    final originalImages = widget.note?.imageUrls ?? const [];
+    final originalAudios = widget.note?.audioUrls ?? const [];
+
+    final currentTitle = _titleController.text.trim();
+    final currentContent = _contentController.text.trim();
+
+    // Dùng const ListEquality().equals để kiểm tra sự thay đổi của các phần tử trong mảng
+    const listEquality = ListEquality<String>();
+
+    final titleChanged = originalTitle != currentTitle;
+    final contentChanged = originalContent != currentContent;
+    final tagsChanged = !listEquality.equals(originalTags, _tags);
+    final imagesChanged = !listEquality.equals(originalImages, _imageUrls);
+    final audiosChanged = !listEquality.equals(originalAudios, _audioUrls);
+
+    return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -107,6 +131,9 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   void _onTextChanged() {
+    // Chỉ kích hoạt hẹn giờ tự động lưu nếu phát hiện thực sự có sự thay đổi nội dung văn bản
+    if (!_hasChanges()) return;
+
     _autoSaveTimer?.cancel();
     _autoSaveTimer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) _saveNote(isAutosave: true);
@@ -126,6 +153,9 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _saveNote({required bool isAutosave}) async {
+    // ⚡ CHẶN LƯU THỪA: Nếu không có bất kỳ thay đổi nào, bỏ qua không gọi Database / Cloud Provider
+    if (!_hasChanges()) return;
+
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -171,8 +201,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-
-    // Đánh dấu trạng thái bắt đầu để giao diện hiển thị ProgressBar nếu người dùng thực sự chọn file
     setState(() { _isUploading = true; _uploadingLabel = 'Đang tải ảnh...'; });
 
     final url = source == ImageSource.gallery
@@ -182,12 +210,10 @@ class _EditorScreenState extends State<EditorScreen> {
     if (!mounted) return;
     setState(() => _isUploading = false);
 
-    // Chỉ thực hiện xử lý lưu và update nếu có dữ liệu URL trả về (người dùng thực sự chọn ảnh)
     if (url != null) {
       setState(() => _imageUrls.add(url));
       await _saveNote(isAutosave: true);
     }
-    // LOẠI BỎ TOÀN BỘ PHẦN ELSE SHOW SNACKBAR LỖI THỪA KHI KHÔNG CHỌN ẢNH
   }
 
   void _showImageSourceSheet() {
@@ -314,7 +340,6 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  // ── KHÔI PHỤC CHỨC NĂNG ARCHIVE (LƯU TRỮ) CHO CƠ SỞ DỮ LIỆU ──
   Future<void> _toggleArchive() async {
     if (!_hasBeenSavedInDb) return;
     _autoSaveTimer?.cancel();
@@ -335,7 +360,7 @@ class _EditorScreenState extends State<EditorScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
-      Navigator.of(context).pop(); // Thoát về màn hình trước đó giống như khi bấm Xóa/Ghim
+      Navigator.of(context).pop();
     }
   }
 
@@ -347,7 +372,7 @@ class _EditorScreenState extends State<EditorScreen> {
           initialTags: _tags,
           onTagsChanged: (updatedTags) {
             setState(() => _tags = updatedTags);
-            _saveNote(isAutosave: false);
+            _saveNote(isAutosave: true); // Chuyển thành true để thực hiện lưu thay đổi nhãn ngay lập tức
           },
         ),
       ),
@@ -362,7 +387,12 @@ class _EditorScreenState extends State<EditorScreen> {
         if (didPop) return;
         if (_isRecording) await _stopRecordingAndUpload();
         _autoSaveTimer?.cancel();
-        await _saveNote(isAutosave: false);
+
+        // ⚡ CHỈ LƯU KHI POP NẾU CÓ CHỈNH SỬA
+        if (_hasChanges()) {
+          await _saveNote(isAutosave: false);
+        }
+
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
@@ -375,7 +405,12 @@ class _EditorScreenState extends State<EditorScreen> {
             onPressed: () async {
               if (_isRecording) await _stopRecordingAndUpload();
               _autoSaveTimer?.cancel();
-              await _saveNote(isAutosave: false);
+
+              // ⚡ CHỈ LƯU KHI CLICK BACK NẾU CÓ CHỈNH SỬA
+              if (_hasChanges()) {
+                await _saveNote(isAutosave: false);
+              }
+
               if (mounted) Navigator.of(context).pop();
             },
           ),
@@ -390,7 +425,6 @@ class _EditorScreenState extends State<EditorScreen> {
                 icon: Icon(_status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, color: Colors.black87),
                 onPressed: _togglePin,
               ),
-            // Nút Lưu trữ động bám sát thanh chức năng hệ thống
             if (_hasBeenSavedInDb)
               IconButton(
                 icon: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: Colors.black87),
@@ -545,7 +579,7 @@ class _EditorScreenState extends State<EditorScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ghi âm ${index + 1}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                Text('Ghi âm âm thanh ${index + 1}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
                 const SizedBox(height: 2),
                 Text(
                   isThisLoaded ? '${_formatDuration(_playPosition)} / ${_formatDuration(_playTotal)}' : '00:00',
