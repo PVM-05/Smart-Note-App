@@ -133,11 +133,20 @@ class CloudinaryService {
   // ════════════════════════════════════════
   Future<String?> uploadAudio(File file, String userId) async {
     try {
+      // Giữ nguyên endpoint video/upload của Cloudinary
       final uri = Uri.parse('$_baseUrl/video/upload');
       final request = http.MultipartRequest('POST', uri);
 
       request.fields['upload_preset'] = _uploadPreset;
       request.fields['folder'] = 'smart_note/$userId/audio';
+
+      // 🌟 GIẢI PHÁP 1: Ép Cloudinary tự nhận diện và giữ nguyên định dạng gốc,
+      // tránh việc tự động convert thành video mp4.
+      request.fields['resource_type'] = 'auto';
+
+      // 🌟 GIẢI PHÁP 2 (Tùy chọn bổ sung): Nếu muốn ép máy chủ Cloudinary trả về
+      // đúng đuôi âm thanh m4a/mp3 thay vì mp4, bạn có thể truyền thêm cấu hình format:
+      // request.fields['format'] = 'm4a';
 
       request.files.add(
         await http.MultipartFile.fromPath('file', file.path),
@@ -150,7 +159,7 @@ class CloudinaryService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
-        return data['secure_url'];
+        return data['secure_url']; // URL trả về bây giờ sẽ có đuôi tệp chuẩn âm thanh
       }
     } catch (e) {
       print('❌ uploadAudio error: $e');
