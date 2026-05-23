@@ -18,7 +18,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 4, // 1. NÂNG LÊN VERSION 4 ĐỂ KÍCH HOẠT QUÁ TRÌNH NÂNG CẤP SCHEMA
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
