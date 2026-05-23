@@ -28,7 +28,9 @@ class LocalNoteService {
             content TEXT,
             status TEXT DEFAULT 'normal',
             is_synced INTEGER DEFAULT 0,
-            tags TEXT,          -- 2. THÊM CỘT TAGS ĐỂ LƯU CHUỖI JSON TAG CHO THIẾT BỊ MỚI CÀI APP
+            tags TEXT,
+            image_urls TEXT,
+            audio_urls TEXT,          
             created_at INTEGER,
             updated_at INTEGER
           )
@@ -47,6 +49,10 @@ class LocalNoteService {
         // 3. THÊM LOGIC DI CƯ (MIGRATION): THÊM CỘT TAGS VÀO CHO CÁC THIẾT BỊ ĐANG CHẠY BẢN CŨ (V3)
         if (oldVersion < 4) {
           await db.execute("ALTER TABLE notes ADD COLUMN tags TEXT");
+        }
+        if (oldVersion < 5) {
+          await db.execute("ALTER TABLE notes ADD COLUMN image_urls TEXT");
+          await db.execute("ALTER TABLE notes ADD COLUMN audio_urls TEXT");
         }
       },
     );

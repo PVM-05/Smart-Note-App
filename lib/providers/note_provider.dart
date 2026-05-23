@@ -1,4 +1,6 @@
 // lib/providers/note_provider.dart
+import 'dart:io';
+import '../services/cloudinary_service.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
@@ -90,6 +92,10 @@ class NoteProvider extends ChangeNotifier {
     list.sort();
     return list;
   }
+
+  final CloudinaryService _cloudinaryService = CloudinaryService();
+
+
 
   void selectLabel(String? label) {
     _selectedLabel = label;
@@ -553,6 +559,8 @@ class NoteProvider extends ChangeNotifier {
       notifyListeners();
     });
   }
+
+
 
   void clearSearch() {
     _debounce?.cancel();
