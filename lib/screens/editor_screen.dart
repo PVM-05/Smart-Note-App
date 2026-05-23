@@ -17,6 +17,7 @@ class EditorScreen extends StatefulWidget {
   final Note? note;
   final bool autoRecord;
   final bool autoPickImage;
+
   const EditorScreen({
     super.key,
     this.note,
@@ -44,7 +45,7 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _isUploading = false;
   String _uploadingLabel = '';
 
-  // Audio
+  // Audio Recorder
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isRecording = false;
@@ -52,7 +53,7 @@ class _EditorScreenState extends State<EditorScreen> {
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
 
-  // Playback
+  // Audio Playback
   String? _playingUrl;
   bool _isPlaying = false;
   Duration _playPosition = Duration.zero;
@@ -83,7 +84,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _titleController.addListener(_onTextChanged);
     _contentController.addListener(_onTextChanged);
 
-    // Lắng nghe playback
+    // Lắng nghe luồng phát Audio
     _audioPlayer.positionStream.listen((pos) {
       if (mounted) setState(() => _playPosition = pos);
     });
@@ -95,16 +96,17 @@ class _EditorScreenState extends State<EditorScreen> {
         if (mounted) setState(() { _isPlaying = false; _playingUrl = null; });
       }
     });
+
+    // Kích hoạt tự động hành động nhanh sau khi UI dựng xong frame đầu tiên
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.autoRecord) {
-        _startRecording(); // Tự kích hoạt ghi âm thông qua bộ recorder có sẵn
+        _startRecording();
       } else if (widget.autoPickImage) {
-        _pickImage(ImageSource.gallery); // Mở thẳng thư viện ảnh để upload
+        _pickImage(ImageSource.gallery);
       }
     });
   }
-
 
   void _onTextChanged() {
     _autoSaveTimer?.cancel();
@@ -119,6 +121,9 @@ class _EditorScreenState extends State<EditorScreen> {
     _recordTimer?.cancel();
     _titleController.dispose();
     _contentController.dispose();
+
+    // Tắt trình phát nhạc ngay lập tức để giải phóng RAM phần cứng phần cứng
+    _audioPlayer.stop();
     _recorder.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -135,6 +140,8 @@ class _EditorScreenState extends State<EditorScreen> {
     if (currentUserId.isEmpty) return;
 
     final provider = Provider.of<NoteProvider>(context, listen: false);
+
+    // Kiểm tra Note trống (bọc thêm điều kiện !_isRecording để tránh tự hủy Note khi đang thu âm)
     final isEmpty = title.isEmpty && content.isEmpty && _tags.isEmpty
         && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
 
@@ -334,7 +341,7 @@ class _EditorScreenState extends State<EditorScreen> {
     if (confirm == true && mounted) {
       _autoSaveTimer?.cancel();
 
-      // 🌟 DỌN SẠCH TOÀN BỘ FILE TRÊN CLOUDINARY KHI XÓA NOTE
+      // Dọn sạch tệp tin realtime trên hệ thống Cloudinary
       for (String url in _imageUrls) {
         await _cloudinary.deleteFile(url, resourceType: 'image');
       }
@@ -345,14 +352,14 @@ class _EditorScreenState extends State<EditorScreen> {
       if (_hasBeenSavedInDb) {
         await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
       }
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
   Future<void> _togglePin() async {
     if (_hasBeenSavedInDb && widget.note != null) {
       await Provider.of<NoteProvider>(context, listen: false).togglePin(widget.note!);
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.of(context).pop();
     }
   }
 
@@ -377,13 +384,17 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: false, // Giữ chặn sự kiện đóng tự động
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         if (_isRecording) await _stopRecordingAndUpload();
         _autoSaveTimer?.cancel();
         await _saveNote(isAutosave: false);
-        if (context.mounted) Navigator.pop(context);
+
+        // Thoát trang an toàn thông qua bộ điều hướng vùng chứa
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -392,10 +403,14 @@ class _EditorScreenState extends State<EditorScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
+              // Đồng bộ hóa: Lưu toàn bộ dữ liệu trước khi đóng màn hình
               if (_isRecording) await _stopRecordingAndUpload();
               _autoSaveTimer?.cancel();
               await _saveNote(isAutosave: false);
-              if (mounted) Navigator.pop(context);
+
+              if (mounted) {
+                Navigator.of(context).pop(); // Thực thi lệnh quay lại trang trước
+              }
             },
           ),
           actions: [
@@ -458,7 +473,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     // Tiêu đề
                     TextField(
                       controller: _titleController,
-                      autofocus: !_isEditing,
+                      autofocus: !_isEditing && !widget.autoRecord && !widget.autoPickImage,
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       decoration: const InputDecoration(
                         hintText: 'Tiêu đề...',
@@ -474,7 +489,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     const Divider(height: 1),
                     const SizedBox(height: 8),
 
-                    // Nội dung
+                    // Nội dung chữ
                     TextField(
                       controller: _contentController,
                       style: const TextStyle(fontSize: 16, height: 1.6),
@@ -488,26 +503,26 @@ class _EditorScreenState extends State<EditorScreen> {
                       textCapitalization: TextCapitalization.sentences,
                     ),
 
-                    // ── LƯỚI ẢNH ──
+                    // ── LƯỚI HIỂN THỊ HÌNH ẢNH ──
                     if (_imageUrls.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildImageGrid(),
                     ],
 
-                    // ── DANH SÁCH AUDIO ──
+                    // ── DANH SÁCH AUDIO TRÌNH PHÁT ──
                     if (_audioUrls.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       ..._audioUrls.asMap().entries.map((e) =>
                           _buildAudioItem(e.value, e.key)),
                     ],
 
-                    // ── GHI ÂM ĐANG CHẠY ──
+                    // ── THANH TRẠNG THÁI GHI ÂM DỰNG SẴN ──
                     if (_isRecording) ...[
                       const SizedBox(height: 12),
                       _buildRecordingIndicator(),
                     ],
 
-                    // ── TAGS ──
+                    // ── HIỂN THỊ NHÃN (TAGS) ──
                     if (_tags.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Wrap(
@@ -538,7 +553,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   // ══════════════════════════════════════════════
-  // WIDGETS CON
+  // WIDGETS CON PHỤ TRỢ UI
   // ══════════════════════════════════════════════
 
   Widget _buildImageGrid() {
@@ -580,18 +595,14 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               ),
             ),
-            // Nút xóa ảnh
-            // Tìm đến nút xóa ảnh hình tròn (dấu X)
+            // Nút xóa ảnh dạng dấu X tròn
             Positioned(
               top: 4, right: 4,
               child: GestureDetector(
-                onTap: () async { // 🌟 Thêm async tại đây
-
-                  // 🌟 1. Thực hiện xóa ảnh realtime trên Cloudinary (Mặc định resourceType là 'image')
+                onTap: () async {
                   setState(() { _isUploading = true; _uploadingLabel = 'Đang xóa ảnh trên cloud...'; });
                   await _cloudinary.deleteFile(url, resourceType: 'image');
 
-                  // 2. Xóa khỏi danh sách hiển thị ứng dụng và lưu ghi chú
                   setState(() {
                     _imageUrls.remove(url);
                     _isUploading = false;
@@ -654,7 +665,7 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
       child: Row(
         children: [
-          // Nút play/pause
+          // Nút khởi chạy play/pause audio
           GestureDetector(
             onTap: () => _togglePlay(url),
             child: Container(
@@ -671,7 +682,7 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
           const SizedBox(width: 12),
 
-          // Thanh tiến trình
+          // Thanh trượt tiến trình bài ghi âm
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -733,21 +744,17 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
           const SizedBox(width: 8),
 
-          // Nút xóa audio
-          // Tìm đến nút xóa Audio trong file editor_screen.dart
+          // Nút bấm xóa Audio cục bộ và đồng bộ lên đám mây Cloudinary
           GestureDetector(
-            onTap: () async { // 🌟 Thêm async tại đây
+            onTap: () async {
               if (_playingUrl == url) {
                 _audioPlayer.stop();
                 setState(() { _playingUrl = null; _isPlaying = false; });
               }
 
-              // 🌟 1. Gọi lệnh xóa realtime trên đám mây Cloudinary trước
-              // Đối với audio, bắt buộc phải truyền thêm resourceType là 'video'
               setState(() { _isUploading = true; _uploadingLabel = 'Đang xóa âm thanh trên cloud...'; });
               await _cloudinary.deleteFile(url, resourceType: 'video');
 
-              // 2. Sau đó tiến hành xóa khỏi UI và cập nhật SQLite/Firestore cục bộ
               setState(() {
                 _audioUrls.removeAt(index);
                 _isUploading = false;
@@ -771,7 +778,7 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
       child: Row(
         children: [
-          // Chấm đỏ nhấp nháy
+          // Chấm tròn đỏ nhấp nháy chuyển động trạng thái
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.4, end: 1.0),
             duration: const Duration(milliseconds: 600),
@@ -793,7 +800,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   fontSize: 14),
             ),
           ),
-          // Nút dừng
+          // Nút dừng ghi âm nhanh
           GestureDetector(
             onTap: _stopRecordingAndUpload,
             child: Container(
@@ -827,46 +834,30 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
         child: Row(
           children: [
-            // ── THÊM ẢNH ──
             _toolbarButton(
               icon: Icons.image_outlined,
               tooltip: 'Thêm ảnh',
               onTap: _isUploading ? null : _showImageSourceSheet,
             ),
-
-            // ── GHI ÂM ──
             _toolbarButton(
-              icon: _isRecording
-                  ? Icons.stop_circle_outlined
-                  : Icons.mic_outlined,
+              icon: _isRecording ? Icons.stop_circle_outlined : Icons.mic_outlined,
               tooltip: _isRecording ? 'Dừng ghi âm' : 'Ghi âm',
               color: _isRecording ? _recordColor : null,
               onTap: _isUploading
                   ? null
-                  : (_isRecording
-                  ? _stopRecordingAndUpload
-                  : _startRecording),
+                  : (_isRecording ? _stopRecordingAndUpload : _startRecording),
             ),
-
-            // ── NHÃN ──
             _toolbarButton(
               icon: Icons.label_outline,
               tooltip: 'Thêm nhãn',
               onTap: _openLabelSelectionPage,
             ),
-
             const Spacer(),
-
-            // Trạng thái lưu
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Text(
-                _isUploading
-                    ? _uploadingLabel
-                    : (_hasBeenSavedInDb ? 'Đã lưu' : ''),
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade400),
+                _isUploading ? _uploadingLabel : (_hasBeenSavedInDb ? 'Đã lưu' : ''),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
               ),
             ),
           ],
@@ -891,9 +882,7 @@ class _EditorScreenState extends State<EditorScreen> {
           child: Icon(
             icon,
             size: 24,
-            color: onTap == null
-                ? Colors.grey.shade300
-                : (color ?? Colors.black54),
+            color: onTap == null ? Colors.grey.shade300 : (color ?? Colors.black54),
           ),
         ),
       ),
@@ -902,7 +891,7 @@ class _EditorScreenState extends State<EditorScreen> {
 }
 
 // ══════════════════════════════════════════════════════════════
-// LABEL SELECTION (giữ nguyên như cũ)
+// LABEL SELECTION (Giữ nguyên cấu trúc lọc)
 // ══════════════════════════════════════════════════════════════
 class _LabelSelectionScreen extends StatefulWidget {
   final List<String> initialTags;
@@ -1005,13 +994,11 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 ...filteredLabels.map((label) {
                   final isChecked = _selectedTags.contains(label);
                   return CheckboxListTile(
-                    title: Text(label,
-                        style: const TextStyle(fontSize: 15)),
+                    title: Text(label, style: const TextStyle(fontSize: 15)),
                     value: isChecked,
                     activeColor: _primary,
                     controlAffinity: ListTileControlAffinity.trailing,
-                    contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     onChanged: (val) {
                       setState(() {
                         if (val == true) {
