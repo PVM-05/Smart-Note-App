@@ -7,13 +7,22 @@ import 'providers/note_provider.dart';
 import 'providers/sync_provider.dart';
 import 'repositories/note_repository.dart';
 import 'repositories/sync_repository.dart';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    // 🌟 Tiến hành nạp file .env vào hệ thống
+    await dotenv.load(fileName: ".env");
+    print("✅ Đã tải file .env thành công");
+  } catch (e) {
+    print("❌ Lỗi tải file .env: $e. Hãy kiểm tra xem đã tạo file chưa.");
+  }
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

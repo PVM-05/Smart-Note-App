@@ -80,8 +80,18 @@ class _HomeScreenState extends State<HomeScreen> {
         pageBuilder: (context, animation, secondaryAnimation) {
 
           final List<Map<String, dynamic>> menuItems = [
-            {'icon': Icons.mic_none_outlined, 'title': 'Âm thanh', 'action': () {}},
-            {'icon': Icons.image_outlined, 'title': 'Hình ảnh', 'action': () {}},
+            {'icon': Icons.mic_none_outlined, 'title': 'Âm thanh', 'action': () {
+              // Mở EditorScreen với auto-start recording
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const EditorScreen(note: null, autoRecord: true),
+              ));
+            }},
+            {'icon': Icons.image_outlined, 'title': 'Hình ảnh', 'action': () {
+              // Mở EditorScreen với auto-pick image
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const EditorScreen(note: null, autoPickImage: true),
+              ));
+            }},
             {'icon': Icons.brush_outlined, 'title': 'Bản vẽ', 'action': () {}},
             {'icon': Icons.check_box_outlined, 'title': 'Danh sách', 'action': () {}},
             {'icon': Icons.text_fields_outlined, 'title': 'Văn bản', 'action': () => openContainerKey.currentState?.openContainer()},
