@@ -10,6 +10,8 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
+  final GoogleSignIn _googleSignIn = GoogleSignIn.new();
+
   // Getters
   User? get user => _user;
   bool get isAuthenticated => _user != null;
@@ -95,17 +97,22 @@ class AuthProvider extends ChangeNotifier {
   // DATA FLOW: FE (Button) -> Google API -> Firebase Auth -> Update _user
   // ==================================================================
   // ✅ GOOGLE
+  // ✅ GOOGLE SIGN IN
+  // ✅ GOOGLE SIGN IN
   Future<bool> signInWithGoogle() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // 🌟 Thay đổi 1: Sử dụng phương thức .signInSilently() hoặc kiểm tra tài khoản
+      // Đối với phiên bản mới, nếu muốn mở giao diện chọn tài khoản trực tiếp, hãy dùng cấu trúc dưới đây:
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return false;
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // 🌟 Thay đổi 2: Ép kiểu hoặc sử dụng toán tử null-safety bọc cho accessToken & idToken
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -215,17 +222,17 @@ class AuthProvider extends ChangeNotifier {
   // DATA FLOW: FE (Button) -> Clear Firebase Session -> Clear Local State
   // ==================================================================
   // ✅ LOGOUT
+  // ✅ LOGOUT
   Future<void> signOut() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // KHÔNG gọi LocalNoteService().clearUserNotes(uid) ở đây nữa!
-      // Việc giữ lại data giúp bảo vệ các ghi chú offline chưa kịp sync.
-
       // Đăng xuất khỏi Firebase và Google
       await FirebaseAuth.instance.signOut();
-      await GoogleSignIn().signOut();
+
+      // 🌟 Thay đổi: Sử dụng biến _googleSignIn chung để thực hiện lệnh đăng xuất
+      await _googleSignIn.signOut();
     } catch (e) {
       log('❌ Soft Logout error: $e');
     } finally {

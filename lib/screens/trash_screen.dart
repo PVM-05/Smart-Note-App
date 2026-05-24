@@ -214,7 +214,10 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   // BOTTOM SHEET KHI CHẠM NHẸ VÀO 1 NOTE (BÌNH THƯỜNG)
-  void _showTrashOptions(BuildContext context, note) {
+  // Tìm đến hàm _showTrashOptions ở cuối file lib/screens/trash_screen.dart
+  // và sửa lại nút ListTile Xóa vĩnh viễn:
+
+  void _showTrashOptions(BuildContext context, Note note) { // Nhớ ép kiểu 'Note' cho tham số truyền vào
     final provider = Provider.of<NoteProvider>(context, listen: false);
     showModalBottomSheet(
       context: context,
@@ -240,9 +243,16 @@ class _TrashScreenState extends State<TrashScreen> {
             ListTile(
               leading: const Icon(Icons.delete_forever, color: Colors.red),
               title: const Text('Xóa vĩnh viễn', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                provider.deleteNoteForever(note.id);
-                Navigator.pop(context);
+              onTap: () async {
+                Navigator.pop(context); // Đóng BottomSheet trước
+
+                // Hiển thị thông báo trạng thái dọn dẹp ngầm
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đang xóa vĩnh viễn tài liệu đám mây...'), duration: Duration(seconds: 2)),
+                );
+
+                // Gọi hàm xử lý dọn sạch cả DB lẫn tệp tin đính kèm Cloudinary
+                await provider.deleteNoteForever(note.id);
               },
             ),
           ],
@@ -270,21 +280,14 @@ class _TrashScreenState extends State<TrashScreen> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Thùng rác trống',
+            'Không có ghi chú nào trong Thùng rác',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Không có ghi chú nào bị xóa gần đây.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
         ],
       ),
     );

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../repositories/sync_repository.dart';
 import 'home_screen.dart';
-
+import '../providers/note_provider.dart';
 
 class SyncingScreen extends StatefulWidget {
   const SyncingScreen({super.key});
@@ -36,26 +37,38 @@ class _SyncingScreenState extends State<SyncingScreen> {
       _currentStep = step;
       _progress = (step + 1) / _steps.length;
     });
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 600));
   }
 
   void _startRealSync() async {
     try {
       final syncRepo = context.read<SyncRepository>();
-      
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+
+      if (userId == null) throw Exception('Không tìm thấy UID đăng nhập.');
+
       await _updateStep(0);
       await _updateStep(1);
-      
-      // Pull data from cloud
-      await syncRepo.pullFromCloud();
-      
+
+      // 1. Thực hiện kéo dữ liệu ngầm từ Cloud về SQLite
+      final bool didDataChange = await syncRepo.pullFromCloud(userId);
+
       await _updateStep(2);
       await _updateStep(3);
+
+      // 2. 🌟 BƯỚC QUAN TRỌNG NHẤT: Ép NoteProvider nạp lại dữ liệu từ SQLite lên RAM để UI nhìn thấy
+      if (mounted) {
+        // Thay 'NoteProvider' và 'fetchNotes' bằng đúng tên Provider và tên hàm nạp dữ liệu gốc của dự án bạn
+        // LƯU Ý: Dùng listen: false để tránh crash luồng trong initState/async
+        final noteProvider = context.read<NoteProvider>();
+        await noteProvider.fetchNotes(userId);
+      }
+
       await _updateStep(4);
-      
+
       if (!mounted) return;
-      
-      // Navigate to Home
+
+      // 3. Tiến hành chuyển màn hình mượt mà vào Home
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
@@ -137,7 +150,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withValues(alpha: 0.5),
+                            color: Colors.blue.withOpacity(0.5), // ✅ Thay withValues bằng opacity mượt mà
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
@@ -155,7 +168,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                     itemBuilder: (context, index) {
                       final isActive = index <= _currentStep;
                       final isCurrent = index == _currentStep;
-                      
+
                       return AnimatedOpacity(
                         duration: const Duration(milliseconds: 300),
                         opacity: isActive ? 1.0 : 0.3,
