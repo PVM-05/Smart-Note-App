@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:developer' as developer; // ✅ Thay print() bằng developer.log()
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -36,36 +37,41 @@ class CloudinaryService {
       }
 
       return publicId;
-    } catch (e) {
-      print('❌ extract public_id error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Lỗi trích xuất public_id từ URL',
+        error: e,
+        stackTrace: stackTrace,
+        name: 'app.services.cloudinary',
+      );
       return null;
     }
   }
 
   // ════════════════════════════════════════
-  // 🌟 DELETE FILE REALTIME (ĐÃ FIX LỖI SIGNATURE)
+  // 🌟 DELETE FILE REALTIME
   // ════════════════════════════════════════
   Future<bool> deleteFile(String fileUrl, {String resourceType = 'image'}) async {
     final publicId = _extractPublicId(fileUrl);
 
     if (publicId == null) {
-      print('❌ Không tìm thấy public_id hợp lệ từ URL: $fileUrl');
+      developer.log(
+        'Không tìm thấy public_id hợp lệ từ URL: $fileUrl',
+        name: 'app.services.cloudinary',
+        level: 900, // Cảnh báo mức độ Warning
+      );
       return false;
     }
 
     try {
-      // Lấy thời gian UTC timestamp chuẩn giây
       final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
-      // 🌟 Sửa lỗi cấu trúc chữ ký:
-      // Chuỗi cần băm phải sắp xếp các cặp key=value theo alphabet (p đứng trước t)
-      // Nối trực tiếp _apiSecret vào cuối chuỗi
+      // Chuỗi cần băm sắp xếp theo bảng chữ cái alphabet (p đứng trước t)
       final stringToSign = 'public_id=$publicId&timestamp=$timestamp$_apiSecret';
 
       // Tạo chuỗi băm bảo mật SHA-1
       final signature = sha1.convert(utf8.encode(stringToSign)).toString();
 
-      // Gửi yêu cầu tới đúng endpoint theo cấu trúc dạng: /image/destroy hoặc /video/destroy
       final response = await http.post(
         Uri.parse('$_baseUrl/$resourceType/destroy'),
         body: {
@@ -73,26 +79,32 @@ class CloudinaryService {
           'api_key': _apiKey,
           'timestamp': timestamp.toString(),
           'signature': signature,
-          // 🌟 BẮT BUỘC bổ sung: Môi trường Cloudinary API thế hệ mới yêu cầu truyền rõ resource_type khi thực hiện destroy tệp Signed
           'resource_type': resourceType,
         },
       );
 
-      print('-------> [Cloudinary] DELETE RESPONSE: ${response.body}');
+      developer.log(
+        'Yêu cầu xóa file Cloudinary hoàn tất',
+        name: 'app.services.cloudinary',
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        // Trạng thái thành công realtime trả về từ server là 'ok'
         if (data['result'] == 'ok') {
-          print('✅ Đã xóa file thành công trên Cloudinary: $publicId');
+          developer.log('✅ Đã xóa file thành công trên Cloudinary: $publicId', name: 'app.services.cloudinary');
           return true;
         } else if (data['result'] == 'not_found') {
-          print('⚠️ Cloudinary thông báo không tìm thấy file hoặc đã bị xóa trước đó.');
-          return true; // Trả về true để app bỏ qua và cập nhật UI luôn
+          developer.log('⚠️ Không tìm thấy file trên Cloudinary (Bỏ qua cập nhật UI)', name: 'app.services.cloudinary');
+          return true;
         }
       }
-    } catch (e) {
-      print('❌ deleteFile error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Lỗi xảy ra trong quá trình xóa file',
+        error: e,
+        stackTrace: stackTrace,
+        name: 'app.services.cloudinary',
+      );
     }
 
     return false;
@@ -116,14 +128,23 @@ class CloudinaryService {
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
 
-      print('IMAGE RESPONSE: $responseData');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
         return data['secure_url'];
+      } else {
+        developer.log(
+          'Upload ảnh thất bại từ Cloudinary API. Mã trạng thái: ${response.statusCode}',
+          name: 'app.services.cloudinary',
+          level: 1000,
+        );
       }
-    } catch (e) {
-      print('❌ uploadImage error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Lỗi xảy ra trong quá trình upload ảnh',
+        error: e,
+        stackTrace: stackTrace,
+        name: 'app.services.cloudinary',
+      );
     }
     return null;
   }
@@ -133,20 +154,12 @@ class CloudinaryService {
   // ════════════════════════════════════════
   Future<String?> uploadAudio(File file, String userId) async {
     try {
-      // Giữ nguyên endpoint video/upload của Cloudinary
       final uri = Uri.parse('$_baseUrl/video/upload');
       final request = http.MultipartRequest('POST', uri);
 
       request.fields['upload_preset'] = _uploadPreset;
       request.fields['folder'] = 'smart_note/$userId/audio';
-
-      // 🌟 GIẢI PHÁP 1: Ép Cloudinary tự nhận diện và giữ nguyên định dạng gốc,
-      // tránh việc tự động convert thành video mp4.
       request.fields['resource_type'] = 'auto';
-
-      // 🌟 GIẢI PHÁP 2 (Tùy chọn bổ sung): Nếu muốn ép máy chủ Cloudinary trả về
-      // đúng đuôi âm thanh m4a/mp3 thay vì mp4, bạn có thể truyền thêm cấu hình format:
-      // request.fields['format'] = 'm4a';
 
       request.files.add(
         await http.MultipartFile.fromPath('file', file.path),
@@ -155,52 +168,61 @@ class CloudinaryService {
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
 
-      print('AUDIO RESPONSE: $responseData');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
-        return data['secure_url']; // URL trả về bây giờ sẽ có đuôi tệp chuẩn âm thanh
+        return data['secure_url'];
       }
-    } catch (e) {
-      print('❌ uploadAudio error: $e');
+    } catch (e, stackTrace) {
+      developer.log(
+        'Lỗi xảy ra trong quá trình upload file âm thanh',
+        error: e,
+        stackTrace: stackTrace,
+        name: 'app.services.cloudinary',
+      );
     }
     return null;
   }
 
   // ════════════════════════════════════════
-  // PICK IMAGE FROM GALLERY
+  // PICK IMAGE FROM GALLERY (ĐÃ TỐI ƯU HÓA UX/DUNG LƯỢNG)
   // ════════════════════════════════════════
   Future<String?> pickAndUploadImage(String userId) async {
     try {
+      // 🌟 TỐI ƯU: Khống chế kích thước tối đa giúp ảnh luôn nhẹ hơn 1MB, tiết kiệm băng thông 3G/4G
       final XFile? picked = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 80,
+        maxWidth: 1080,
+        maxHeight: 1080,
       );
 
       if (picked == null) return null;
 
       return await uploadImage(File(picked.path), userId);
     } catch (e) {
-      print('❌ pick image error: $e');
+      developer.log('Lỗi chọn ảnh từ thư viện', error: e, name: 'app.services.cloudinary');
       return null;
     }
   }
 
   // ════════════════════════════════════════
-  // CAMERA IMAGE
+  // CAMERA IMAGE (ĐÃ TỐI ƯU HÓA UX/DUNG LƯỢNG)
   // ════════════════════════════════════════
   Future<String?> cameraAndUploadImage(String userId) async {
     try {
+      // 🌟 TỐI ƯU: Khống chế kích thước tối đa khi chụp từ Camera thiết bị thật
       final XFile? picked = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 80,
+        maxWidth: 1080,
+        maxHeight: 1080,
       );
 
       if (picked == null) return null;
 
       return await uploadImage(File(picked.path), userId);
     } catch (e) {
-      print('❌ camera image error: $e');
+      developer.log('Lỗi chụp ảnh từ Camera', error: e, name: 'app.services.cloudinary');
       return null;
     }
   }

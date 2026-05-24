@@ -1,4 +1,6 @@
 // lib/providers/note_provider.dart
+import 'dart:developer' as developer;
+
 import '../services/cloudinary_service.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -319,30 +321,62 @@ class NoteProvider extends ChangeNotifier {
   }
 
   Future<void> updateNote(Note note) async {
-    int index = _notes.indexWhere((n) => n.id == note.id);
-    if (index != -1) {
+    // Biến cờ hiệu kiểm tra xem phần tử đã được xử lý dịch chuyển hay chưa
+    bool isHandled = false;
+
+    // KỊCH BẢN 1: Tìm kiếm ghi chú trong danh sách thường (_notes)
+    int indexInNormal = _notes.indexWhere((n) => n.id == note.id);
+    if (indexInNormal != -1) {
       if (note.status == 'pinned') {
-        _notes.removeAt(index);
+        // Nếu ghi chú được nâng cấp lên Ghim -> Xóa khỏi danh sách thường, đẩy lên đầu danh sách ghim
+        _notes.removeAt(indexInNormal);
         _pinnedNotesList.insert(0, note);
+      } else if (note.status == 'trash' || note.status == 'archived') {
+        // Nếu ghi chú bị chuyển vào thùng rác/kho lưu trữ -> Xóa hẳn khỏi màn hình chính
+        _notes.removeAt(indexInNormal);
       } else {
-        _notes[index] = note;
+        // Cập nhật nội dung văn bản thông thường tại chỗ
+        _notes[indexInNormal] = note;
       }
-      notifyListeners();
-      await _repository.saveNote(note);
-      return;
+      isHandled = true;
     }
 
-    index = _pinnedNotesList.indexWhere((n) => n.id == note.id);
-    if (index != -1) {
-      if (note.status != 'pinned') {
-        _pinnedNotesList.removeAt(index);
-        _notes.insert(0, note);
-      } else {
-        _pinnedNotesList[index] = note;
+    // KỊCH BẢN 2: Nếu chưa xử lý, tìm kiếm tiếp trong danh sách ghim (_pinnedNotesList)
+    if (!isHandled) {
+      int indexInPinned = _pinnedNotesList.indexWhere((n) => n.id == note.id);
+      if (indexInPinned != -1) {
+        if (note.status != 'pinned' && note.status == 'normal') {
+          // 🌟 VÁ LỖI CHÍ MẠNG: Hạ cấp bỏ ghim -> Xóa khỏi danh sách ghim, trả về đầu danh sách thường
+          _pinnedNotesList.removeAt(indexInPinned);
+          _notes.insert(0, note);
+        } else if (note.status == 'trash' || note.status == 'archived') {
+          // Bỏ ghim và đẩy thẳng vào thùng rác/kho lưu trữ -> Xóa khỏi danh sách ghim
+          _pinnedNotesList.removeAt(indexInPinned);
+        } else {
+          // Cập nhật nội dung văn bản ghi chú ghim tại chỗ
+          _pinnedNotesList[indexInPinned] = note;
+        }
+        isHandled = true;
       }
-      notifyListeners();
-      await _repository.saveNote(note);
     }
+
+    // KỊCH BẢN 3: Trường hợp Note từ màn hình Archive/Trash được khôi phục trực tiếp về Home
+    if (!isHandled && (note.status == 'normal' || note.status == 'pinned')) {
+      if (note.status == 'pinned') {
+        _pinnedNotesList.insert(0, note);
+      } else {
+        _notes.insert(0, note);
+      }
+    }
+
+    // 🌟 TỐI ƯU HIỆU NĂNG CHÍ MẠNG: Phát tín hiệu cập nhật UI lập tức từ RAM tạm
+    notifyListeners();
+
+    // Đẩy tác vụ ghi dữ liệu xuống SQLite/Cloud chạy ngầm bất đồng bộ (Background worker style)
+    // Loại bỏ từ khóa 'await' tại đây để giải phóng hoàn toàn CPU, giúp hiệu ứng đóng mở Note mượt mà 60 FPS
+    _repository.saveNote(note).catchError((error) {
+      developer.log("Lỗi ghi dữ liệu ngầm tại NoteProvider: $error", name: 'app.provider.note');
+    });
   }
 
   Future<void> deleteNote(String id) async {

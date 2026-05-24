@@ -1,6 +1,7 @@
 // lib/widgets/note_card.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart'; // 🌟 1. Cài đặt trực tiếp gói thư viện Shimmer
 import '../models/note_model.dart';
 
 class NoteCard extends StatelessWidget {
@@ -27,142 +28,159 @@ class NoteCard extends StatelessWidget {
     final hasImages = note.imageUrls.isNotEmpty;
     final hasAudio = note.audioUrls.isNotEmpty;
 
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias, // Giúp ảnh bo tròn mượt mà khớp theo góc của Card
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      color: Colors.white, // Cố định màu nền trắng
-      margin: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min, // Tự co giãn chiều cao linh hoạt theo nội dung
-        children: [
+    // Tự động kiểm tra độ sáng hệ thống để thích ứng tone màu mờ cho cả Dark/Light Mode
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shimmerBase = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final shimmerHighlight = isDark ? Colors.grey[700]! : Colors.grey[100]!;
 
-          // ── 1. HÌNH ẢNH TOÀN BỘ (GOOGLE KEEP STYLE) ──
-          if (hasImages)
-            Image.network(
-              note.imageUrls.first, // Lấy hình ảnh đầu tiên trong danh sách
-              fit: BoxFit.fitWidth, // Chiếm trọn bề ngang, hiển thị nguyên vẹn tỉ lệ ảnh không bị cắt xén
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  height: 120,
-                  color: const Color(0xFFF8FAFC),
-                  child: const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
+    // 🌟 2. BỌC REPAINTBOUNDARY NGOÀI CÙNG: Cô lập đồ họa của từng NoteCard,
+    // giúp tối ưu hóa hiệu năng render 60 FPS khi cuộn danh sách lưới MasonryGrid
+    return RepaintBoundary(
+      child: Card(
+        elevation: 0,
+        clipBehavior: Clip.antiAlias, // Giúp ảnh bo tròn mượt mà khớp theo góc của Card
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white, // Thích ứng màu nền theo Theme
+        margin: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min, // Tự co giãn chiều cao linh hoạt theo nội dung
+          children: [
+
+            // ── 1. HÌNH ẢNH TOÀN BỘ (KÈM HIỆU ỨNG SHIMMER LIBRARY) ──
+            if (hasImages)
+              Image.network(
+                note.imageUrls.first, // Lấy hình ảnh đầu tiên trong danh sách
+                fit: BoxFit.cover,    // 🌟 Thay đổi thành BoxFit.cover để ảnh phủ đều khít khung
+                width: double.infinity,
+
+                // 🌟 SIÊU TỐI ƯU RAM/CPU: Ép Flutter scale ảnh trực tiếp ở tầng native engine về đúng kích thước hiển thị.
+                // Tránh việc nạp ảnh gốc độ phân giải cao làm nghẽn bộ nhớ đệm (Giải quyết triệt để vấn đề lag máy ảo)
+                cacheWidth: 400,
+
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Shimmer.fromColors(
+                    baseColor: shimmerBase,
+                    highlightColor: shimmerHighlight,
+                    period: const Duration(milliseconds: 1200),
+                    child: Container(
+                      height: 160, // Đồng bộ chiều cao khung Shimmer khớp hoàn toàn với ảnh
+                      width: double.infinity,
+                      color: Colors.white,
                     ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                  height: 60,
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                  child: Icon(
+                      Icons.broken_image_outlined,
+                      color: isDark ? Colors.grey[500] : const Color(0xFF94A3B8),
+                      size: 20
                   ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => Container(
-                height: 60,
-                color: const Color(0xFFF1F5F9),
-                child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 20),
+                ),
+              ),
+
+            // Phần thân chứa Tiêu đề, Nội dung văn bản, Thông tin file ghi âm và Chân thẻ
+            Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  // ── 2. HEADER: TIÊU ĐỀ & MENU ──
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (note.title.isNotEmpty)
+                              _buildHighlightedText(
+                                note.title,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : const Color(0xFF1A202C),
+                                  letterSpacing: -0.3,
+                                ),
+                                maxLines: 2,
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (onMenuPressed != null)
+                        IconButton(
+                          icon: const Icon(Icons.more_vert, size: 18, color: Color(0xFF94A3B8)),
+                          onPressed: onMenuPressed,
+                          constraints: const BoxConstraints(),
+                          padding: EdgeInsets.zero,
+                        ),
+                    ],
+                  ),
+
+                  if (note.title.isNotEmpty && note.content.isNotEmpty)
+                    const SizedBox(height: 8),
+
+                  // ── 3. NỘI DUNG VĂN BẢN ──
+                  if (note.content.isNotEmpty)
+                    _buildHighlightedText(
+                      note.content,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: isDark ? const Color(0xFF94A3B8) : contentColor,
+                        height: 1.55,
+                      ),
+                      maxLines: 6, // Hiển thị tối đa 6 dòng preview giống Google Keep
+                    ),
+
+                  // ── 4. HIỂN THỊ BIỂU TƯỢNG VÀ TÊN FILE ÂM THANH ──
+                  if (hasAudio) ...[
+                    const SizedBox(height: 10),
+                    _buildAudioFileAttachment(note.audioUrls.first, isDark),
+                  ],
+
+                  // ── 5. FOOTER: DANH SÁCH THẺ (TAGS) ──
+                  if (note.tags.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: Wrap(
+                        spacing: 6.0,
+                        runSpacing: 6.0,
+                        children: note.tags.map((tag) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9), // Màu nền dịu mắt thích ứng theme
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              tag,
+                              style: GoogleFonts.outfit(
+                                fontSize: 10,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
               ),
             ),
-
-          // Phần thân chứa Tiêu đề, Nội dung văn bản, Thông tin file ghi âm và Chân thẻ
-          Padding(
-            padding: const EdgeInsets.all(14.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                // ── 2. HEADER: TIÊU ĐỀ & MENU ──
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (note.title.isNotEmpty)
-                            _buildHighlightedText(
-                              note.title,
-                              style: GoogleFonts.outfit(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF1A202C),
-                                letterSpacing: -0.3,
-                              ),
-                              maxLines: 2,
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (onMenuPressed != null)
-                      IconButton(
-                        icon: const Icon(Icons.more_vert, size: 18, color: Color(0xFF94A3B8)),
-                        onPressed: onMenuPressed,
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                      ),
-                  ],
-                ),
-
-                if (note.title.isNotEmpty && note.content.isNotEmpty)
-                  const SizedBox(height: 8),
-
-                // ── 3. NỘI DUNG VĂN BẢN ──
-                if (note.content.isNotEmpty)
-                  _buildHighlightedText(
-                    note.content,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: contentColor,
-                      height: 1.55,
-                    ),
-                    maxLines: 6, // Hiển thị tối đa 6 dòng preview giống Google Keep
-                  ),
-
-                // ── 4. HIỂN THỊ BIỂU TƯỢNG VÀ TÊN FILE ÂM THANH 1 ──
-                if (hasAudio) ...[
-                  const SizedBox(height: 10),
-                  _buildAudioFileAttachment(note.audioUrls.first),
-                ],
-
-                // ── 5. FOOTER: DANH SÁCH THẺ (TAGS) ──
-                if (note.tags.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: Wrap(
-                      spacing: 6.0,
-                      runSpacing: 6.0,
-                      children: note.tags.map((tag) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9), // Màu nền xám nhạt dịu mắt cho Tag
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            tag,
-                            style: GoogleFonts.outfit(
-                              fontSize: 10,
-                              color: const Color(0xFF64748B),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   // Widget hiển thị Biểu tượng Micro + Tên file âm thanh gọn gàng
-  Widget _buildAudioFileAttachment(String audioUrl) {
-    // Tự động bóc tách lấy tên file từ cuối đường dẫn URL (loại bỏ bớt các ký tự thư mục của Cloudinary)
+  Widget _buildAudioFileAttachment(String audioUrl, bool isDark) {
     String fileName = 'Ghi âm thanh 1';
     try {
       final uri = Uri.parse(audioUrl);
@@ -175,24 +193,25 @@ class NoteCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC), // Nền xám nhạt tinh tế bao bọc file đính kèm
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC), // Nền bao bọc file đính kèm thích ứng theme
         borderRadius: BorderRadius.circular(8),
+        border: isDark ? Border.all(color: const Color(0xFF334155), width: 0.5) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min, // Chỉ chiếm không gian vừa đủ theo tên file
         children: [
-          const Icon(
+          Icon(
             Icons.mic_none_rounded, // Biểu tượng ghi âm
             size: 16,
-            color: Color(0xFF475569),
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
           ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              fileName, // Tên file âm thanh được trích xuất hoặc tên mặc định
+              fileName,
               style: GoogleFonts.outfit(
                 fontSize: 12,
-                color: const Color(0xFF475569),
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
@@ -214,10 +233,10 @@ class NoteCard extends StatelessWidget {
 
     if (query.isEmpty) {
       return Text(
-        text,
-        style: style,
-        maxLines: maxLines,
-        overflow: TextOverflow.ellipsis,
+          text,
+          style: style,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
       );
     }
 
