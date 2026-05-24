@@ -46,7 +46,6 @@ class LocalNoteService {
         if (oldVersion < 3) {
           await db.execute("ALTER TABLE notes ADD COLUMN user_id TEXT DEFAULT ''");
         }
-        // 3. THÊM LOGIC DI CƯ (MIGRATION): THÊM CỘT TAGS VÀO CHO CÁC THIẾT BỊ ĐANG CHẠY BẢN CŨ (V3)
         if (oldVersion < 4) {
           await db.execute("ALTER TABLE notes ADD COLUMN tags TEXT");
         }
@@ -81,22 +80,15 @@ class LocalNoteService {
     if (kIsWeb) {
       final notes = _webNotes
           .where(
-            (n) =>
-        n.userId == userId &&
-            n.status != 'trash',
+            (n) => n.userId == userId && n.status != 'trash',
       )
           .toList();
-      // Sort newest first
       notes.sort(
             (a, b) => b.updatedAt.compareTo(a.updatedAt),
       );
-      // Pagination for web
       if (offset != null && limit != null) {
         final start = offset;
-        final end =
-        (offset + limit > notes.length)
-            ? notes.length
-            : offset + limit;
+        final end = (offset + limit > notes.length) ? notes.length : offset + limit;
         if (start >= notes.length) {
           return [];
         }
@@ -116,100 +108,95 @@ class LocalNoteService {
       limit: limit,
       offset: offset,
     );
-    return maps
-        .map((m) => Note.fromMap(m))
-        .toList();
+    return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  // ── Search nâng cao: Hỗ trợ Filter Tokens (is:pinned, has:image, label:"...") ──
-  Future<List<Note>> searchNotes({
-    required String userId,
-    required String query,
-  }) async {
-    if (query.trim().isEmpty) return getAllNotes(userId: userId);
-
-    String q = query.trim();
-    String whereString = 'user_id = ? AND status != ?';
-    List<dynamic> whereArgs = [userId, 'trash'];
-
-    // --- XỬ LÝ TRÊN MÔI TRƯỜNG WEB ---
+  Future<List<Note>> getAbsoluteAllNotes({required String userId}) async {
     if (kIsWeb) {
-      return _webNotes.where((n) {
-        bool match = n.userId == userId && n.status != 'trash';
-        String qWeb = query.trim();
-
-        if (qWeb.contains('is:pinned')) { match = match && n.status == 'pinned'; qWeb = qWeb.replaceAll('is:pinned', '').trim(); }
-        else if (qWeb.contains('is:archived')) { match = match && n.status == 'archived'; qWeb = qWeb.replaceAll('is:archived', '').trim(); }
-
-        if (qWeb.contains('has:image')) { match = match && n.content.contains('!['); qWeb = qWeb.replaceAll('has:image', '').trim(); }
-        if (qWeb.contains('has:url')) { match = match && n.content.contains('http'); qWeb = qWeb.replaceAll('has:url', '').trim(); }
-        if (qWeb.contains('has:list')) { match = match && (n.content.contains('- ') || n.content.contains('[ ]')); qWeb = qWeb.replaceAll('has:list', '').trim(); }
-
-        final labelRegExp = RegExp(r'label:"([^"]+)"|label:([^\s]+)');
-        for (final m in labelRegExp.allMatches(qWeb)) {
-          final label = m.group(1) ?? m.group(2);
-          if (label != null) match = match && n.tags.contains(label);
-        }
-        qWeb = qWeb.replaceAll(labelRegExp, '').trim().toLowerCase();
-
-        if (qWeb.isNotEmpty) {
-          match = match && (n.title.toLowerCase().contains(qWeb) || n.content.toLowerCase().contains(qWeb));
-        }
-        return match;
-      }).toList();
+      return _webNotes.where((n) => n.userId == userId).toList();
     }
-
-    // --- XỬ LÝ TRÊN MÔI TRƯỜNG SQLITE MOBILE ---
-
-    // 1. Phân tích trạng thái
-    if (q.contains('is:pinned')) {
-      whereString += " AND status = 'pinned'";
-      q = q.replaceAll('is:pinned', '').trim();
-    } else if (q.contains('is:archived')) {
-      whereString += " AND status = 'archived'";
-      q = q.replaceAll('is:archived', '').trim();
-    }
-
-    // 2. Phân tích loại nội dung (Markdown)
-    if (q.contains('has:image')) {
-      whereString += " AND content LIKE '%![%'";
-      q = q.replaceAll('has:image', '').trim();
-    }
-    if (q.contains('has:url')) {
-      whereString += " AND content LIKE '%http%'";
-      q = q.replaceAll('has:url', '').trim();
-    }
-    if (q.contains('has:list')) {
-      whereString += " AND (content LIKE '%- %' OR content LIKE '%[ ]%' OR content LIKE '%[x]%')";
-      q = q.replaceAll('has:list', '').trim();
-    }
-
-    // 3. Phân tích Nhãn dán (Label)
-    final labelRegExp = RegExp(r'label:"([^"]+)"|label:([^\s]+)');
-    final matches = labelRegExp.allMatches(q);
-    for (final match in matches) {
-      final label = match.group(1) ?? match.group(2);
-      if (label != null) {
-        whereString += " AND tags LIKE ?";
-        whereArgs.add('%"$label"%'); // Tìm chuỗi chứa tên label chính xác trong JSON Array
-      }
-    }
-    q = q.replaceAll(labelRegExp, '').trim();
-
-    // 4. Đoạn text còn lại chính là từ khóa người dùng muốn tìm
-    if (q.isNotEmpty) {
-      whereString += ' AND (title LIKE ? OR content LIKE ?)';
-      whereArgs.addAll(['%$q%', '%$q%']);
-    }
-
     final database = await db;
     final maps = await database.query(
       'notes',
-      where: whereString,
-      whereArgs: whereArgs,
-      orderBy: 'updated_at DESC',
+      where: 'user_id = ?',
+      whereArgs: [userId],
     );
     return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
+  // ── SỬA LỖI & NÂNG CẤP SEARCH NÂNG CAO CHUẨN GOOGLE KEEP STYLE ──
+  Future<List<Note>> searchNotes({required String userId, required String query}) async {
+    // 1. Tải toàn bộ dữ liệu hoạt động của User lên bộ nhớ tạm để bóc tách mảng (Client-side filtering)
+    // Thay đổi từ 'getNotes' thành 'getAllNotes' bám sát hàm định nghĩa gốc của bạn
+    final allNotes = await getAllNotes(userId: userId);
+
+    if (query.trim().isEmpty) return allNotes;
+    final lowerQuery = query.toLowerCase();
+
+    // ⚡ BỘ NÃO PHÂN TÍCH TOKEN TỪ SEARCH SCREEN CHIP
+    final hasImageToken = lowerQuery.contains('has:image');
+    final hasAudioToken = lowerQuery.contains('has:audio');
+    final hasUrlToken = lowerQuery.contains('has:url');
+    final isPinnedToken = lowerQuery.contains('is:pinned');
+    final isArchivedToken = lowerQuery.contains('is:archived');
+
+    // ⚡ TRÍCH XUẤT TỪ KHÓA VĂN BẢN THUẦN TÚY: Gỡ bỏ toàn bộ mã lệnh token
+    String cleanTextQuery = query
+        .replaceAll('has:image', '')
+        .replaceAll('has:audio', '')
+        .replaceAll('has:url', '')
+        .replaceAll('is:pinned', '')
+        .replaceAll('is:archived', '')
+        .trim()
+        .toLowerCase();
+
+    // Bóc tách cấu trúc nhãn gắn kèm nếu có: label:"tên_nhãn"
+    String? targetLabel;
+    if (lowerQuery.contains('label:"')) {
+      final match = RegExp(r'label:"([^"]+)"').firstMatch(lowerQuery);
+      if (match != null) {
+        targetLabel = match.group(1);
+        cleanTextQuery = cleanTextQuery.replaceAll(RegExp(r'label:"[^"]+"'), '').trim();
+      }
+    }
+
+    // 2. THỰC HIỆN LỌC ĐỒNG THỜI TOÀN BỘ ĐIỀU KIỆN (Khắc phục lỗi không hiển thị kết quả)
+    return allNotes.where((note) {
+      // Điều kiện 1: Nếu chọn nút "Hình ảnh" -> Thẻ note phải chứa ít nhất 1 ảnh
+      if (hasImageToken && note.imageUrls.isEmpty) return false;
+
+      // Điều kiện 2: Nếu chọn nút "Âm thanh" -> Thẻ note phải chứa file ghi âm
+      if (hasAudioToken && note.audioUrls.isEmpty) return false;
+
+      // Điều kiện 3: Nếu chọn nút "URL" -> Nội dung text của note phải chứa đường link
+      if (hasUrlToken) {
+        final urlRegex = RegExp(r'(https?:\/\/|www\.)[^\s/$.?#].[^\s]*', caseSensitive: false);
+        if (!urlRegex.hasMatch(note.content)) return false;
+      }
+
+      // Điều kiện 4: Trạng thái Ghim hệ thống
+      if (isPinnedToken && note.status != 'pinned') return false;
+
+      // Điều kiện 5: Trạng thái Lưu trữ (Vì getAllNotes đã chặn 'trash', ta check 'archived')
+      if (isArchivedToken && note.status != 'archived') return false;
+
+      // Nếu không chọn chip "Lưu trữ", mặc định kết quả tìm kiếm thông thường chỉ hiển thị note đang active (không hiện note đã lưu trữ)
+      if (!isArchivedToken && note.status == 'archived') return false;
+
+      // Điều kiện 6: Nhãn dán (Mảng Tags vỏ bọc văn bản)
+      if (targetLabel != null && !note.tags.map((t) => t.toLowerCase()).contains(targetLabel.toLowerCase())) {
+        return false;
+      }
+
+      // Điều kiện 7: Lọc kết hợp chuỗi văn bản gõ thêm thủ công (Tìm trong cả Tiêu đề và Nội dung)
+      if (cleanTextQuery.isNotEmpty) {
+        final matchTitle = note.title.toLowerCase().contains(cleanTextQuery);
+        final matchContent = note.content.toLowerCase().contains(cleanTextQuery);
+        if (!matchTitle && !matchContent) return false;
+      }
+
+      return true;
+    }).toList();
   }
 
   Future<void> updateNote(Note note) async {
@@ -245,7 +232,6 @@ class LocalNoteService {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  // Lấy các ghi chú đang nằm trong thùng rác
   Future<List<Note>> getTrashNotes({required String userId}) async {
     if (kIsWeb) {
       return _webNotes.where((n) => n.userId == userId && n.status == 'trash').toList();
@@ -286,18 +272,14 @@ class LocalNoteService {
 
   Future<void> clearUserNotes(String userId) async {
     if (kIsWeb) {
-      // Chỉ loại bỏ những ghi chú đã đồng bộ lên cloud trên môi trường Web
       _webNotes.removeWhere((n) => n.userId == userId && n.isSynced == true);
       return;
     }
-    /// Xóa sạch các ghi chú cục bộ của user để giải phóng bộ nhớ thiết bị.
-    /// ⚠️ CỰC KỲ QUAN TRỌNG: Chỉ cho phép xóa các ghi chú ĐÃ ĐỒNG BỘ THÀNH CÔNG (is_synced = 1).
-    /// Giữ lại tuyệt đối các ghi chú offline (is_synced = 0) để không làm mất data của user.
     final database = await db;
     await database.delete(
       'notes',
       where: 'user_id = ? AND is_synced = ?',
-      whereArgs: [userId, 1], // Chỉ xóa hàng có is_synced = 1
+      whereArgs: [userId, 1],
     );
   }
 }

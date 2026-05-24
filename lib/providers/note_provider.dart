@@ -1,10 +1,10 @@
 // lib/providers/note_provider.dart
-import 'dart:io';
 import '../services/cloudinary_service.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
+import '../services/cloudinary_service.dart';
 
 class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
@@ -370,10 +370,12 @@ class NoteProvider extends ChangeNotifier {
     final allTrash = await _repository.getTrashNotes(userId);
     final now = DateTime.now();
     _trashNotes = [];
+
     for (final note in allTrash) {
       final daysInTrash = now.difference(note.updatedAt).inDays;
       if (daysInTrash >= 7) {
-        await _repository.deleteNoteForever(note.id);
+        // Thay vì gọi repo trực tiếp, gọi qua hàm vừa sửa để xóa luôn file cloud của note quá hạn
+        await deleteNoteForever(note.id);
       } else {
         _trashNotes.add(note);
       }
@@ -382,7 +384,37 @@ class NoteProvider extends ChangeNotifier {
   }
 
   Future<void> deleteNoteForever(String id) async {
+    try {
+      // 1. Tìm thông tin ghi chú trong danh sách Thùng rác để lấy danh sách URL đính kèm
+      final noteToDelete = _trashNotes.firstWhere(
+            (n) => n.id == id,
+        orElse: () => _notes.firstWhere((n) => n.id == id), // Phòng hờ xóa trực tiếp
+      );
+
+      // 2. Trích xuất danh sách link ảnh và âm thanh đính kèm
+      final imageUrls = List<String>.from(noteToDelete.imageUrls);
+      final audioUrls = List<String>.from(noteToDelete.audioUrls);
+
+      // 3. Tiến hành xóa bất đồng bộ tất cả hình ảnh đính kèm trên Cloudinary
+      for (String url in imageUrls) {
+        if (url.trim().isNotEmpty) {
+          await _cloudinaryService.deleteFile(url, resourceType: 'image');
+        }
+      }
+
+      // 4. Tiến hành xóa bất đồng bộ tất cả tệp âm thanh trên Cloudinary (quản lý qua tag 'video')
+      for (String url in audioUrls) {
+        if (url.trim().isNotEmpty) {
+          await _cloudinaryService.deleteFile(url, resourceType: 'video');
+        }
+      }
+    } catch (e) {
+      debugPrint("Không tìm thấy note hoặc lỗi khi dọn dẹp dữ liệu Cloud: $e");
+    }
+
+    // 5. Sau khi dọn sạch Cloud, tiến hành xóa bản ghi dưới database cục bộ và máy chủ
     _trashNotes.removeWhere((n) => n.id == id);
+    _notes.removeWhere((n) => n.id == id);
     notifyListeners();
     await _repository.deleteNoteForever(id);
   }
@@ -423,6 +455,8 @@ class NoteProvider extends ChangeNotifier {
   Future<void> deleteForeverSelectedTrashNotes() async {
     final idsToDelete = _selectedTrashNoteIds.toList();
     clearTrashSelection();
+
+    // Gọi tuần tự giải thuật dọn dẹp đồng bộ an toàn dữ liệu
     for (final id in idsToDelete) {
       await deleteNoteForever(id);
     }
