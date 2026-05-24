@@ -111,6 +111,19 @@ class LocalNoteService {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
+  Future<List<Note>> getAbsoluteAllNotes({required String userId}) async {
+    if (kIsWeb) {
+      return _webNotes.where((n) => n.userId == userId).toList();
+    }
+    final database = await db;
+    final maps = await database.query(
+      'notes',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
   // ── SỬA LỖI & NÂNG CẤP SEARCH NÂNG CAO CHUẨN GOOGLE KEEP STYLE ──
   Future<List<Note>> searchNotes({required String userId, required String query}) async {
     // 1. Tải toàn bộ dữ liệu hoạt động của User lên bộ nhớ tạm để bóc tách mảng (Client-side filtering)
