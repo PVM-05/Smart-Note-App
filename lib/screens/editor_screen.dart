@@ -14,6 +14,7 @@ import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/cloudinary_service.dart';
 import 'package:uuid/uuid.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -45,6 +46,68 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Timer? _autoSaveTimer;
   bool _isUploading = false;
+  String? _uploadMessage;
+  bool _showUploadBanner = false;
+  Color _bannerColor = const Color(0xFFEFF6FF); // Light blue for progress
+  Color _bannerTextColor = const Color(0xFF1E40AF); // Dark blue text
+  Widget _statusIcon = const SizedBox(
+    width: 14,
+    height: 14,
+    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+  );
+  Timer? _bannerTimer;
+
+  void _setUploadState({
+    required bool isUploading,
+    required String message,
+    required Color bannerColor,
+    required Color bannerTextColor,
+    required Widget statusIcon,
+    bool showBanner = true,
+    bool autoHide = false,
+  }) {
+    _bannerTimer?.cancel();
+    setState(() {
+      _isUploading = isUploading;
+      _uploadMessage = message;
+      _showUploadBanner = showBanner;
+      _bannerColor = bannerColor;
+      _bannerTextColor = bannerTextColor;
+      _statusIcon = statusIcon;
+    });
+
+    if (autoHide) {
+      _bannerTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _showUploadBanner = false;
+          });
+        }
+      });
+    }
+  }
+
+  Future<bool?> _showUploadExitConfirmation() async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đang tải lên tệp tin'),
+        content: const Text('Có tệp tin đang được tải lên. Nếu bạn thoát bây giờ, quá trình tải lên sẽ bị hủy và tệp tin sẽ không được lưu. Bạn có chắc chắn muốn thoát?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Ở lại'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Thoát'),
+          ),
+        ],
+      ),
+    );
+  }
 
   // Audio Recorder
   final AudioRecorder _recorder = AudioRecorder();
@@ -140,6 +203,7 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _autoSaveTimer?.cancel();
     _recordTimer?.cancel();
+    _bannerTimer?.cancel();
     _titleController.dispose();
     _contentController.dispose();
     _audioPlayer.stop();
@@ -198,18 +262,56 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    setState(() { _isUploading = true; });
+    _setUploadState(
+      isUploading: true,
+      message: 'Đang tải lên hình ảnh...',
+      bannerColor: const Color(0xFFEFF6FF),
+      bannerTextColor: const Color(0xFF1E40AF),
+      statusIcon: const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+      ),
+    );
 
-    final url = source == ImageSource.gallery
-        ? await _cloudinary.pickAndUploadImage(auth.userId!)
-        : await _cloudinary.cameraAndUploadImage(auth.userId!);
+    try {
+      final url = source == ImageSource.gallery
+          ? await _cloudinary.pickAndUploadImage(auth.userId!)
+          : await _cloudinary.cameraAndUploadImage(auth.userId!);
 
-    if (!mounted) return;
-    setState(() => _isUploading = false);
+      if (!mounted) return;
 
-    if (url != null) {
-      setState(() => _imageUrls.add(url));
-      await _saveNote(isAutosave: true);
+      if (url != null) {
+        setState(() => _imageUrls.add(url));
+        await _saveNote(isAutosave: true);
+        _setUploadState(
+          isUploading: false,
+          message: 'Tải lên hình ảnh thành công!',
+          bannerColor: const Color(0xFFECFDF5),
+          bannerTextColor: const Color(0xFF065F46),
+          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+          autoHide: true,
+        );
+      } else {
+        _setUploadState(
+          isUploading: false,
+          message: 'Tải lên hình ảnh bị hủy hoặc thất bại.',
+          bannerColor: const Color(0xFFFEF2F2),
+          bannerTextColor: const Color(0xFF991B1B),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          autoHide: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _setUploadState(
+        isUploading: false,
+        message: 'Lỗi: Tải lên hình ảnh thất bại.',
+        bannerColor: const Color(0xFFFEF2F2),
+        bannerTextColor: const Color(0xFF991B1B),
+        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+        autoHide: true,
+      );
     }
   }
 
@@ -268,14 +370,53 @@ class _EditorScreenState extends State<EditorScreen> {
 
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    setState(() { _isUploading = true; });
+    _setUploadState(
+      isUploading: true,
+      message: 'Đang tải lên âm thanh...',
+      bannerColor: const Color(0xFFEFF6FF),
+      bannerTextColor: const Color(0xFF1E40AF),
+      statusIcon: const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+      ),
+    );
 
-    final url = await _cloudinary.uploadAudio(File(path), auth.userId!);
-    setState(() => _isUploading = false);
+    try {
+      final url = await _cloudinary.uploadAudio(File(path), auth.userId!);
+      if (!mounted) return;
 
-    if (url != null) {
-      setState(() => _audioUrls.add(url));
-      await _saveNote(isAutosave: true);
+      if (url != null) {
+        setState(() => _audioUrls.add(url));
+        await _saveNote(isAutosave: true);
+        _setUploadState(
+          isUploading: false,
+          message: 'Tải lên âm thanh thành công!',
+          bannerColor: const Color(0xFFECFDF5),
+          bannerTextColor: const Color(0xFF065F46),
+          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+          autoHide: true,
+        );
+      } else {
+        _setUploadState(
+          isUploading: false,
+          message: 'Tải lên âm thanh thất bại.',
+          bannerColor: const Color(0xFFFEF2F2),
+          bannerTextColor: const Color(0xFF991B1B),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          autoHide: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _setUploadState(
+        isUploading: false,
+        message: 'Lỗi: Tải lên âm thanh thất bại.',
+        bannerColor: const Color(0xFFFEF2F2),
+        bannerTextColor: const Color(0xFF991B1B),
+        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+        autoHide: true,
+      );
     }
   }
 
@@ -385,6 +526,10 @@ class _EditorScreenState extends State<EditorScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        if (_isUploading) {
+          final confirmExit = await _showUploadExitConfirmation();
+          if (confirmExit != true) return;
+        }
         if (_isRecording) await _stopRecordingAndUpload();
         _autoSaveTimer?.cancel();
 
@@ -403,6 +548,10 @@ class _EditorScreenState extends State<EditorScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () async {
+              if (_isUploading) {
+                final confirmExit = await _showUploadExitConfirmation();
+                if (confirmExit != true) return;
+              }
               if (_isRecording) await _stopRecordingAndUpload();
               _autoSaveTimer?.cancel();
 
@@ -440,6 +589,27 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
         body: Column(
           children: [
+            if (_showUploadBanner && _uploadMessage != null)
+              Container(
+                color: _bannerColor,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    _statusIcon,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _uploadMessage!,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          color: _bannerTextColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (_isUploading)
               LinearProgressIndicator(backgroundColor: Colors.grey.shade100, color: _primary),
             Expanded(
@@ -524,20 +694,71 @@ class _EditorScreenState extends State<EditorScreen> {
           children: [
             GestureDetector(
               onTap: () => _showFullImage(url),
-              child: Image.network(
-                url,
+              child: CachedNetworkImage(
+                imageUrl: url,
                 width: double.infinity,
                 fit: BoxFit.fitWidth,
+                placeholder: (context, url) => Container(
+                  height: 200,
+                  color: const Color(0xFFF8FAFC),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 100,
+                  color: const Color(0xFFF1F5F9),
+                  child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 24),
+                ),
               ),
             ),
             Positioned(
               top: 12, right: 12,
               child: GestureDetector(
                 onTap: () async {
-                  setState(() { _isUploading = true; });
-                  await _cloudinary.deleteFile(url, resourceType: 'image');
-                  setState(() { _imageUrls.remove(url); _isUploading = false; });
-                  await _saveNote(isAutosave: true);
+                  _setUploadState(
+                    isUploading: true,
+                    message: 'Đang xóa hình ảnh khỏi đám mây...',
+                    bannerColor: const Color(0xFFEFF6FF),
+                    bannerTextColor: const Color(0xFF1E40AF),
+                    statusIcon: const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+                    ),
+                  );
+                  try {
+                    await _cloudinary.deleteFile(url, resourceType: 'image');
+                    if (mounted) {
+                      setState(() {
+                        _imageUrls.remove(url);
+                      });
+                      await _saveNote(isAutosave: true);
+                      _setUploadState(
+                        isUploading: false,
+                        message: 'Đã xóa hình ảnh thành công.',
+                        bannerColor: const Color(0xFFECFDF5),
+                        bannerTextColor: const Color(0xFF065F46),
+                        statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+                        autoHide: true,
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      _setUploadState(
+                        isUploading: false,
+                        message: 'Xóa hình ảnh thất bại.',
+                        bannerColor: const Color(0xFFFEF2F2),
+                        bannerTextColor: const Color(0xFF991B1B),
+                        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+                        autoHide: true,
+                      );
+                    }
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(4),
@@ -611,10 +832,45 @@ class _EditorScreenState extends State<EditorScreen> {
                 _audioPlayer.stop();
                 setState(() { _playingUrl = null; _isPlaying = false; });
               }
-              setState(() { _isUploading = true; });
-              await _cloudinary.deleteFile(url, resourceType: 'video');
-              setState(() { _audioUrls.removeAt(index); _isUploading = false; });
-              await _saveNote(isAutosave: true);
+              _setUploadState(
+                isUploading: true,
+                message: 'Đang xóa âm thanh khỏi đám mây...',
+                bannerColor: const Color(0xFFEFF6FF),
+                bannerTextColor: const Color(0xFF1E40AF),
+                statusIcon: const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+                ),
+              );
+              try {
+                await _cloudinary.deleteFile(url, resourceType: 'video');
+                if (mounted) {
+                  setState(() {
+                    _audioUrls.removeAt(index);
+                  });
+                  await _saveNote(isAutosave: true);
+                  _setUploadState(
+                    isUploading: false,
+                    message: 'Đã xóa âm thanh thành công.',
+                    bannerColor: const Color(0xFFECFDF5),
+                    bannerTextColor: const Color(0xFF065F46),
+                    statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+                    autoHide: true,
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  _setUploadState(
+                    isUploading: false,
+                    message: 'Xóa âm thanh thất bại.',
+                    bannerColor: const Color(0xFFFEF2F2),
+                    bannerTextColor: const Color(0xFF991B1B),
+                    statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+                    autoHide: true,
+                  );
+                }
+              }
             },
             child: Icon(Icons.delete_outline_rounded, color: Colors.grey.shade400, size: 20),
           ),
@@ -630,7 +886,24 @@ class _EditorScreenState extends State<EditorScreen> {
         backgroundColor: Colors.black, insetPadding: EdgeInsets.zero,
         child: Stack(
           children: [
-            Center(child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain))),
+            Center(
+              child: InteractiveViewer(
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) => const Center(
+                    child: SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => const Center(
+                    child: Icon(Icons.broken_image_outlined, color: Colors.white70, size: 40),
+                  ),
+                ),
+              ),
+            ),
             Positioned(top: 40, right: 16, child: IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 28), onPressed: () => Navigator.pop(context))),
           ],
         ),
