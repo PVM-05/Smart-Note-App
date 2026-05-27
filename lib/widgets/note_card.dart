@@ -1,6 +1,7 @@
 // lib/widgets/note_card.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/note_model.dart';
 
 class NoteCard extends StatelessWidget {
@@ -42,28 +43,26 @@ class NoteCard extends StatelessWidget {
 
           // ── 1. HÌNH ẢNH TOÀN BỘ (GOOGLE KEEP STYLE) ──
           if (hasImages)
-            Image.network(
-              note.imageUrls.first, // Lấy hình ảnh đầu tiên trong danh sách
+            CachedNetworkImage(
+              imageUrl: note.imageUrls.first, // Lấy hình ảnh đầu tiên trong danh sách
               fit: BoxFit.fitWidth, // Chiếm trọn bề ngang, hiển thị nguyên vẹn tỉ lệ ảnh không bị cắt xén
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  height: 120,
-                  color: const Color(0xFFF8FAFC),
-                  child: const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
-                    ),
+              placeholder: (context, url) => Container(
+                height: 120,
+                color: const Color(0xFFF8FAFC),
+                child: const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
                   ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) => Container(
+                ),
+              ),
+              errorWidget: (context, url, error) => Container(
                 height: 60,
                 color: const Color(0xFFF1F5F9),
                 child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 20),
               ),
+              memCacheWidth: 300, // Memory-friendly behavior: limits image decode size to 300px width
             ),
 
           // Phần thân chứa Tiêu đề, Nội dung văn bản, Thông tin file ghi âm và Chân thẻ
