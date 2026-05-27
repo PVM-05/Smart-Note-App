@@ -18,9 +18,9 @@ void main() async {
   try {
     // 🌟 Tiến hành nạp file .env vào hệ thống
     await dotenv.load(fileName: ".env");
-    print("✅ Đã tải file .env thành công");
+    debugPrint("✅ Đã tải file .env thành công");
   } catch (e) {
-    print("❌ Lỗi tải file .env: $e. Hãy kiểm tra xem đã tạo file chưa.");
+    debugPrint("❌ Lỗi tải file .env: $e. Hãy kiểm tra xem đã tạo file chưa.");
   }
 
   await Firebase.initializeApp(

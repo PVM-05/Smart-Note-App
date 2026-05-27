@@ -1,6 +1,7 @@
 // lib/services/cloudinary_service.dart
 
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -37,7 +38,7 @@ class CloudinaryService {
 
       return publicId;
     } catch (e) {
-      print('❌ extract public_id error: $e');
+      developer.log('❌ extract public_id error: $e');
       return null;
     }
   }
@@ -49,7 +50,7 @@ class CloudinaryService {
     final publicId = _extractPublicId(fileUrl);
 
     if (publicId == null) {
-      print('❌ Không tìm thấy public_id hợp lệ từ URL: $fileUrl');
+      developer.log('❌ Không tìm thấy public_id hợp lệ từ URL: $fileUrl');
       return false;
     }
 
@@ -78,21 +79,21 @@ class CloudinaryService {
         },
       );
 
-      print('-------> [Cloudinary] DELETE RESPONSE: ${response.body}');
+      developer.log('-------> [Cloudinary] DELETE RESPONSE: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         // Trạng thái thành công realtime trả về từ server là 'ok'
         if (data['result'] == 'ok') {
-          print('✅ Đã xóa file thành công trên Cloudinary: $publicId');
+          developer.log('✅ Đã xóa file thành công trên Cloudinary: $publicId');
           return true;
         } else if (data['result'] == 'not_found') {
-          print('⚠️ Cloudinary thông báo không tìm thấy file hoặc đã bị xóa trước đó.');
+          developer.log('⚠️ Cloudinary thông báo không tìm thấy file hoặc đã bị xóa trước đó.');
           return true; // Trả về true để app bỏ qua và cập nhật UI luôn
         }
       }
     } catch (e) {
-      print('❌ deleteFile error: $e');
+      developer.log('❌ deleteFile error: $e');
     }
 
     return false;
@@ -116,14 +117,14 @@ class CloudinaryService {
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
 
-      print('IMAGE RESPONSE: $responseData');
+      developer.log('IMAGE RESPONSE: $responseData');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
         return data['secure_url'];
       }
     } catch (e) {
-      print('❌ uploadImage error: $e');
+      developer.log('❌ uploadImage error: $e');
     }
     return null;
   }
@@ -155,14 +156,14 @@ class CloudinaryService {
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
 
-      print('AUDIO RESPONSE: $responseData');
+      developer.log('AUDIO RESPONSE: $responseData');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
         return data['secure_url']; // URL trả về bây giờ sẽ có đuôi tệp chuẩn âm thanh
       }
     } catch (e) {
-      print('❌ uploadAudio error: $e');
+      developer.log('❌ uploadAudio error: $e');
     }
     return null;
   }
@@ -181,7 +182,7 @@ class CloudinaryService {
 
       return await uploadImage(File(picked.path), userId);
     } catch (e) {
-      print('❌ pick image error: $e');
+      developer.log('❌ pick image error: $e');
       return null;
     }
   }
@@ -200,7 +201,7 @@ class CloudinaryService {
 
       return await uploadImage(File(picked.path), userId);
     } catch (e) {
-      print('❌ camera image error: $e');
+      developer.log('❌ camera image error: $e');
       return null;
     }
   }

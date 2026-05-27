@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -11,6 +10,10 @@ class SyncProvider with ChangeNotifier {
   final SyncRepository _syncRepo;
   SyncStatus _status = SyncStatus.idle;
   String? _userId;
+
+  // Stream thông báo khi sync kéo về dữ liệu mới → HomeScreen lắng nghe để refresh
+  final _newDataController = StreamController<void>.broadcast();
+  Stream<void> get onSyncWithNewData => _newDataController.stream;
 
   SyncStatus get status => _status;
 
@@ -37,10 +40,21 @@ class SyncProvider with ChangeNotifier {
   Future<void> syncNow() async {
     if (_userId == null) return;
     try {
-      // Gọi một hàm duy nhất thực hiện toàn bộ quy trình đóng gói
       await _syncRepo.syncNow(_userId!);
+
+      // Sau khi syncNow hoàn tất, kiểm tra xem có dữ liệu mới không
+      final hasNew = await _syncRepo.pullFromCloud(_userId!);
+      if (hasNew) {
+        _newDataController.add(null); // Phát tín hiệu cho HomeScreen refresh
+      }
     } catch (e) {
       developer.log("SyncProvider Error: $e");
     }
   }
-}
+
+  @override
+  void dispose() {
+    _newDataController.close();
+    super.dispose();
+  }
+}

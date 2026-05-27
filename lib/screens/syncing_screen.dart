@@ -50,8 +50,8 @@ class _SyncingScreenState extends State<SyncingScreen> {
       await _updateStep(0);
       await _updateStep(1);
 
-      // 1. Thực hiện kéo dữ liệu ngầm từ Cloud về SQLite
-      final bool didDataChange = await syncRepo.pullFromCloud(userId);
+      // 1. Thực hiện đầy đủ luồng đồng bộ: pending deletes, unsynced notes, rồi pull cloud
+      await syncRepo.syncNow(userId);
 
       await _updateStep(2);
       await _updateStep(3);
@@ -150,7 +150,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(0.5), // ✅ Thay withValues bằng opacity mượt mà
+                            color: Colors.blue.withValues(alpha: 0.5), // ✅ Sử dụng withValues theo quy chuẩn mới
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),
