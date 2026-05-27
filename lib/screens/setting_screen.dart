@@ -42,7 +42,7 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
             subtitle: const Text('Thay đổi giao diện sáng hoặc tối cho ứng dụng'),
             value: _isDarkMode,
-            activeColor: primaryColor,
+            activeThumbColor: primaryColor,
             onChanged: (bool value) {
               setState(() {
                 _isDarkMode = value;
@@ -89,7 +89,7 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
             subtitle: const Text('Sử dụng Vân tay hoặc Khuôn mặt để mở ứng dụng'),
             value: _biometricAuth,
-            activeColor: primaryColor,
+            activeThumbColor: primaryColor,
             onChanged: (bool value) {
               setState(() {
                 _biometricAuth = value;

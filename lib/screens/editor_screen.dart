@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:collection/collection.dart'; // Sử dụng thư viện collection có sẵn của Flutter để so sánh List
+import 'package:flutter/foundation.dart'; // Sử dụng thư viện foundation có sẵn của Flutter để so sánh List
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
@@ -45,7 +45,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Timer? _autoSaveTimer;
   bool _isUploading = false;
-  String _uploadingLabel = '';
 
   // Audio Recorder
   final AudioRecorder _recorder = AudioRecorder();
@@ -79,14 +78,11 @@ class _EditorScreenState extends State<EditorScreen> {
     final currentTitle = _titleController.text.trim();
     final currentContent = _contentController.text.trim();
 
-    // Dùng const ListEquality().equals để kiểm tra sự thay đổi của các phần tử trong mảng
-    const listEquality = ListEquality<String>();
-
     final titleChanged = originalTitle != currentTitle;
     final contentChanged = originalContent != currentContent;
-    final tagsChanged = !listEquality.equals(originalTags, _tags);
-    final imagesChanged = !listEquality.equals(originalImages, _imageUrls);
-    final audiosChanged = !listEquality.equals(originalAudios, _audioUrls);
+    final tagsChanged = !listEquals(originalTags, _tags);
+    final imagesChanged = !listEquals(originalImages, _imageUrls);
+    final audiosChanged = !listEquals(originalAudios, _audioUrls);
 
     return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged;
   }
@@ -153,6 +149,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _saveNote({required bool isAutosave}) async {
+    if (!mounted) return;
     // ⚡ CHẶN LƯU THỪA: Nếu không có bất kỳ thay đổi nào, bỏ qua không gọi Database / Cloud Provider
     if (!_hasChanges()) return;
 
@@ -201,7 +198,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    setState(() { _isUploading = true; _uploadingLabel = 'Đang tải ảnh...'; });
+    setState(() { _isUploading = true; });
 
     final url = source == ImageSource.gallery
         ? await _cloudinary.pickAndUploadImage(auth.userId!)
@@ -269,8 +266,9 @@ class _EditorScreenState extends State<EditorScreen> {
     setState(() => _isRecording = false);
     if (path == null) return;
 
+    if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    setState(() { _isUploading = true; _uploadingLabel = 'Đang tải âm thanh...'; });
+    setState(() { _isUploading = true; });
 
     final url = await _cloudinary.uploadAudio(File(path), auth.userId!);
     setState(() => _isUploading = false);
@@ -324,6 +322,8 @@ class _EditorScreenState extends State<EditorScreen> {
       if (_isPlaying) {
         await _audioPlayer.stop();
       }
+
+      if (!mounted) return;
 
       if (_hasBeenSavedInDb) {
         await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
@@ -411,7 +411,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 await _saveNote(isAutosave: false);
               }
 
-              if (mounted) Navigator.of(context).pop();
+              if (context.mounted) Navigator.of(context).pop();
             },
           ),
           actions: [
@@ -534,7 +534,7 @@ class _EditorScreenState extends State<EditorScreen> {
               top: 12, right: 12,
               child: GestureDetector(
                 onTap: () async {
-                  setState(() { _isUploading = true; _uploadingLabel = 'Đang xóa ảnh...'; });
+                  setState(() { _isUploading = true; });
                   await _cloudinary.deleteFile(url, resourceType: 'image');
                   setState(() { _imageUrls.remove(url); _isUploading = false; });
                   await _saveNote(isAutosave: true);
@@ -611,7 +611,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 _audioPlayer.stop();
                 setState(() { _playingUrl = null; _isPlaying = false; });
               }
-              setState(() { _isUploading = true; _uploadingLabel = 'Đang xóa âm thanh...'; });
+              setState(() { _isUploading = true; });
               await _cloudinary.deleteFile(url, resourceType: 'video');
               setState(() { _audioUrls.removeAt(index); _isUploading = false; });
               await _saveNote(isAutosave: true);
@@ -642,8 +642,8 @@ class _EditorScreenState extends State<EditorScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: _recordColor.withOpacity(0.08), borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: _recordColor.withOpacity(0.3)),
+        color: _recordColor.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: _recordColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

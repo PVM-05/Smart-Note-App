@@ -1,7 +1,5 @@
 // lib/models/note_model.dart
-// ── THÊM 2 FIELD: imageUrls, audioUrls vào Note ──
-// Chỉ thay thế toàn bộ file note_model.dart bằng file này
-
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Note {
@@ -40,12 +38,27 @@ class Note {
     'content': content,
     'status': status,
     'is_synced': isSynced ? 1 : 0,
-    'tags': tags.join(','),
-    'image_urls': imageUrls.join(','),   // ← MỚI
-    'audio_urls': audioUrls.join(','),   // ← MỚI
+    'tags': jsonEncode(tags),            // JSON-safe, hỗ trợ mọi ký tự
+    'image_urls': jsonEncode(imageUrls), // JSON-safe
+    'audio_urls': jsonEncode(audioUrls), // JSON-safe
     'created_at': createdAt.millisecondsSinceEpoch,
     'updated_at': updatedAt.millisecondsSinceEpoch,
   };
+
+  /// Helper an toàn: decode JSON list, fallback về [] nếu dữ liệu cũ (CSV hoặc null)
+  static List<String> _decodeStringList(dynamic raw) {
+    if (raw == null || (raw is String && raw.isEmpty)) return [];
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) return List<String>.from(decoded);
+      } catch (_) {
+        // Fallback: dữ liệu cũ lưu dạng CSV
+        return raw.split(',').where((s) => s.isNotEmpty).toList();
+      }
+    }
+    return [];
+  }
 
   factory Note.fromMap(Map<String, dynamic> m) => Note(
     id: m['id'],
@@ -54,15 +67,9 @@ class Note {
     content: m['content'],
     status: m['status'] ?? 'normal',
     isSynced: (m['is_synced'] ?? 0) == 1,
-    tags: (m['tags'] as String? ?? '').isEmpty
-        ? []
-        : (m['tags'] as String).split(','),
-    imageUrls: (m['image_urls'] as String? ?? '').isEmpty  // ← MỚI
-        ? []
-        : (m['image_urls'] as String).split(','),
-    audioUrls: (m['audio_urls'] as String? ?? '').isEmpty  // ← MỚI
-        ? []
-        : (m['audio_urls'] as String).split(','),
+    tags: _decodeStringList(m['tags']),
+    imageUrls: _decodeStringList(m['image_urls']),
+    audioUrls: _decodeStringList(m['audio_urls']),
     createdAt: DateTime.fromMillisecondsSinceEpoch(
       m['created_at'] ?? DateTime.now().millisecondsSinceEpoch,
     ),

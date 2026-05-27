@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
+import '../providers/sync_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
@@ -31,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _scrollController = ScrollController();
   bool _isGrid = false;
   SortType _sortType = SortType.updatedNewest;
+  StreamSubscription<void>? _syncNewDataSub; // Lắng nghe dữ liệu mới từ sync
 
   static const _primary = Color(0xFF2E75B6);
 
@@ -39,20 +41,46 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      // Đọc tất cả provider TRƯỚC khi await để tránh context across async gaps
       final auth = Provider.of<AuthProvider>(context, listen: false);
+      final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+      final syncProvider = Provider.of<SyncProvider>(context, listen: false);
 
       if (auth.isAuthenticated) {
-        final noteProvider = Provider.of<NoteProvider>(context, listen: false);
-
         // 1. Tải cực nhanh dữ liệu từ SQLite local lên UI trước để người dùng không phải chờ
         await noteProvider.fetchNotes(auth.userId!);
         await noteProvider.fetchTrashNotes(auth.userId!);
       }
+
+      // 2. Lắng nghe tín hiệu từ SyncProvider khi có dữ liệu mới từ cloud
+      _syncNewDataSub = syncProvider.onSyncWithNewData.listen((_) async {
+        if (!mounted) return;
+        final currentAuth = Provider.of<AuthProvider>(context, listen: false);
+        if (currentAuth.isAuthenticated && currentAuth.userId != null) {
+          final currentNoteProvider = Provider.of<NoteProvider>(context, listen: false);
+          await currentNoteProvider.refreshNotes(currentAuth.userId!);
+          if (mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('☁️ Dữ liệu đã được cập nhật từ cloud'),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                margin: const EdgeInsets.all(12),
+              ),
+            );
+          }
+        }
+      });
     });
   }
 
   @override
   void dispose() {
+    _syncNewDataSub?.cancel(); // Hủy subscription để tránh memory leak
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -105,8 +133,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 animation: animation,
                 builder: (context, child) {
                   return Container(
-                    color: Colors.black.withOpacity(
-                      (animation.value * 0.5).clamp(0.0, 1.0),
+                    color: Colors.black.withValues(
+                      alpha: (animation.value * 0.5).clamp(0.0, 1.0),
                     ),
                   );
                 },
@@ -158,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.08),
+                                          color: Colors.black.withValues(alpha: 0.08),
                                           blurRadius: 12,
                                           offset: const Offset(0, 4),
                                         )
@@ -496,8 +524,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     closedColor: Colors.white,
                     openBuilder: (context, _) => const EditorScreen(note: null),
-                    onClosed: (_) {
-                      provider.notifyListeners();
+                    onClosed: (_) async {
+                      // Refresh danh sách sau khi đóng editor
+                      final auth = Provider.of<AuthProvider>(context, listen: false);
+                      if (auth.isAuthenticated && auth.userId != null) {
+                        Provider.of<NoteProvider>(context, listen: false)
+                            .refreshNotes(auth.userId!);
+                      }
                     },
                     closedBuilder: (context, openContainer) {
                       return FloatingActionButton(
@@ -675,6 +708,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onClosed: (_) {
             // Trì hoãn re-fetch data sau khi card đã thu nhỏ hoàn toàn
             Future.delayed(const Duration(milliseconds: 320), () async {
+              if (!mounted) return;
               final auth = Provider.of<AuthProvider>(context, listen: false);
               if (auth.isAuthenticated && auth.userId != null) {
                 await provider.fetchNotes(auth.userId!);

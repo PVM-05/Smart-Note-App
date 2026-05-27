@@ -1,7 +1,6 @@
 // lib/widgets/main_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart'; // Đảm bảo import đầy đủ nếu có
 import '../providers/note_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/manage_labels_screen.dart';
@@ -24,7 +23,6 @@ class MainDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final noteProvider = Provider.of<NoteProvider>(context);
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     final systemLabels = noteProvider.allLabels;
     final activeLabel = noteProvider.selectedLabel;

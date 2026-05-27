@@ -1,5 +1,4 @@
 // lib/services/local_note_service.dart
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -272,14 +271,14 @@ class LocalNoteService {
 
   Future<void> clearUserNotes(String userId) async {
     if (kIsWeb) {
-      _webNotes.removeWhere((n) => n.userId == userId && n.isSynced == true);
+      _webNotes.removeWhere((n) => n.userId == userId);
       return;
     }
     final database = await db;
     await database.delete(
       'notes',
-      where: 'user_id = ? AND is_synced = ?',
-      whereArgs: [userId, 1],
+      where: 'user_id = ?',
+      whereArgs: [userId],
     );
   }
 }
