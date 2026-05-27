@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/sync_provider.dart';
 import '../models/note_model.dart';
+import '../models/sync_status.dart';
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
@@ -33,6 +34,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isGrid = false;
   SortType _sortType = SortType.updatedNewest;
   StreamSubscription<void>? _syncNewDataSub; // Lắng nghe dữ liệu mới từ sync
+
+  bool _hideSyncBanner = false;
+  Timer? _syncBannerTimer;
+  String? _lastStatusMessage;
 
   static const _primary = Color(0xFF2E75B6);
 
@@ -81,6 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _syncNewDataSub?.cancel(); // Hủy subscription để tránh memory leak
+    _syncBannerTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -478,8 +484,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<NoteProvider>(
-      builder: (context, noteProvider, child) {
+    return Consumer2<NoteProvider, SyncProvider>(
+      builder: (context, noteProvider, syncProvider, child) {
         final isSelectionMode = noteProvider.isSelectionMode;
 
         return Scaffold(
@@ -498,7 +504,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           endDrawer: const ProfileDrawer(),
           appBar: isSelectionMode ? _selectionAppBar(noteProvider) : _normalAppBar(),
-          body: _buildBody(noteProvider),
+          body: Column(
+            children: [
+              _buildSyncStatusBanner(syncProvider, noteProvider),
+              Expanded(child: _buildBody(noteProvider)),
+            ],
+          ),
           floatingActionButton: Consumer<NoteProvider>(
             builder: (context, provider, _) {
               final isSelectionMode = provider.isSelectionMode;
@@ -562,6 +573,121 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
+  Widget _buildSyncStatusBanner(SyncProvider syncProvider, NoteProvider noteProvider) {
+    final isOffline = syncProvider.isOffline;
+    final status = syncProvider.status;
+    final hasUnsynced = noteProvider.notes.any((n) => !n.isSynced) ||
+        noteProvider.archivedNotes.any((n) => !n.isSynced) ||
+        noteProvider.trashNotes.any((n) => !n.isSynced);
+
+    String message;
+    Color color;
+    Color textColor;
+    Widget icon;
+
+    if (isOffline) {
+      if (hasUnsynced) {
+        message = 'Chờ kết nối mạng để đồng bộ';
+        color = const Color(0xFFFFFBEB); // Soft amber
+        textColor = const Color(0xFF92400E);
+        icon = const SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706)),
+        );
+      } else {
+        message = 'Đang ngoại tuyến';
+        color = const Color(0xFFFFF7ED); // Soft orange-amber
+        textColor = const Color(0xFF9A3412);
+        icon = const Icon(Icons.cloud_off, color: Color(0xFFF97316), size: 14);
+      }
+    } else {
+      switch (status) {
+        case SyncStatus.syncing:
+          message = 'Đang đồng bộ...';
+          color = const Color(0xFFEFF6FF); // Light blue
+          textColor = const Color(0xFF1E40AF);
+          icon = const SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+          );
+          break;
+        case SyncStatus.success:
+        case SyncStatus.idle:
+        default:
+          if (hasUnsynced) {
+            message = 'Đang chuẩn bị đồng bộ...';
+            color = const Color(0xFFEFF6FF);
+            textColor = const Color(0xFF1E40AF);
+            icon = const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+            );
+          } else {
+            message = 'Đã đồng bộ';
+            color = const Color(0xFFECFDF5); // Light green
+            textColor = const Color(0xFF065F46);
+            icon = const Icon(Icons.cloud_done, color: Color(0xFF10B981), size: 14);
+          }
+          break;
+      }
+    }
+
+    // Banner auto-hide logic:
+    // - 'X cạ đồng bộ' (đang có unsynced / syncing / offline) → persistent
+    // - 'Đã đồng bộ' (success, clean) → tự ẩn sau 2 giây
+    if (message == 'Đã đồng bộ') {
+      if (_lastStatusMessage != 'Đã đồng bộ') {
+        _lastStatusMessage = 'Đã đồng bộ';
+        _syncBannerTimer?.cancel();
+        _syncBannerTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {
+              _hideSyncBanner = true;
+            });
+          }
+        });
+      }
+    } else {
+      // Offline / Syncing / Waiting → persistent: huỷ timer, luôn hiển banner
+      _lastStatusMessage = message;
+      _hideSyncBanner = false;
+      _syncBannerTimer?.cancel();
+    }
+
+    final double height = _hideSyncBanner ? 0 : 32;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.fastOutSlowIn,
+      child: Container(
+        height: height,
+        width: double.infinity,
+        color: color,
+        alignment: Alignment.center,
+        child: height == 0
+            ? const SizedBox()
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  icon,
+                  const SizedBox(width: 8),
+                  Text(
+                    message,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
 
   Widget _buildBody(NoteProvider noteProvider) {
     if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
