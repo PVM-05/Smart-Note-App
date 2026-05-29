@@ -6,7 +6,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
-import '../services/cloudinary_service.dart';
+
 
 class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
