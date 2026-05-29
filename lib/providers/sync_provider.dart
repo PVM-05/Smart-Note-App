@@ -59,10 +59,8 @@ class SyncProvider with ChangeNotifier {
   Future<void> syncNow() async {
     if (_userId == null) return;
     try {
-      await _syncRepo.syncNow(_userId!);
+      final hasNew = await _syncRepo.syncNow(_userId!);
 
-      // Sau khi syncNow hoàn tất, kiểm tra xem có dữ liệu mới không
-      final hasNew = await _syncRepo.pullFromCloud(_userId!);
       if (hasNew) {
         _newDataController.add(null); // Phát tín hiệu cho HomeScreen refresh
       }
