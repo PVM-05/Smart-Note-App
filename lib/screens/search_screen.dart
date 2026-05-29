@@ -128,7 +128,7 @@ class _SearchScreenState extends State<SearchScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05), // Đã sửa lỗi .withValues
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           )
@@ -201,9 +201,9 @@ class _SearchScreenState extends State<SearchScreen> {
       margin: const EdgeInsets.only(right: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.12), // Màu xanh nhạt tối giản chuẩn Google Keep
+        color: Colors.blue.withValues(alpha: 0.12), // Màu xanh nhạt tối giản chuẩn Google Keep
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -397,6 +397,7 @@ class _SearchScreenState extends State<SearchScreen> {
             context,
             MaterialPageRoute(builder: (_) => EditorScreen(note: note)),
           ).then((_) {
+            if (!mounted) return;
             final auth = Provider.of<AuthProvider>(context, listen: false);
             provider.refreshNotes(auth.userId!);
           });

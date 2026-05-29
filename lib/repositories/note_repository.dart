@@ -144,36 +144,6 @@ class NoteRepositoryImpl implements NoteRepository {
     }
   }
 
-  // ── Sync ngầm: push unsynced + xử lý pending deletes ──
-  Future<void> _syncInBackground(String userId) async {
-    if (!await _canSync()) return;
-
-    try {
-      // 1. Pending deletes
-      final pendingIds = await _pendingDeleteSvc.getAll();
-      for (final id in pendingIds) {
-        try {
-          await _firestoreService.deleteNote(id);
-          await _pendingDeleteSvc.remove(id);
-          log('🗑️ Background deleted: $id');
-        } catch (_) {}
-      }
-
-      // 2. Unsynced notes
-      final unsynced = await _localService.getUnsyncedNotes(userId: userId);
-      if (unsynced.isEmpty) return;
-
-      log('🔄 Background syncing ${unsynced.length} notes...');
-      await _firestoreService.batchSaveNotes(unsynced);
-      for (final note in unsynced) {
-        await _localService.markSynced(note.id);
-      }
-      log('✅ Background sync done: ${unsynced.length} notes');
-    } catch (e) {
-      log('⚠️ Background sync error: $e');
-    }
-  }
-
   @override
   Future<List<Note>> getTrashNotes(String userId) async {
     return await _localService.getTrashNotes(userId: userId);

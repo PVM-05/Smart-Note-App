@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:developer';
-import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../repositories/sync_repository.dart';
@@ -11,8 +10,15 @@ class SyncProvider with ChangeNotifier {
   final SyncRepository _syncRepo;
   SyncStatus _status = SyncStatus.idle;
   String? _userId;
+  bool _isOffline = false;
+  Timer? _debounceTimer; // Debounce rapid connectivity changes
+
+  // Stream thông báo khi sync kéo về dữ liệu mới → HomeScreen lắng nghe để refresh
+  final _newDataController = StreamController<void>.broadcast();
+  Stream<void> get onSyncWithNewData => _newDataController.stream;
 
   SyncStatus get status => _status;
+  bool get isOffline => _isOffline;
 
   SyncProvider(this._syncRepo) {
     _syncRepo.syncStatusStream.listen((status) {
@@ -20,11 +26,27 @@ class SyncProvider with ChangeNotifier {
       notifyListeners();
     });
 
-    // Tự động lắng nghe mạng để kích hoạt lại luồng đồng bộ
+    // Khởi tạo trạng thái mạng ban đầu
+    Connectivity().checkConnectivity().then((results) {
+      _isOffline = results.contains(ConnectivityResult.none);
+      notifyListeners();
+    });
+
+    // Tự động lắng nghe mạng — debounce 500ms để tránh banner flickering khi toggle wifi nhanh
     Connectivity().onConnectivityChanged.listen((results) {
-      if (!results.contains(ConnectivityResult.none) && _userId != null) {
-        syncNow();
-      }
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+        final oldOffline = _isOffline;
+        _isOffline = results.contains(ConnectivityResult.none);
+
+        if (oldOffline != _isOffline || !_isOffline) {
+          notifyListeners();
+        }
+
+        if (!_isOffline && _userId != null) {
+          syncNow();
+        }
+      });
     });
   }
 
@@ -37,10 +59,22 @@ class SyncProvider with ChangeNotifier {
   Future<void> syncNow() async {
     if (_userId == null) return;
     try {
-      // Gọi một hàm duy nhất thực hiện toàn bộ quy trình đóng gói
       await _syncRepo.syncNow(_userId!);
+
+      // Sau khi syncNow hoàn tất, kiểm tra xem có dữ liệu mới không
+      final hasNew = await _syncRepo.pullFromCloud(_userId!);
+      if (hasNew) {
+        _newDataController.add(null); // Phát tín hiệu cho HomeScreen refresh
+      }
     } catch (e) {
-      developer.log("SyncProvider Error: $e");
+      debugPrint("SyncProvider Error: $e");
     }
   }
-}
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _newDataController.close();
+    super.dispose();
+  }
+}

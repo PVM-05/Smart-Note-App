@@ -3,14 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/local_note_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
   bool _isLoading = false;
   String? _error;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn.new();
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // Getters
   User? get user => _user;
