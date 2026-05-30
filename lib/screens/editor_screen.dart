@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart'; // Sử dụng thư viện foundation có sẵn của Flutter để so sánh List
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:flutter_quill/flutter_quill.dart';
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
@@ -38,7 +40,10 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver {
   late TextEditingController _titleController;
-  late TextEditingController _contentController;
+  late QuillController _quillController;
+  final FocusNode _editorFocusNode = FocusNode();
+  bool _isDirty = false;
+  bool _showFormattingToolbar = false;
   bool _isLocked = false;
   bool _isUnlocked = true;
   final BiometricService _biometricService = BiometricService();
@@ -140,16 +145,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
   bool _hasChanges() {
     final originalTitle = widget.note?.title ?? '';
-    final originalContent = widget.note?.content ?? '';
     final originalTags = widget.note?.tags ?? const [];
     final originalImages = widget.note?.imageUrls ?? const [];
     final originalAudios = widget.note?.audioUrls ?? const [];
 
     final currentTitle = _titleController.text.trim();
-    final currentContent = _contentController.text.trim();
 
     final titleChanged = originalTitle != currentTitle;
-    final contentChanged = originalContent != currentContent;
+    final contentChanged = _isDirty;
     final tagsChanged = !listEquals(originalTags, _tags);
     final imagesChanged = !listEquals(originalImages, _imageUrls);
     final audiosChanged = !listEquals(originalAudios, _audioUrls);
@@ -169,13 +172,45 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     _hasBeenSavedInDb = widget.note != null;
 
     _titleController = TextEditingController(text: widget.note?.title ?? '');
-    _contentController = TextEditingController(text: widget.note?.content ?? '');
+    
+    final initialContent = widget.note?.content ?? '';
+    if (initialContent.isEmpty) {
+      _quillController = QuillController.basic();
+    } else {
+      try {
+        final json = jsonDecode(initialContent);
+        _quillController = QuillController(
+          document: Document.fromJson(json),
+          selection: const TextSelection.collapsed(offset: 0),
+        );
+      } catch (e) {
+        final doc = Document()..insert(0, initialContent);
+        _quillController = QuillController(
+          document: doc,
+          selection: const TextSelection.collapsed(offset: 0),
+        );
+      }
+    }
+
     _tags = List.from(widget.note?.tags ?? []);
     _imageUrls = List.from(widget.note?.imageUrls ?? []);
     _audioUrls = List.from(widget.note?.audioUrls ?? []);
 
     _titleController.addListener(_onTextChanged);
-    _contentController.addListener(_onTextChanged);
+    _quillController.document.changes.listen((_) {
+      _isDirty = true;
+      _onTextChanged();
+    });
+
+    // Tự động hiện thanh công cụ khi bôi đen chữ
+    _quillController.addListener(() {
+      final hasSelection = !_quillController.selection.isCollapsed;
+      if (_showFormattingToolbar != hasSelection) {
+        setState(() {
+          _showFormattingToolbar = hasSelection;
+        });
+      }
+    });
 
     _audioPlayer.positionStream.listen((pos) {
       if (mounted) setState(() => _playPosition = pos);
@@ -220,7 +255,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     _recordTimer?.cancel();
     _bannerTimer?.cancel();
     _titleController.dispose();
-    _contentController.dispose();
+    _quillController.dispose();
+    _editorFocusNode.dispose();
     _audioPlayer.stop();
     _recorder.dispose();
     _audioPlayer.dispose();
@@ -307,13 +343,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     if (!_hasChanges()) return;
 
     final title = _titleController.text.trim();
-    final content = _contentController.text.trim();
+    final content = jsonEncode(_quillController.document.toDelta().toJson());
+    final plainText = _quillController.document.toPlainText().trim();
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = auth.userId ?? '';
     if (currentUserId.isEmpty) return;
 
     final provider = Provider.of<NoteProvider>(context, listen: false);
-    final isEmpty = title.isEmpty && content.isEmpty && _tags.isEmpty
+    final isEmpty = title.isEmpty && plainText.isEmpty && _tags.isEmpty
         && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
 
     if (isEmpty && !_hasBeenSavedInDb) return;
@@ -347,6 +384,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       await provider.addNote(noteToSave);
       _hasBeenSavedInDb = true;
     }
+    _isDirty = false;
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -726,14 +764,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               ),
             if (_hasBeenSavedInDb)
               IconButton(
-                icon: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: Colors.black87),
-                tooltip: _status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ',
-                onPressed: _toggleArchive,
+                icon: const Icon(Icons.notification_add_outlined, color: Colors.black87),
+                onPressed: () {}, // TODO: Tính năng nhắc nhở
               ),
             if (_hasBeenSavedInDb)
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.black87),
-                onPressed: _delete,
+                icon: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: Colors.black87),
+                tooltip: _status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ',
+                onPressed: _toggleArchive,
               ),
           ],
         ),
@@ -789,51 +827,50 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                                 maxLines: null,
                               ),
                               const SizedBox(height: 4),
-                              TextField(
-                                controller: _contentController,
-                                style: GoogleFonts.outfit(fontSize: 16, height: 1.6, color: const Color(0xFF334155)),
-                                decoration: const InputDecoration(
-                                  hintText: 'Ghi chú',
-                                  border: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                ),
-                                maxLines: null,
-                                keyboardType: TextInputType.multiline,
-                                textCapitalization: TextCapitalization.sentences,
-                              ),
-    
-                              if (_audioUrls.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
-                              ],
-    
-                              if (_isRecording) ...[
-                                const SizedBox(height: 16),
-                                _buildRecordingIndicator(),
-                              ],
-    
-                              if (_tags.isNotEmpty) ...[
-                                const SizedBox(height: 24),
-                                Wrap(
-                                  spacing: 8, runSpacing: 6,
-                                  children: _tags.map((tag) => Chip(
-                                    label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
-                                    backgroundColor: const Color(0xFFF1F5F9),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    side: BorderSide(color: Colors.grey.shade200),
-                                  )).toList(),
-                                ),
-                              ],
-                              const SizedBox(height: 80),
-                            ],
+                                                        const SizedBox(height: 4),
+                          QuillEditor.basic(
+                            controller: _quillController,
+                            focusNode: _editorFocusNode,
+                            config: const QuillEditorConfig(
+                              scrollable: false,
+                              expands: false,
+                              autoFocus: false,
+                              padding: EdgeInsets.zero,
+                            ),
                           ),
-                        ),
-                      ],
+
+                          if (_audioUrls.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
+                          ],
+
+                          if (_isRecording) ...[
+                            const SizedBox(height: 16),
+                            _buildRecordingIndicator(),
+                          ],
+
+                          if (_tags.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            Wrap(
+                              spacing: 8, runSpacing: 6,
+                              children: _tags.map((tag) => Chip(
+                                label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
+                                backgroundColor: const Color(0xFFF1F5F9),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                side: BorderSide(color: Colors.grey.shade200),
+                              )).toList(),
+                            ),
+                          ],
+                          const SizedBox(height: 80),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
+          ],
+        ),
             if (_isLocked)
               AnimatedOpacity(
                 opacity: _isUnlocked ? 0.0 : 1.0,
@@ -1165,28 +1202,139 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   }
 
   Widget _buildBottomToolbar() {
-    return BottomAppBar(
-      color: Colors.white,
-      elevation: 0,
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade100))),
-        child: Row(
-          children: [
-            _toolbarButton(icon: Icons.image_outlined, tooltip: 'Thêm ảnh', onTap: _isUploading ? null : _showImageSourceSheet),
-            _toolbarButton(
-              icon: _isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined,
-              tooltip: _isRecording ? 'Dừng ghi âm' : 'Ghi âm',
-              color: _isRecording ? _recordColor : null,
-              onTap: _isUploading ? null : (_isRecording ? _stopRecordingAndUpload : _startRecording),
-            ),
-            _toolbarButton(icon: Icons.label_outline_rounded, tooltip: 'Thêm nhãn', onTap: _openLabelSelectionPage),
-            const Spacer(),
-            if (!_isUploading && _hasBeenSavedInDb)
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade400)),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_showFormattingToolbar)
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: QuillSimpleToolbar(
+              controller: _quillController,
+              config: const QuillSimpleToolbarConfig(
+                showFontFamily: false,
+                showFontSize: false,
+                showStrikeThrough: true,
+                showInlineCode: false,
+                showColorButton: true,
+                showBackgroundColorButton: true,
+                showClearFormat: false,
+                showAlignmentButtons: false,
+                showLeftAlignment: false,
+                showCenterAlignment: false,
+                showRightAlignment: false,
+                showJustifyAlignment: false,
+                showHeaderStyle: true,
+                showListNumbers: true,
+                showListBullets: true,
+                showListCheck: true,
+                showCodeBlock: false,
+                showQuote: true,
+                showIndent: false,
+                showLink: true,
+                showUndo: false,
+                showRedo: false,
+                showDirection: false,
+                showSearchButton: false,
+                showSubscript: false,
+                showSuperscript: false,
               ),
+            ),
+          ),
+        BottomAppBar(
+          color: const Color(0xFFF1F5F9), // Màu xám nhạt như yêu cầu
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          child: SizedBox(
+            height: 50,
+            child: Row(
+              children: [
+                _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
+                _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: () {}),
+                _toolbarButton(
+                  icon: Icons.format_color_text,
+                  tooltip: 'Định dạng',
+                  color: _showFormattingToolbar ? _primary : null,
+                  onTap: () {
+                    if (_quillController.selection.isCollapsed) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng bôi đen đoạn chữ để định dạng.')),
+                      );
+                    }
+                  },
+                ),
+                const Spacer(),
+                if (!_isUploading && _hasBeenSavedInDb)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500)),
+                  ),
+                _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAddOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.image_outlined, color: Colors.black54),
+              title: const Text('Thêm ảnh'),
+              onTap: () { Navigator.pop(context); _showImageSourceSheet(); },
+            ),
+            ListTile(
+              leading: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined, color: _isRecording ? _recordColor : Colors.black54),
+              title: Text(_isRecording ? 'Dừng ghi âm' : 'Ghi âm'),
+              onTap: () { Navigator.pop(context); _isRecording ? _stopRecordingAndUpload() : _startRecording(); },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            if (_hasBeenSavedInDb)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.black54),
+                title: const Text('Xóa ghi chú'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _delete();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.label_outline, color: Colors.black54),
+              title: const Text('Nhãn'),
+              onTap: () {
+                Navigator.pop(context);
+                _openLabelSelectionPage();
+              },
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

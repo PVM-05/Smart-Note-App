@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import '../services/local_note_service.dart';
 import '../services/firestore_note_service.dart';
 import '../models/sync_status.dart';
+import '../models/note_model.dart';
 import '../services/pending_delete_service.dart';
 
 // lib/repositories/sync_repository.dart
 abstract class SyncRepository {
   Stream<SyncStatus> get syncStatusStream;
-  Future<void> syncNow(String userId);
+  Future<bool> syncNow(String userId);
   Future<bool> pullFromCloud(String userId); // Đổi kiểu trả về thành Future<bool>
   Future<void> deleteNoteWithQueue(String id);
 }
@@ -34,14 +36,15 @@ class SyncRepositoryImpl implements SyncRepository {
   }
 
   @override
-  Future<void> syncNow(String userId) async {
+  Future<bool> syncNow(String userId) async {
     if (_syncLock != null && !_syncLock!.isCompleted) {
       await _syncLock!.future;
-      return;
+      return false;
     }
 
     _syncLock = Completer<void>();
     _statusController.add(SyncStatus.syncing);
+    bool hasNewChanges = false;
 
     try {
       // 1. Xử lý hàng đợi xóa offline
@@ -51,29 +54,84 @@ class SyncRepositoryImpl implements SyncRepository {
         await _pendingDeleteSvc.remove(id);
       }
 
-      // 2. Đẩy ghi chú chưa sync lên cloud (Batch Write)
+      // 2. Phân xử xung đột (Last-Writer-Wins)
       final unsyncedNotes = await _localService.getUnsyncedNotes(userId: userId);
-      if (unsyncedNotes.isNotEmpty) {
-        await _firestoreService.batchSaveNotes(unsyncedNotes);
-        
-        // Tối ưu hóa: Gộp việc cập nhật trạng thái synced trên SQLite vào 1 transaction duy nhất
+      final cloudNotes = await _firestoreService.getNotes();
+      final cloudMap = {for (final n in cloudNotes) n.id: n};
+
+      List<Note> notesToPush = [];
+      for (final local in unsyncedNotes) {
+        final cloud = cloudMap[local.id];
+        // Nếu cloud chưa có note này, hoặc local có cập nhật mới hơn cloud
+        if (cloud == null || local.updatedAt.isAfter(cloud.updatedAt)) {
+          notesToPush.add(local);
+        }
+      }
+
+      if (notesToPush.isNotEmpty) {
+        await _firestoreService.batchSaveNotes(notesToPush);
+        if (kIsWeb) {
+          for (final note in notesToPush) {
+            await _localService.markSynced(note.id);
+          }
+        } else {
+          // Tối ưu hóa: Gộp việc cập nhật trạng thái synced trên SQLite vào 1 transaction duy nhất
+          final db = await _localService.db;
+          await db.transaction((txn) async {
+            for (final note in notesToPush) {
+              await txn.update(
+                'notes',
+                {'is_synced': 1},
+                where: 'id = ?',
+                whereArgs: [note.id],
+              );
+            }
+          });
+        }
+      }
+
+      // 3. Kéo dữ liệu về (sử dụng luôn cloudNotes vừa lấy để tối ưu chi phí Firestore)
+      final localAllNotes = await _localService.getAbsoluteAllNotes(userId: userId);
+      final localAllMap = {for (final n in localAllNotes) n.id: n};
+
+      if (kIsWeb) {
+        for (final cloud in cloudNotes) {
+          final local = localAllMap[cloud.id];
+          if (local == null) {
+            await _localService.insertNote(cloud);
+            hasNewChanges = true;
+          } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
+            await _localService.updateNote(cloud);
+            hasNewChanges = true;
+          }
+        }
+      } else {
         final db = await _localService.db;
         await db.transaction((txn) async {
-          for (final note in unsyncedNotes) {
-            await txn.update(
-              'notes',
-              {'is_synced': 1},
-              where: 'id = ?',
-              whereArgs: [note.id],
-            );
+          for (final cloud in cloudNotes) {
+            final local = localAllMap[cloud.id];
+            if (local == null) {
+              await txn.insert(
+                'notes',
+                cloud.toMap(),
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+              hasNewChanges = true;
+            } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
+              await txn.update(
+                'notes',
+                cloud.toMap(),
+                where: 'id = ?',
+                whereArgs: [cloud.id],
+              );
+              hasNewChanges = true;
+            }
           }
         });
       }
 
-      // 3. Kéo dữ liệu về phân xử
-      await pullFromCloud(userId);
-
       _statusController.add(SyncStatus.success);
+      return hasNewChanges;
     } catch (e) {
       _statusController.add(SyncStatus.error);
       rethrow;
