@@ -15,6 +15,10 @@ import '../providers/auth_provider.dart';
 import '../services/cloudinary_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/biometric_service.dart';
+import '../core/app_strings.dart';
+import '../core/app_colors.dart';
+import 'package:app_settings/app_settings.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -32,9 +36,12 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> {
+class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  bool _isLocked = false;
+  bool _isUnlocked = true;
+  final BiometricService _biometricService = BiometricService();
   List<String> _tags = [];
   List<String> _imageUrls = [];
   List<String> _audioUrls = [];
@@ -153,9 +160,12 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _noteId = widget.note?.id ?? const Uuid().v4();
     _createdAt = widget.note?.createdAt ?? DateTime.now();
     _status = widget.note?.status ?? 'normal';
+    _isLocked = widget.note?.isLocked ?? false;
+    _isUnlocked = !_isLocked;
     _hasBeenSavedInDb = widget.note != null;
 
     _titleController = TextEditingController(text: widget.note?.title ?? '');
@@ -186,10 +196,14 @@ class _EditorScreenState extends State<EditorScreen> {
       } else if (widget.autoPickImage) {
         _pickImage(ImageSource.gallery);
       }
+      if (_isLocked) {
+        _authenticateNote();
+      }
     });
   }
 
   void _onTextChanged() {
+    if (_isLocked && !_isUnlocked) return;
     // Chỉ kích hoạt hẹn giờ tự động lưu nếu phát hiện thực sự có sự thay đổi nội dung văn bản
     if (!_hasChanges()) return;
 
@@ -201,6 +215,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoSaveTimer?.cancel();
     _recordTimer?.cancel();
     _bannerTimer?.cancel();
@@ -212,8 +227,82 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
+  // Tự động khóa lại khi app vào background — KHÔNG gọi authenticate() tự động
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      if (_isLocked && _isUnlocked) {
+        setState(() => _isUnlocked = false);
+      }
+    }
+  }
+
+  Future<void> _authenticateNote() async {
+    try {
+      final authenticated = await _biometricService.authenticate(
+        reason: AppStrings.biometricPromptReason,
+      );
+      if (authenticated) {
+        setState(() {
+          _isUnlocked = true;
+        });
+      } else {
+        _showAuthFailedSnackBar();
+      }
+    } catch (e) {
+      _showAuthFailedSnackBar(message: e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  void _showAuthFailedSnackBar({String? message}) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message ?? AppStrings.biometricAuthFailed),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Thử lại',
+          textColor: Colors.white,
+          onPressed: _authenticateNote,
+        ),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
+  // Hiện dialog hướng dẫn user mở Cài đặt để đăng ký sinh trắc học
+  void _showEnrollBiometricDialog() {
+    if (!context.mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Chưa thiết lập sinh trắc học'),
+        content: const Text(
+          'Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Để sau'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              AppSettings.openAppSettings(type: AppSettingsType.security);
+            },
+            child: const Text('Mở cài đặt'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveNote({required bool isAutosave}) async {
     if (!mounted) return;
+    if (_isLocked && !_isUnlocked) return;
     // ⚡ CHẶN LƯU THỪA: Nếu không có bất kỳ thay đổi nào, bỏ qua không gọi Database / Cloud Provider
     if (!_hasChanges()) return;
 
@@ -366,7 +455,21 @@ class _EditorScreenState extends State<EditorScreen> {
     _recordTimer?.cancel();
     final path = await _recorder.stop();
     setState(() => _isRecording = false);
-    if (path == null) return;
+
+    if (path == null) {
+      // Ghi âm thất bại - báo lỗi rõ ràng thay vì silent return
+      if (mounted) {
+        _setUploadState(
+          isUploading: false,
+          message: 'Ghi âm thất bại: Không lấy được file audio.',
+          bannerColor: const Color(0xFFFEF2F2),
+          bannerTextColor: const Color(0xFF991B1B),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          autoHide: true,
+        );
+      }
+      return;
+    }
 
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -526,6 +629,10 @@ class _EditorScreenState extends State<EditorScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        if (_isLocked && !_isUnlocked) {
+          Navigator.of(context).pop();
+          return;
+        }
         if (_isUploading) {
           final confirmExit = await _showUploadExitConfirmation();
           if (confirmExit != true) return;
@@ -548,6 +655,10 @@ class _EditorScreenState extends State<EditorScreen> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () async {
+              if (_isLocked && !_isUnlocked) {
+                Navigator.of(context).pop();
+                return;
+              }
               if (_isUploading) {
                 final confirmExit = await _showUploadExitConfirmation();
                 if (confirmExit != true) return;
@@ -571,6 +682,45 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             if (_hasBeenSavedInDb)
               IconButton(
+                icon: Icon(_isLocked ? Icons.lock : Icons.lock_open_outlined, color: Colors.black87),
+                tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final provider = Provider.of<NoteProvider>(context, listen: false);
+                  try {
+                    final success = await provider.toggleLock(_noteId);
+                    if (success) {
+                      setState(() {
+                        _isLocked = !_isLocked;
+                        _isUnlocked = !_isLocked;
+                      });
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(_isLocked ? '🔒 Đã khóa ghi chú' : '🔓 Đã mở khóa ghi chú'),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    final msg = e.toString().replaceAll('Exception: ', '');
+                    if (msg == AppStrings.biometricNotEnrolled) {
+                      _showEnrollBiometricDialog();
+                    } else {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(msg),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            if (_hasBeenSavedInDb)
+              IconButton(
                 icon: Icon(_status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, color: Colors.black87),
                 onPressed: _togglePin,
               ),
@@ -587,102 +737,176 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
           ],
         ),
-        body: Column(
+        body: Stack(
           children: [
-            if (_showUploadBanner && _uploadMessage != null)
-              Container(
-                color: _bannerColor,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    _statusIcon,
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _uploadMessage!,
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          color: _bannerTextColor,
-                          fontWeight: FontWeight.w500,
+            Column(
+              children: [
+                if (_showUploadBanner && _uploadMessage != null)
+                  Container(
+                    color: _bannerColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        _statusIcon,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _uploadMessage!,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              color: _bannerTextColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            if (_isUploading)
-              LinearProgressIndicator(backgroundColor: Colors.grey.shade100, color: _primary),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
-                            controller: _titleController,
-                            autofocus: !_isEditing && !widget.autoRecord && !widget.autoPickImage,
-                            style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                            decoration: const InputDecoration(
-                              hintText: 'Tiêu đề',
-                              border: InputBorder.none,
-                              hintStyle: TextStyle(color: Colors.grey),
-                            ),
-                            textCapitalization: TextCapitalization.sentences,
-                            maxLines: null,
+                  ),
+                if (_isUploading)
+                  LinearProgressIndicator(backgroundColor: Colors.grey.shade100, color: _primary),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
+    
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                controller: _titleController,
+                                autofocus: !_isEditing && !widget.autoRecord && !widget.autoPickImage && !_isLocked,
+                                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                                decoration: const InputDecoration(
+                                  hintText: 'Tiêu đề',
+                                  border: InputBorder.none,
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                ),
+                                textCapitalization: TextCapitalization.sentences,
+                                maxLines: null,
+                              ),
+                              const SizedBox(height: 4),
+                              TextField(
+                                controller: _contentController,
+                                style: GoogleFonts.outfit(fontSize: 16, height: 1.6, color: const Color(0xFF334155)),
+                                decoration: const InputDecoration(
+                                  hintText: 'Ghi chú',
+                                  border: InputBorder.none,
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                ),
+                                maxLines: null,
+                                keyboardType: TextInputType.multiline,
+                                textCapitalization: TextCapitalization.sentences,
+                              ),
+    
+                              if (_audioUrls.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
+                              ],
+    
+                              if (_isRecording) ...[
+                                const SizedBox(height: 16),
+                                _buildRecordingIndicator(),
+                              ],
+    
+                              if (_tags.isNotEmpty) ...[
+                                const SizedBox(height: 24),
+                                Wrap(
+                                  spacing: 8, runSpacing: 6,
+                                  children: _tags.map((tag) => Chip(
+                                    label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    side: BorderSide(color: Colors.grey.shade200),
+                                  )).toList(),
+                                ),
+                              ],
+                              const SizedBox(height: 80),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          TextField(
-                            controller: _contentController,
-                            style: GoogleFonts.outfit(fontSize: 16, height: 1.6, color: const Color(0xFF334155)),
-                            decoration: const InputDecoration(
-                              hintText: 'Ghi chú',
-                              border: InputBorder.none,
-                              hintStyle: TextStyle(color: Colors.grey),
-                            ),
-                            maxLines: null,
-                            keyboardType: TextInputType.multiline,
-                            textCapitalization: TextCapitalization.sentences,
-                          ),
-
-                          if (_audioUrls.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
-                          ],
-
-                          if (_isRecording) ...[
-                            const SizedBox(height: 16),
-                            _buildRecordingIndicator(),
-                          ],
-
-                          if (_tags.isNotEmpty) ...[
-                            const SizedBox(height: 24),
-                            Wrap(
-                              spacing: 8, runSpacing: 6,
-                              children: _tags.map((tag) => Chip(
-                                label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
-                                backgroundColor: const Color(0xFFF1F5F9),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                side: BorderSide(color: Colors.grey.shade200),
-                              )).toList(),
-                            ),
-                          ],
-                          const SizedBox(height: 80),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
+            if (_isLocked)
+              AnimatedOpacity(
+                opacity: _isUnlocked ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 300),
+                child: IgnorePointer(
+                  ignoring: _isUnlocked,
+                  child: Container(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF0F0F0F)
+                        : Colors.white,
+                    width: double.infinity,
+                    height: double.infinity,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: _authenticateNote,
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.lock_outline,
+                              size: 64,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Ghi chú đã được khóa',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Chạm để mở khóa bằng sinh trắc học',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _authenticateNote,
+                          icon: const Icon(Icons.fingerprint, color: Colors.white),
+                          label: Text(
+                            'Xác thực ngay',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
-        bottomNavigationBar: _buildBottomToolbar(),
+        bottomNavigationBar: (_isLocked && !_isUnlocked) ? null : _buildBottomToolbar(),
       ),
     );
   }

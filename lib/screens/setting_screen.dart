@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_settings/app_settings.dart';
+import '../services/biometric_service.dart';
+import '../core/app_colors.dart';
+import '../core/app_strings.dart';
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
@@ -10,10 +15,24 @@ class SettingScreen extends StatefulWidget {
 class _SettingScreenState extends State<SettingScreen> {
   // Trạng thái local cho các cấu hình cài đặt
   bool _isDarkMode = false;
-  bool _biometricAuth = false;
   String _selectedLanguage = 'Tiếng Việt';
+  bool _biometricEnabled = false;
+  final BiometricService _biometricService = BiometricService();
 
   static const Color primaryColor = Color(0xFF2E75B6);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _biometricEnabled = prefs.getBool('isBiometricEnabled') ?? false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,8 +65,8 @@ class _SettingScreenState extends State<SettingScreen> {
             onChanged: (bool value) {
               setState(() {
                 _isDarkMode = value;
-                // TODO: Kết nối với ThemeProvider / Cubit thay đổi theme toàn cục của bạn tại đây
               });
+              ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(_isDarkMode ? '🌙 Đã chuyển sang giao diện tối' : '☀️ Đã chuyển sang giao diện sáng'),
@@ -82,19 +101,76 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 3: BIOMETRIC =================
           SwitchListTile(
-            secondary: const Icon(Icons.fingerprint, color: primaryColor),
+            secondary: const Icon(
+              Icons.fingerprint,
+              color: AppColors.primary,
+            ),
             title: const Text(
-              'Khóa bảo mật (Biometric)',
+              AppStrings.biometricLockTitle,
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            subtitle: const Text('Sử dụng Vân tay hoặc Khuôn mặt để mở ứng dụng'),
-            value: _biometricAuth,
-            activeThumbColor: primaryColor,
-            onChanged: (bool value) {
-              setState(() {
-                _biometricAuth = value;
-                // TODO: Tích hợp gói `local_auth` để xử lý xác thực vân tay thực tế tại đây
-              });
+            subtitle: const Text(AppStrings.biometricLockSubtitle),
+            value: _biometricEnabled,
+            activeThumbColor: AppColors.primary,
+            onChanged: (bool value) async {
+              final localContext = context;
+              final messenger = ScaffoldMessenger.of(localContext);
+              if (value) {
+                final available = await _biometricService.isAvailable();
+                if (!available) {
+                  if (localContext.mounted) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(AppStrings.biometricNotAvailable),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                  return;
+                }
+                
+                final enrolled = await _biometricService.isEnrolled();
+                if (!enrolled) {
+                  if (localContext.mounted) {
+                    showDialog<void>(
+                      context: localContext,
+                      builder: (ctx) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        title: const Text('Chưa thiết lập sinh trắc học'),
+                        content: const Text(
+                          'Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Để sau'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              AppSettings.openAppSettings(
+                                type: AppSettingsType.security,
+                              );
+                            },
+                            child: const Text('Mở cài đặt'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return;
+                }
+              }
+              
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('isBiometricEnabled', value);
+              if (localContext.mounted) {
+                setState(() {
+                  _biometricEnabled = value;
+                });
+              }
             },
           ),
           _buildDivider(),

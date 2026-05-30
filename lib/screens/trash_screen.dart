@@ -5,6 +5,9 @@ import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
+import '../core/app_strings.dart';
+import '../widgets/note_card_shimmer.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/main_drawer.dart';
 
 class TrashScreen extends StatefulWidget {
@@ -77,6 +80,17 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   Widget _buildBody(NoteProvider provider) {
+    if (provider.isLoading && provider.trashNotes.isEmpty) {
+      return MasonryGridView.count(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        crossAxisCount: 2,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        itemCount: 6,
+        itemBuilder: (context, index) => const NoteCardShimmer(isGrid: true),
+      );
+    }
+
     if (provider.trashNotes.isEmpty) {
       return _buildEmptyTrash();
     }
@@ -262,34 +276,10 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   Widget _buildEmptyTrash() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.delete_outline,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Không có ghi chú nào trong Thùng rác',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
+    return const EmptyStateWidget(
+      icon: Icons.delete_outline,
+      title: AppStrings.emptyTrashTitle,
+      subtitle: AppStrings.emptyTrashSubtitle,
     );
   }
 }

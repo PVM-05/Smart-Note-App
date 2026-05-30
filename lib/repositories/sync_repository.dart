@@ -1,6 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sqflite/sqflite.dart';
 import '../services/local_note_service.dart';
 import '../services/firestore_note_service.dart';
 import '../models/sync_status.dart';
@@ -54,9 +55,19 @@ class SyncRepositoryImpl implements SyncRepository {
       final unsyncedNotes = await _localService.getUnsyncedNotes(userId: userId);
       if (unsyncedNotes.isNotEmpty) {
         await _firestoreService.batchSaveNotes(unsyncedNotes);
-        for (final note in unsyncedNotes) {
-          await _localService.markSynced(note.id);
-        }
+        
+        // Tối ưu hóa: Gộp việc cập nhật trạng thái synced trên SQLite vào 1 transaction duy nhất
+        final db = await _localService.db;
+        await db.transaction((txn) async {
+          for (final note in unsyncedNotes) {
+            await txn.update(
+              'notes',
+              {'is_synced': 1},
+              where: 'id = ?',
+              whereArgs: [note.id],
+            );
+          }
+        });
       }
 
       // 3. Kéo dữ liệu về phân xử
@@ -81,17 +92,32 @@ class SyncRepositoryImpl implements SyncRepository {
     final localNotes = await _localService.getAbsoluteAllNotes(userId: userId);
     final localMap = {for (final n in localNotes) n.id: n};
 
-    for (final cloud in cloudNotes) {
-      final local = localMap[cloud.id];
+    final db = await _localService.db;
 
-      if (local == null) {
-        await _localService.insertNote(cloud);
-        hasNewChanges = true;
-      } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
-        await _localService.updateNote(cloud);
-        hasNewChanges = true;
+    // Tối ưu hóa: Thực hiện tất cả các tác vụ insert/update trong 1 TRANSACTION duy nhất
+    await db.transaction((txn) async {
+      for (final cloud in cloudNotes) {
+        final local = localMap[cloud.id];
+
+        if (local == null) {
+          await txn.insert(
+            'notes',
+            cloud.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+          hasNewChanges = true;
+        } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
+          await txn.update(
+            'notes',
+            cloud.toMap(),
+            where: 'id = ?',
+            whereArgs: [cloud.id],
+          );
+          hasNewChanges = true;
+        }
       }
-    }
+    });
+
     return hasNewChanges; // Trả về true nếu thực sự có ghi chú mới được ghi xuống máy
   }
 

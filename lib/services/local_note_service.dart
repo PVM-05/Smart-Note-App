@@ -17,7 +17,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -27,6 +27,7 @@ class LocalNoteService {
             content TEXT,
             status TEXT DEFAULT 'normal',
             is_synced INTEGER DEFAULT 0,
+            is_locked INTEGER DEFAULT 0,
             tags TEXT,
             image_urls TEXT,
             audio_urls TEXT,          
@@ -51,6 +52,9 @@ class LocalNoteService {
         if (oldVersion < 5) {
           await db.execute("ALTER TABLE notes ADD COLUMN image_urls TEXT");
           await db.execute("ALTER TABLE notes ADD COLUMN audio_urls TEXT");
+        }
+        if (oldVersion < 6) {
+          await db.execute("ALTER TABLE notes ADD COLUMN is_locked INTEGER DEFAULT 0");
         }
       },
     );

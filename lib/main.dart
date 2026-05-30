@@ -18,6 +18,9 @@ void main() async {
   try {
     // 🌟 Tiến hành nạp file .env vào hệ thống
     await dotenv.load(fileName: ".env");
+    debugPrint("ENV TEST");
+    debugPrint("Cloud Name: ${dotenv.env['CLOUDINARY_CLOUD_NAME']}");
+    debugPrint("Preset: ${dotenv.env['CLOUDINARY_UPLOAD_PRESET']}");
     debugPrint("✅ Đã tải file .env thành công");
   } catch (e) {
     debugPrint("❌ Lỗi tải file .env: $e. Hãy kiểm tra xem đã tạo file chưa.");

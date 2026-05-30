@@ -7,6 +7,8 @@ import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
+import '../core/app_strings.dart';
+import '../widgets/empty_state.dart';
 import 'editor_screen.dart';
 
 // Class lưu trữ thông tin của một bộ lọc (Bao gồm Tên hiển thị và Mã Token để gửi xuống DB)
@@ -330,18 +332,19 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildEmptyResult() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.search_off_rounded, size: 64, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(
-            'Không tìm thấy ghi chú nào phù hợp',
-            style: GoogleFonts.outfit(color: Colors.grey[500], fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
+    return EmptyStateWidget(
+      icon: Icons.search_off_rounded,
+      title: AppStrings.emptySearchTitle,
+      subtitle: AppStrings.emptySearchSubtitle,
+      actionLabel: AppStrings.emptySearchAction,
+      onAction: () {
+        _searchController.clear();
+        setState(() {
+          _activeFilters.clear();
+        });
+        _triggerSearch();
+        _focusNode.requestFocus();
+      },
     );
   }
 

@@ -9,12 +9,15 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class CloudinaryService {
-  static final String _cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
-  static final String _uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
-  static final String _apiKey = dotenv.env['CLOUDINARY_API_KEY'] ?? '';
-  static final String _apiSecret = dotenv.env['CLOUDINARY_API_SECRET'] ?? '';
+  // 🔑 Dùng getter thay vì static final field
+  // Lý do: static final được khởi tạo ngay khi class load (có thể trước dotenv.load())
+  // Getter đảm bảo giá trị được đọc SAU KHI dotenv.load() trong main() hoàn thành
+  static String get _cloudName => dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
+  static String get _uploadPreset => dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
+  static String get _apiKey => dotenv.env['CLOUDINARY_API_KEY'] ?? '';
+  static String get _apiSecret => dotenv.env['CLOUDINARY_API_SECRET'] ?? '';
 
-  static final String _baseUrl = 'https://api.cloudinary.com/v1_1/$_cloudName';
+  static String get _baseUrl => 'https://api.cloudinary.com/v1_1/$_cloudName';
 
   final ImagePicker _picker = ImagePicker();
 
@@ -104,6 +107,15 @@ class CloudinaryService {
   // ════════════════════════════════════════
   Future<String?> uploadImage(File file, String userId) async {
     try {
+      // 🔍 DEBUG: Xác minh env values trước khi upload
+      developer.log('🔍 [Cloudinary] cloudName="$_cloudName" preset="$_uploadPreset"');
+      developer.log('🔍 [Cloudinary] uploadImage URL: $_baseUrl/image/upload');
+
+      if (_cloudName.isEmpty || _uploadPreset.isEmpty) {
+        developer.log('❌ [Cloudinary] ENV rỗng! Kiểm tra pubspec.yaml assets và file .env');
+        return null;
+      }
+
       final uri = Uri.parse('$_baseUrl/image/upload');
       final request = http.MultipartRequest('POST', uri);
 
@@ -117,14 +129,16 @@ class CloudinaryService {
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
 
-      developer.log('IMAGE RESPONSE: $responseData');
+      developer.log('📥 IMAGE RESPONSE [${response.statusCode}]: $responseData');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
         return data['secure_url'];
+      } else {
+        developer.log('❌ [Cloudinary] Image upload failed HTTP ${response.statusCode}: $responseData');
       }
-    } catch (e) {
-      developer.log('❌ uploadImage error: $e');
+    } catch (e, stack) {
+      developer.log('❌ uploadImage error: $e', error: e, stackTrace: stack);
     }
     return null;
   }
@@ -134,20 +148,23 @@ class CloudinaryService {
   // ════════════════════════════════════════
   Future<String?> uploadAudio(File file, String userId) async {
     try {
+      // 🔍 DEBUG: Xác minh env values trước khi upload
+      developer.log('🔍 [Cloudinary] cloudName="$_cloudName" preset="$_uploadPreset"');
+      developer.log('🔍 [Cloudinary] uploadAudio URL: $_baseUrl/video/upload');
+
+      if (_cloudName.isEmpty || _uploadPreset.isEmpty) {
+        developer.log('❌ [Cloudinary] ENV rỗng! Kiểm tra pubspec.yaml assets và file .env');
+        return null;
+      }
+
       // Giữ nguyên endpoint video/upload của Cloudinary
       final uri = Uri.parse('$_baseUrl/video/upload');
       final request = http.MultipartRequest('POST', uri);
 
       request.fields['upload_preset'] = _uploadPreset;
       request.fields['folder'] = 'smart_note/$userId/audio';
+      // resource_type được xác định bởi URL path 'video/upload' — không set trong body
 
-      // 🌟 GIẢI PHÁP 1: Ép Cloudinary tự nhận diện và giữ nguyên định dạng gốc,
-      // tránh việc tự động convert thành video mp4.
-      request.fields['resource_type'] = 'auto';
-
-      // 🌟 GIẢI PHÁP 2 (Tùy chọn bổ sung): Nếu muốn ép máy chủ Cloudinary trả về
-      // đúng đuôi âm thanh m4a/mp3 thay vì mp4, bạn có thể truyền thêm cấu hình format:
-      // request.fields['format'] = 'm4a';
 
       request.files.add(
         await http.MultipartFile.fromPath('file', file.path),
@@ -156,14 +173,16 @@ class CloudinaryService {
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
 
-      developer.log('AUDIO RESPONSE: $responseData');
+      developer.log('📥 AUDIO RESPONSE [${response.statusCode}]: $responseData');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(responseData);
         return data['secure_url']; // URL trả về bây giờ sẽ có đuôi tệp chuẩn âm thanh
+      } else {
+        developer.log('❌ [Cloudinary] Audio upload failed HTTP ${response.statusCode}: $responseData');
       }
-    } catch (e) {
-      developer.log('❌ uploadAudio error: $e');
+    } catch (e, stack) {
+      developer.log('❌ uploadAudio error: $e', error: e, stackTrace: stack);
     }
     return null;
   }

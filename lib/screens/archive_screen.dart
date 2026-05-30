@@ -8,6 +8,9 @@ import 'package:provider/provider.dart';
 import '../models/note_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
+import '../core/app_strings.dart';
+import '../widgets/note_card_shimmer.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/note_card.dart';
 
@@ -135,11 +138,24 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
   }
 
   Widget _buildBody(NoteProvider provider) {
-    if (provider.isLoading &&
-        provider.archivedNotes.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+    if (provider.isLoading && provider.archivedNotes.isEmpty) {
+      return _isGrid
+          ? MasonryGridView.count(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              itemCount: 6,
+              itemBuilder: (context, index) => const NoteCardShimmer(isGrid: true),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              itemCount: 6,
+              itemBuilder: (context, index) => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: NoteCardShimmer(isGrid: false),
+              ),
+            );
     }
 
     if (provider.archivedNotes.isEmpty) {
@@ -540,45 +556,10 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
   }
 
   Widget _buildEmptyArchive() {
-    return Center(
-      child: Column(
-        mainAxisAlignment:
-        MainAxisAlignment.center,
-
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-
-            decoration: BoxDecoration(
-              color: Colors.grey.withValues(
-                alpha: 0.1,
-              ),
-
-              shape: BoxShape.circle,
-            ),
-
-            child: Icon(
-              Icons.archive_outlined,
-
-              size: 64,
-
-              color: Colors.grey.shade400,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          Text(
-            'Ghi chú đã được lưu trữ của bạn sẽ xuất hiện ở đây',
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
+    return const EmptyStateWidget(
+      icon: Icons.archive_outlined,
+      title: AppStrings.emptyArchiveTitle,
+      subtitle: AppStrings.emptyArchiveSubtitle,
     );
   }
 }

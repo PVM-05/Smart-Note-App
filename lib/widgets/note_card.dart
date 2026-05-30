@@ -24,9 +24,15 @@ class NoteCard extends StatelessWidget {
     // Tối ưu hóa màu sắc tĩnh để tránh tính toán run-time alpha `.withValues`
     const Color contentColor = Color(0xDA475569);
 
+    final bool isLocked = note.isLocked;
+
     // Kiểm tra trạng thái dữ liệu đa phương tiện từ Note Model
-    final hasImages = note.imageUrls.isNotEmpty;
-    final hasAudio = note.audioUrls.isNotEmpty;
+    final hasImages = !isLocked && note.imageUrls.isNotEmpty;
+    final hasAudio = !isLocked && note.audioUrls.isNotEmpty;
+    final hasTags = !isLocked && note.tags.isNotEmpty;
+
+    final String displayTitle = isLocked ? '🔒 Ghi chú đã khóa' : note.title;
+    final String displayContent = isLocked ? 'Nội dung đã được bảo vệ' : note.content;
 
     return Card(
       elevation: 0,
@@ -80,9 +86,9 @@ class NoteCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (note.title.isNotEmpty)
+                          if (displayTitle.isNotEmpty)
                             _buildHighlightedText(
-                              note.title,
+                              displayTitle,
                               style: GoogleFonts.outfit(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -104,13 +110,13 @@ class NoteCard extends StatelessWidget {
                   ],
                 ),
 
-                if (note.title.isNotEmpty && note.content.isNotEmpty)
+                if (displayTitle.isNotEmpty && displayContent.isNotEmpty)
                   const SizedBox(height: 8),
 
                 // ── 3. NỘI DUNG VĂN BẢN ──
-                if (note.content.isNotEmpty)
+                if (displayContent.isNotEmpty)
                   _buildHighlightedText(
-                    note.content,
+                    displayContent,
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       color: contentColor,
@@ -126,7 +132,7 @@ class NoteCard extends StatelessWidget {
                 ],
 
                 // ── 5. FOOTER: DANH SÁCH THẺ (TAGS) ──
-                if (note.tags.isNotEmpty)
+                if (hasTags)
                   Padding(
                     padding: const EdgeInsets.only(top: 12.0),
                     child: Wrap(
@@ -209,7 +215,7 @@ class NoteCard extends StatelessWidget {
         required TextStyle style,
         int maxLines = 1,
       }) {
-    final query = searchQuery?.trim() ?? '';
+    final query = note.isLocked ? '' : (searchQuery?.trim() ?? '');
 
     if (query.isEmpty) {
       return Text(

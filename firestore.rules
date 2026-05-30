@@ -2,22 +2,43 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User chỉ đọc/ghi data của chính mình dựa trên cấu trúc đường dẫn
-    match /users/{userId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+    // ─── HÀM HỖ TRỢ (HELPER FUNCTIONS) ───
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-      // Notes
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Kiểm tra dữ liệu gửi lên phải chứa user_id chính chủ
+    function isValidNote(userId) {
+      // request.resource.data đại diện cho cục data mà app đang muốn ghi lên
+      return request.resource.data.user_id == userId;
+    }
+
+    // ─── QUY TẮC CHÍNH ───
+    match /users/{userId} {
+      // Quyền trên chính document của user đó
+      allow read, write: if isOwner(userId);
+
+      // Collection: Notes
       match /notes/{noteId} {
-        allow read, write: if request.auth.uid == userId;
+        // Đọc và Xóa chỉ cần chứng minh mình là chủ
+        allow read, delete: if isOwner(userId);
+        
+        // Tạo mới và Cập nhật: Phải là chủ VÀ data truyền lên phải có user_id chuẩn
+        allow create, update: if isOwner(userId) && isValidNote(userId);
       }
-      // Tags
+      
+      // Collection: Tags
       match /tags/{tagId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
-      // Media
+      
+      // Collection: Media (Lưu metadata của file ảnh/âm thanh)
       match /media/{mediaId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
       }
     }
   }

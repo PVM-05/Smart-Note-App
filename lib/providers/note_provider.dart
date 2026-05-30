@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
 import '../repositories/note_repository.dart';
 import '../services/cloudinary_service.dart';
+import '../services/biometric_service.dart';
+import '../core/app_strings.dart';
 
 class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
@@ -93,6 +95,7 @@ class NoteProvider extends ChangeNotifier {
   }
 
   final CloudinaryService _cloudinaryService = CloudinaryService();
+  final BiometricService _biometricService = BiometricService();
 
 
 
@@ -624,6 +627,48 @@ class NoteProvider extends ChangeNotifier {
     _hasMoreNotes = true;
     _isLoadingMore = false;
     notifyListeners();
+  }
+
+  Future<bool> toggleLock(String noteId) async {
+    final isBiometricAvailable = await _biometricService.isAvailable();
+    if (!isBiometricAvailable) {
+      throw Exception(AppStrings.biometricNotAvailable);
+    }
+
+    final isEnrolled = await _biometricService.isEnrolled();
+    if (!isEnrolled) {
+      throw Exception(AppStrings.biometricNotEnrolled);
+    }
+
+    try {
+      final authenticated = await _biometricService.authenticate(
+        reason: AppStrings.biometricPromptReason,
+      );
+      if (authenticated) {
+        int index = _notes.indexWhere((n) => n.id == noteId);
+        bool isPinned = false;
+        if (index == -1) {
+          index = _pinnedNotesList.indexWhere((n) => n.id == noteId);
+          isPinned = true;
+        }
+
+        if (index != -1) {
+          final targetList = isPinned ? _pinnedNotesList : _notes;
+          final note = targetList[index];
+          final updatedNote = note.copyWith(
+            isLocked: !note.isLocked,
+            isSynced: false,
+          );
+          targetList[index] = updatedNote;
+          notifyListeners();
+          await _repository.saveNote(updatedNote);
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> clearLocalData(String userId) async {

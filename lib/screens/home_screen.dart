@@ -14,6 +14,7 @@ import '../widgets/note_card.dart';
 import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/profile_drawer.dart';
+import '../widgets/note_card_shimmer.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -126,8 +127,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (_) => const EditorScreen(note: null, autoPickImage: true),
               ));
             }},
-            {'icon': Icons.brush_outlined, 'title': 'Bản vẽ', 'action': () {}},
-            {'icon': Icons.check_box_outlined, 'title': 'Danh sách', 'action': () {}},
+            {'icon': Icons.brush_outlined, 'title': 'Bản vẽ', 'action': () {
+              _showFeatureUnderDevelopmentDialog(context, 'Bản vẽ');
+            }},
+            {'icon': Icons.check_box_outlined, 'title': 'Danh sách', 'action': () {
+              _showFeatureUnderDevelopmentDialog(context, 'Danh sách');
+            }},
             {'icon': Icons.text_fields_outlined, 'title': 'Văn bản', 'action': () => openContainerKey.currentState?.openContainer()},
           ];
 
@@ -265,6 +270,26 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showFeatureUnderDevelopmentDialog(BuildContext context, String featureName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Tính năng đang phát triển', style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Tính năng "$featureName" đang được xây dựng và sẽ có trong phiên bản tiếp theo.',
+          style: GoogleFonts.roboto(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Đồng ý', style: GoogleFonts.roboto(fontWeight: FontWeight.bold, color: _primary)),
+          ),
+        ],
       ),
     );
   }
@@ -691,9 +716,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody(NoteProvider noteProvider) {
     if (noteProvider.isLoading && noteProvider.notes.isEmpty) {
-      return ShimmerPlaceholder(
-        child: _isGrid ? _buildSkeletonGrid() : _buildSkeletonList(),
-      );
+      return _isGrid
+          ? MasonryGridView.count(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              itemCount: 6,
+              itemBuilder: (context, index) => const NoteCardShimmer(isGrid: true),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              itemCount: 6,
+              itemBuilder: (context, index) => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: NoteCardShimmer(isGrid: false),
+              ),
+            );
     }
 
     if (noteProvider.notes.isEmpty) {
@@ -1103,233 +1142,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-  }
-
-  Widget _buildSkeletonGrid() {
-    final heights = [140.0, 180.0, 160.0, 200.0, 150.0, 170.0];
-    return MasonryGridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: 6,
-      itemBuilder: (context, index) {
-        final height = heights[index % heights.length];
-        return Container(
-          height: height,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200, width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    height: 14,
-                    width: 70,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  Container(
-                    height: 12,
-                    width: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 10,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 10,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    height: 10,
-                    width: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Container(
-                    height: 14,
-                    width: 14,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSkeletonList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200, width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    height: 16,
-                    width: 150,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  Container(
-                    height: 18,
-                    width: 18,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                height: 12,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                height: 12,
-                width: MediaQuery.of(context).size.width * 0.6,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    height: 10,
-                    width: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Container(
-                    height: 16,
-                    width: 16,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class ShimmerPlaceholder extends StatefulWidget {
-  final Widget child;
-  const ShimmerPlaceholder({super.key, required this.child});
-
-  @override
-  State<ShimmerPlaceholder> createState() => _ShimmerPlaceholderState();
-}
-
-class _ShimmerPlaceholderState extends State<ShimmerPlaceholder>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _opacity;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-    _opacity = Tween<double>(begin: 0.35, end: 0.85).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _opacity,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _opacity.value,
-          child: widget.child,
-        );
-      },
-    );
   }
 }
