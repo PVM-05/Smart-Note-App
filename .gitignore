@@ -50,3 +50,9 @@ app.*.map.json
 .env.local
 .env.production
 ios/Runner/GoogleService-Info.plist
+
+# File markdown tự động sinh (không commit)
+checklist.md
+codegraph.md
+implementation_plan.md
+report.md
