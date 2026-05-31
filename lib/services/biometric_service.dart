@@ -57,6 +57,9 @@ class BiometricService {
         case LocalAuthExceptionCode.noBiometricsEnrolled:
           // Thiết bị hỗ trợ nhưng chưa đăng ký vân tay/khuôn mặt
           throw Exception(AppStrings.biometricNotEnrolled);
+        case LocalAuthExceptionCode.userCanceled:
+          // Người dùng chủ động hủy hộp thoại xác thực
+          return false;
         case LocalAuthExceptionCode.temporaryLockout:
         case LocalAuthExceptionCode.biometricLockout:
           // Bị tạm khóa do nhập sai quá nhiều lần

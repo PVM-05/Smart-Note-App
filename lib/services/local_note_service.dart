@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/note_model.dart';
+import 'dart:convert';
 
 class LocalNoteService {
   static Database? _db;
@@ -182,6 +183,8 @@ class LocalNoteService {
       if (note.status == 'trash' && !isTrashToken) return false;
       if (isTrashToken && note.status != 'trash') return false;
 
+      final plainText = _getPlainText(note.content);
+
       // Điều kiện 1: Nếu chọn nút "Hình ảnh" -> Thẻ note phải chứa ít nhất 1 ảnh
       if (hasImageToken && note.imageUrls.isEmpty) return false;
 
@@ -191,7 +194,7 @@ class LocalNoteService {
       // Điều kiện 3: Nếu chọn nút "URL" -> Nội dung text của note phải chứa đường link
       if (hasUrlToken) {
         final urlRegex = RegExp(r'(https?:\/\/|www\.)[^\s/$.?#].[^\s]*', caseSensitive: false);
-        if (!urlRegex.hasMatch(note.content)) return false;
+        if (!urlRegex.hasMatch(plainText)) return false;
       }
 
       // Điều kiện 4: Trạng thái Ghim hệ thống
@@ -211,7 +214,7 @@ class LocalNoteService {
       // Điều kiện 7: Lọc kết hợp chuỗi văn bản gõ thêm thủ công (Tìm trong cả Tiêu đề và Nội dung)
       if (cleanTextQuery.isNotEmpty) {
         final matchTitle = note.title.toLowerCase().contains(cleanTextQuery);
-        final matchContent = note.content.toLowerCase().contains(cleanTextQuery);
+        final matchContent = plainText.toLowerCase().contains(cleanTextQuery);
         if (!matchTitle && !matchContent) return false;
       }
 
@@ -301,5 +304,30 @@ class LocalNoteService {
       where: 'user_id = ?',
       whereArgs: [userId],
     );
+  }
+
+  String _getPlainText(String content) {
+    if (content.isEmpty) return '';
+    try {
+      final decoded = jsonDecode(content);
+      // Hỗ trợ checklist JSON: {"type":"checklist","items":[...]}
+      if (decoded is Map && decoded['type'] == 'checklist') {
+        final items = decoded['items'] as List? ?? [];
+        return items.map((i) => i['text'] ?? '').where((t) => t.toString().trim().isNotEmpty).join(' ').trim();
+      }
+      if (decoded is List) {
+        final buffer = StringBuffer();
+        for (final item in decoded) {
+          if (item is Map && item.containsKey('insert')) {
+            final val = item['insert'];
+            if (val is String) {
+              buffer.write(val);
+            }
+          }
+        }
+        return buffer.toString().trim();
+      }
+    } catch (_) {}
+    return content.trim();
   }
 }

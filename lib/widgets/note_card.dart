@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
 import '../models/note_model.dart';
 
 class NoteCard extends StatelessWidget {
@@ -32,7 +33,10 @@ class NoteCard extends StatelessWidget {
     final hasTags = !isLocked && note.tags.isNotEmpty;
 
     final String displayTitle = isLocked ? '🔒 Ghi chú đã khóa' : note.title;
-    final String displayContent = isLocked ? 'Nội dung đã được bảo vệ' : note.content;
+    final bool isChecklist = !isLocked && note.isChecklist;
+    final String displayContent = isLocked
+        ? 'Nội dung đã được bảo vệ'
+        : (isChecklist ? '' : _getPlainText(note.content));
 
     return Card(
       elevation: 0,
@@ -113,7 +117,6 @@ class NoteCard extends StatelessWidget {
                 if (displayTitle.isNotEmpty && displayContent.isNotEmpty)
                   const SizedBox(height: 8),
 
-                // ── 3. NỘI DUNG VĂN BẢN ──
                 if (displayContent.isNotEmpty)
                   _buildHighlightedText(
                     displayContent,
@@ -124,6 +127,10 @@ class NoteCard extends StatelessWidget {
                     ),
                     maxLines: 6, // Hiển thị tối đa 6 dòng preview giống Google Keep
                   ),
+
+                // ── 3b. PREVIEW CHECKLIST ──
+                if (isChecklist)
+                  _buildChecklistPreview(),
 
                 // ── 4. HIỂN THỊ BIỂU TƯỢNG VÀ TÊN FILE ÂM THANH 1 ──
                 if (hasAudio) ...[
@@ -209,6 +216,52 @@ class NoteCard extends StatelessWidget {
     );
   }
 
+  // Widget hiển thị preview các mục checklist với checkbox icons
+  Widget _buildChecklistPreview() {
+    try {
+      final decoded = jsonDecode(note.content);
+      final items = (decoded['items'] as List? ?? []).take(6).toList();
+      if (items.isEmpty) return const SizedBox.shrink();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: items.map<Widget>((item) {
+          final checked = item['checked'] == true;
+          final text = item['text'] as String? ?? '';
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  checked ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 16,
+                  color: checked ? const Color(0xFF94A3B8) : const Color(0xFF94A3B8),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: checked ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                      decoration: checked ? TextDecoration.lineThrough : TextDecoration.none,
+                      height: 1.4,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+  }
+
   // ⚡ SIÊU TỐI ƯU CPU: Giải thuật so khớp chuỗi tĩnh không dùng vòng lặp vô hạn
   Widget _buildHighlightedText(
       String text, {
@@ -265,5 +318,27 @@ class NoteCard extends StatelessWidget {
       maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
     );
+  }
+
+  String _getPlainText(String content) {
+    if (content.isEmpty) return '';
+    try {
+      final decoded = jsonDecode(content);
+      // Checklist content → trả rỗng vì đã render bằng _buildChecklistPreview
+      if (decoded is Map && decoded['type'] == 'checklist') return '';
+      if (decoded is List) {
+        final buffer = StringBuffer();
+        for (final item in decoded) {
+          if (item is Map && item.containsKey('insert')) {
+            final val = item['insert'];
+            if (val is String) {
+              buffer.write(val);
+            }
+          }
+        }
+        return buffer.toString().trim();
+      }
+    } catch (_) {}
+    return content.trim();
   }
 }

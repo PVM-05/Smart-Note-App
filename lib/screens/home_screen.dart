@@ -15,6 +15,7 @@ import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/profile_drawer.dart';
 import '../widgets/note_card_shimmer.dart';
+import '../widgets/empty_state.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -131,7 +132,9 @@ class _HomeScreenState extends State<HomeScreen> {
               _showFeatureUnderDevelopmentDialog(context, 'Bản vẽ');
             }},
             {'icon': Icons.check_box_outlined, 'title': 'Danh sách', 'action': () {
-              _showFeatureUnderDevelopmentDialog(context, 'Danh sách');
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const EditorScreen(note: null, isChecklistMode: true),
+              ));
             }},
             {'icon': Icons.text_fields_outlined, 'title': 'Văn bản', 'action': () => openContainerKey.currentState?.openContainer()},
           ];
@@ -736,17 +739,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (noteProvider.notes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.note_add_outlined, size: 64, color: Colors.grey[300]),
-            const SizedBox(height: 12),
-            Text(noteProvider.selectedLabel != null
-                ? 'Không có ghi chú nào thuộc nhãn này'
-                : 'Chưa có ghi chú nào. Hãy nhấn + để thêm!'),
-          ],
-        ),
+      return EmptyStateWidget(
+        icon: Icons.note_add_outlined,
+        title: noteProvider.selectedLabel != null ? 'Trống' : 'Chưa có ghi chú nào',
+        subtitle: noteProvider.selectedLabel != null
+            ? 'Không có ghi chú nào thuộc nhãn này'
+            : 'Hãy nhấn + ở góc dưới để thêm ghi chú mới!',
       );
     }
 

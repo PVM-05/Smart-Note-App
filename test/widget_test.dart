@@ -1,30 +1,38 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:smart_note_app/main.dart';
+import 'package:smart_note_app/widgets/empty_state.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('EmptyStateWidget renders properly and triggers action', (WidgetTester tester) async {
+    bool clicked = false;
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EmptyStateWidget(
+            icon: Icons.note_alt_outlined,
+            title: 'Chưa có ghi chú nào',
+            subtitle: 'Hãy nhấn nút "+" bên dưới để tạo ghi chú đầu tiên của bạn.',
+            actionLabel: 'Thêm ngay',
+            onAction: () {
+              clicked = true;
+            },
+          ),
+        ),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Let the animation finish
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify icons, title and subtitle render correctly
+    expect(find.byIcon(Icons.note_alt_outlined), findsOneWidget);
+    expect(find.text('Chưa có ghi chú nào'), findsOneWidget);
+    expect(find.text('Hãy nhấn nút "+" bên dưới để tạo ghi chú đầu tiên của bạn.'), findsOneWidget);
+
+    // Verify button renders and triggers action
+    expect(find.text('Thêm ngay'), findsOneWidget);
+    await tester.tap(find.text('Thêm ngay'));
+    expect(clicked, isTrue);
   });
 }
