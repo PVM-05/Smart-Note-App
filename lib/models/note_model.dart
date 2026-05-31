@@ -3,6 +3,32 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Note {
+  /// Kiểm tra nhanh xem content có phải dạng checklist hay không
+  bool get isChecklist {
+    if (content.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(content);
+      return decoded is Map && decoded['type'] == 'checklist';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Lấy plain text từ checklist items (dùng cho preview / search)
+  String get checklistPlainText {
+    if (!isChecklist) return '';
+    try {
+      final decoded = jsonDecode(content);
+      final items = decoded['items'] as List? ?? [];
+      return items.map((i) {
+        final checked = i['checked'] == true ? '☑' : '☐';
+        return '$checked ${i['text'] ?? ''}'.trim();
+      }).join('\n');
+    } catch (_) {
+      return '';
+    }
+  }
+
   final String id;
   final String userId;
   final String title;

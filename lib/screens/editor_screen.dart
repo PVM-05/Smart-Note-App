@@ -1,5 +1,6 @@
 // lib/screens/editor_screen.dart
 import 'dart:async';
+import '../models/checklist_item.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,12 +27,14 @@ class EditorScreen extends StatefulWidget {
   final Note? note;
   final bool autoRecord;
   final bool autoPickImage;
+  final bool isChecklistMode;
 
   const EditorScreen({
     super.key,
     this.note,
     this.autoRecord = false,
     this.autoPickImage = false,
+    this.isChecklistMode = false,
   });
 
   @override
@@ -50,6 +53,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   List<String> _tags = [];
   List<String> _imageUrls = [];
   List<String> _audioUrls = [];
+
+  // Checklist mode
+  bool _isChecklistMode = false;
+  List<ChecklistItem> _checklistItems = [];
+  List<ChecklistItem>? _originalChecklistItems;
 
   late String _noteId;
   late DateTime _createdAt;
@@ -140,7 +148,6 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   static const _primary = Color(0xFF2E75B6);
   static const _recordColor = Color(0xFFEF4444);
 
-  bool get _isEditing => widget.note != null;
 
   // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
   bool _hasChanges() {
@@ -152,12 +159,33 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final currentTitle = _titleController.text.trim();
 
     final titleChanged = originalTitle != currentTitle;
-    final contentChanged = _isDirty;
     final tagsChanged = !listEquals(originalTags, _tags);
     final imagesChanged = !listEquals(originalImages, _imageUrls);
     final audiosChanged = !listEquals(originalAudios, _audioUrls);
 
+    // Checklist mode: so sánh items
+    if (_isChecklistMode) {
+      final checklistChanged = _hasChecklistChanged();
+      return titleChanged || checklistChanged || tagsChanged || imagesChanged || audiosChanged;
+    }
+
+    final contentChanged = _isDirty;
     return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged;
+  }
+
+  bool _hasChecklistChanged() {
+    if (_originalChecklistItems == null) {
+      // Note mới: có items nghĩa là đã thay đổi
+      return _checklistItems.any((item) => item.text.trim().isNotEmpty);
+    }
+    if (_originalChecklistItems!.length != _checklistItems.length) return true;
+    for (int i = 0; i < _checklistItems.length; i++) {
+      if (_checklistItems[i].text != _originalChecklistItems![i].text ||
+          _checklistItems[i].checked != _originalChecklistItems![i].checked) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -174,7 +202,28 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     _titleController = TextEditingController(text: widget.note?.title ?? '');
     
     final initialContent = widget.note?.content ?? '';
-    if (initialContent.isEmpty) {
+
+    // Phát hiện checklist mode từ content hoặc constructor
+    final isChecklistContent = widget.note?.isChecklist ?? false;
+    _isChecklistMode = widget.isChecklistMode || isChecklistContent;
+
+    if (_isChecklistMode && isChecklistContent) {
+      // Parse existing checklist
+      try {
+        final decoded = jsonDecode(initialContent);
+        final items = decoded['items'] as List? ?? [];
+        _checklistItems = items.map((i) => ChecklistItem.fromJson(i as Map<String, dynamic>)).toList();
+      } catch (_) {
+        _checklistItems = [];
+      }
+      _originalChecklistItems = _checklistItems.map((i) => i.copyWith()).toList();
+      _quillController = QuillController.basic();
+    } else if (_isChecklistMode) {
+      // New checklist note
+      _checklistItems = [ChecklistItem()];
+      _originalChecklistItems = null;
+      _quillController = QuillController.basic();
+    } else if (initialContent.isEmpty) {
       _quillController = QuillController.basic();
     } else {
       try {
@@ -190,6 +239,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           selection: const TextSelection.collapsed(offset: 0),
         );
       }
+    }
+
+    // Thêm item đầu tiên nếu checklist rỗng
+    if (_isChecklistMode && _checklistItems.isEmpty) {
+      _checklistItems.add(ChecklistItem());
     }
 
     _tags = List.from(widget.note?.tags ?? []);
@@ -343,15 +397,34 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     if (!_hasChanges()) return;
 
     final title = _titleController.text.trim();
-    final content = jsonEncode(_quillController.document.toDelta().toJson());
-    final plainText = _quillController.document.toPlainText().trim();
+    final String content;
+    final String plainText;
+
+    if (_isChecklistMode) {
+      // Serialize checklist items thành JSON
+      final checklistJson = {
+        'type': 'checklist',
+        'items': _checklistItems.map((item) => item.toJson()).toList(),
+      };
+      content = jsonEncode(checklistJson);
+      plainText = _checklistItems.map((i) => i.text).where((t) => t.trim().isNotEmpty).join(' ');
+    } else {
+      content = jsonEncode(_quillController.document.toDelta().toJson());
+      plainText = _quillController.document.toPlainText().trim();
+    }
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = auth.userId ?? '';
     if (currentUserId.isEmpty) return;
 
     final provider = Provider.of<NoteProvider>(context, listen: false);
-    final isEmpty = title.isEmpty && plainText.isEmpty && _tags.isEmpty
-        && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
+    final bool isEmpty;
+    if (_isChecklistMode) {
+      isEmpty = title.isEmpty && _checklistItems.every((i) => i.text.trim().isEmpty)
+          && _tags.isEmpty && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
+    } else {
+      isEmpty = title.isEmpty && plainText.isEmpty && _tags.isEmpty
+          && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
+    }
 
     if (isEmpty && !_hasBeenSavedInDb) return;
 
@@ -718,61 +791,70 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 padding: EdgeInsets.symmetric(horizontal: 12),
                 child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _primary, strokeWidth: 2))),
               ),
-            if (_hasBeenSavedInDb)
-              IconButton(
-                icon: Icon(_isLocked ? Icons.lock : Icons.lock_open_outlined, color: Colors.black87),
-                tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final provider = Provider.of<NoteProvider>(context, listen: false);
-                  try {
-                    final success = await provider.toggleLock(_noteId);
-                    if (success) {
-                      setState(() {
-                        _isLocked = !_isLocked;
-                        _isUnlocked = !_isLocked;
-                      });
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(_isLocked ? '🔒 Đã khóa ghi chú' : '🔓 Đã mở khóa ghi chú'),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    final msg = e.toString().replaceAll('Exception: ', '');
-                    if (msg == AppStrings.biometricNotEnrolled) {
-                      _showEnrollBiometricDialog();
-                    } else {
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(msg),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          backgroundColor: AppColors.error,
-                        ),
-                      );
-                    }
+            _buildAppBarRoundBtn(
+              icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
+              tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
+              onTap: () async {
+                if (!_hasBeenSavedInDb) {
+                  _showRequiresSaveMessage('khóa');
+                  return;
+                }
+                final messenger = ScaffoldMessenger.of(context);
+                final provider = Provider.of<NoteProvider>(context, listen: false);
+                try {
+                  final success = await provider.toggleLock(_noteId);
+                  if (success) {
+                    setState(() {
+                      _isLocked = !_isLocked;
+                      _isUnlocked = !_isLocked;
+                    });
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(_isLocked ? '🔒 Đã khóa ghi chú' : '🔓 Đã mở khóa ghi chú'),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
                   }
-                },
-              ),
-            if (_hasBeenSavedInDb)
-              IconButton(
-                icon: Icon(_status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, color: Colors.black87),
-                onPressed: _togglePin,
-              ),
-            if (_hasBeenSavedInDb)
-              IconButton(
-                icon: const Icon(Icons.notification_add_outlined, color: Colors.black87),
-                onPressed: () {}, // TODO: Tính năng nhắc nhở
-              ),
-            if (_hasBeenSavedInDb)
-              IconButton(
-                icon: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: Colors.black87),
-                tooltip: _status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ',
-                onPressed: _toggleArchive,
-              ),
+                } catch (e) {
+                  final msg = e.toString().replaceAll('Exception: ', '');
+                  if (msg == AppStrings.biometricNotEnrolled) {
+                    _showEnrollBiometricDialog();
+                  } else {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(msg),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            _buildAppBarRoundBtn(
+              icon: _status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined,
+              tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim',
+              onTap: () {
+                if (!_hasBeenSavedInDb) {
+                  _showRequiresSaveMessage('ghim');
+                  return;
+                }
+                _togglePin();
+              },
+            ),
+            _buildAppBarRoundBtn(
+              icon: Icons.notification_add_outlined,
+              tooltip: 'Nhắc nhở',
+              onTap: () {
+                if (!_hasBeenSavedInDb) {
+                  _showRequiresSaveMessage('nhắc nhở');
+                  return;
+                }
+              },
+            ),
+            const SizedBox(width: 8),
           ],
         ),
         body: Stack(
@@ -803,72 +885,79 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 if (_isUploading)
                   LinearProgressIndicator(backgroundColor: Colors.grey.shade100, color: _primary),
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
-    
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextField(
-                                controller: _titleController,
-                                autofocus: !_isEditing && !widget.autoRecord && !widget.autoPickImage && !_isLocked,
-                                style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                                decoration: const InputDecoration(
-                                  hintText: 'Tiêu đề',
-                                  border: InputBorder.none,
-                                  hintStyle: TextStyle(color: Colors.grey),
-                                ),
-                                textCapitalization: TextCapitalization.sentences,
-                                maxLines: null,
-                              ),
-                              const SizedBox(height: 4),
-                                                        const SizedBox(height: 4),
-                          QuillEditor.basic(
-                            controller: _quillController,
-                            focusNode: _editorFocusNode,
-                            config: const QuillEditorConfig(
-                              scrollable: false,
-                              expands: false,
-                              autoFocus: false,
-                              padding: EdgeInsets.zero,
-                            ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: TextField(
+                          controller: _titleController,
+                          autofocus: false, 
+                          style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
+                          decoration: const InputDecoration(
+                            hintText: 'Tiêu đề',
+                            border: InputBorder.none,
+                            hintStyle: TextStyle(color: Colors.grey),
                           ),
-
-                          if (_audioUrls.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
-                          ],
-
-                          if (_isRecording) ...[
-                            const SizedBox(height: 16),
-                            _buildRecordingIndicator(),
-                          ],
-
-                          if (_tags.isNotEmpty) ...[
-                            const SizedBox(height: 24),
-                            Wrap(
-                              spacing: 8, runSpacing: 6,
-                              children: _tags.map((tag) => Chip(
-                                label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
-                                backgroundColor: const Color(0xFFF1F5F9),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                side: BorderSide(color: Colors.grey.shade200),
-                              )).toList(),
-                            ),
-                          ],
-                          const SizedBox(height: 80),
-                        ],
+                          textCapitalization: TextCapitalization.sentences,
+                          maxLines: null,
+                        ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: _isChecklistMode
+                            ? _buildChecklistEditor()
+                            : GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  _editorFocusNode.requestFocus();
+                                },
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      QuillEditor.basic(
+                                        controller: _quillController,
+                                        focusNode: _editorFocusNode,
+                                        config: const QuillEditorConfig(
+                                          scrollable: true,
+                                          expands: false,
+                                          autoFocus: false,
+                                          padding: EdgeInsets.zero,
+                                          placeholder: 'Ghi chú',
+                                        ),
+                                      ),
+                                      if (_audioUrls.isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
+                                      ],
+                                      if (_isRecording) ...[
+                                        const SizedBox(height: 16),
+                                        _buildRecordingIndicator(),
+                                      ],
+                                      if (_tags.isNotEmpty) ...[
+                                        const SizedBox(height: 24),
+                                        Wrap(
+                                          spacing: 8, runSpacing: 6,
+                                          children: _tags.map((tag) => Chip(
+                                            label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
+                                            backgroundColor: const Color(0xFFF1F5F9),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            side: BorderSide(color: Colors.grey.shade200),
+                                          )).toList(),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 20),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
+                if (!(_isLocked && !_isUnlocked)) _buildBottomToolbar(),
           ],
         ),
             if (_isLocked)
@@ -943,7 +1032,6 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               ),
           ],
         ),
-        bottomNavigationBar: (_isLocked && !_isUnlocked) ? null : _buildBottomToolbar(),
       ),
     );
   }
@@ -1201,11 +1289,264 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     );
   }
 
+  // ── CHECKLIST EDITOR ──
+  Widget _buildChecklistEditor() {
+    return Column(
+      children: [
+        // Header: Icon checklist + nút X để thoát checklist mode
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
+            children: [
+              const Icon(Icons.drag_indicator, color: Color(0xFF94A3B8), size: 20),
+              const SizedBox(width: 4),
+              Icon(Icons.check_box_outline_blank, color: Colors.grey.shade600, size: 20),
+              const Spacer(),
+              GestureDetector(
+                onTap: _exitChecklistMode,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Icon(Icons.close, color: Colors.grey.shade700, size: 22),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Checklist items
+        Expanded(
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            itemCount: _checklistItems.length + 1, // +1 cho nút "+ Mục danh sách"
+            onReorder: (oldIndex, newIndex) {
+              if (oldIndex >= _checklistItems.length || newIndex > _checklistItems.length) return;
+              setState(() {
+                if (newIndex > oldIndex) newIndex--;
+                final item = _checklistItems.removeAt(oldIndex);
+                _checklistItems.insert(newIndex, item);
+              });
+              _onTextChanged();
+            },
+            proxyDecorator: (child, index, animation) {
+              return AnimatedBuilder(
+                animation: animation,
+                builder: (context, child) {
+                  final elevation = Tween<double>(begin: 0, end: 4).animate(animation).value;
+                  return Material(
+                    elevation: elevation,
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    child: child,
+                  );
+                },
+                child: child,
+              );
+            },
+            itemBuilder: (context, index) {
+              // Nút "+ Mục danh sách" ở cuối
+              if (index == _checklistItems.length) {
+                return Padding(
+                  key: const ValueKey('__add_item__'),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: GestureDetector(
+                    onTap: _addChecklistItem,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 28), // Align với drag handle
+                        Icon(Icons.add, color: Colors.grey.shade600, size: 20),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Mục danh sách',
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final item = _checklistItems[index];
+              return _buildChecklistTile(item, index);
+            },
+          ),
+        ),
+        // Audio + Recording + Tags phía dưới checklist
+        if (_audioUrls.isNotEmpty || _isRecording || _tags.isNotEmpty)
+          SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_audioUrls.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
+                ],
+                if (_isRecording) ...[
+                  const SizedBox(height: 8),
+                  _buildRecordingIndicator(),
+                ],
+                if (_tags.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8, runSpacing: 6,
+                    children: _tags.map((tag) => Chip(
+                      label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    )).toList(),
+                  ),
+                ],
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildChecklistTile(ChecklistItem item, int index) {
+    return Container(
+      key: ValueKey(item.id),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      child: Row(
+        children: [
+          // Drag handle
+          ReorderableDragStartListener(
+            index: index,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Icon(Icons.drag_indicator, color: Colors.grey.shade500, size: 20),
+            ),
+          ),
+          // Checkbox
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: Checkbox(
+              value: item.checked,
+              onChanged: (val) {
+                setState(() => item.checked = val ?? false);
+                _onTextChanged();
+              },
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              activeColor: _primary,
+              side: BorderSide(color: Colors.grey.shade600, width: 1.5),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Text field
+          Expanded(
+            child: TextField(
+              controller: TextEditingController(text: item.text)
+                ..selection = TextSelection.collapsed(offset: item.text.length),
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                color: item.checked ? Colors.grey.shade400 : const Color(0xFF1E293B),
+                decoration: item.checked ? TextDecoration.lineThrough : TextDecoration.none,
+              ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Mục danh sách',
+                hintStyle: TextStyle(color: Color(0xFF94A3B8)),
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+              onChanged: (val) {
+                item.text = val;
+                _onTextChanged();
+              },
+              onSubmitted: (_) {
+                // Nhấn Enter → thêm item mới ngay sau item hiện tại
+                _addChecklistItemAfter(index);
+              },
+              textInputAction: TextInputAction.next,
+            ),
+          ),
+          // Nút xóa item
+          if (_checklistItems.length > 1)
+            GestureDetector(
+              onTap: () {
+                setState(() => _checklistItems.removeAt(index));
+                _onTextChanged();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Icon(Icons.close, color: Colors.grey.shade500, size: 18),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _addChecklistItem() {
+    setState(() {
+      _checklistItems.add(ChecklistItem());
+    });
+    _onTextChanged();
+  }
+
+  void _addChecklistItemAfter(int index) {
+    setState(() {
+      _checklistItems.insert(index + 1, ChecklistItem());
+    });
+    _onTextChanged();
+  }
+
+  void _exitChecklistMode() {
+    // Convert checklist items thành plain text trong Quill editor
+    final text = _checklistItems
+        .map((i) => i.text)
+        .where((t) => t.trim().isNotEmpty)
+        .join('\n');
+    setState(() {
+      _isChecklistMode = false;
+      _checklistItems = [];
+      if (text.isNotEmpty) {
+        final doc = Document()..insert(0, text);
+        _quillController = QuillController(
+          document: doc,
+          selection: const TextSelection.collapsed(offset: 0),
+        );
+      } else {
+        _quillController = QuillController.basic();
+      }
+      _isDirty = true;
+    });
+    _quillController.document.changes.listen((_) {
+      _isDirty = true;
+      _onTextChanged();
+    });
+  }
+
+  void _switchToChecklistMode() {
+    // Convert current Quill text to checklist items
+    final plainText = _quillController.document.toPlainText().trim();
+    setState(() {
+      _isChecklistMode = true;
+      if (plainText.isNotEmpty) {
+        _checklistItems = plainText.split('\n')
+            .where((line) => line.trim().isNotEmpty)
+            .map((line) => ChecklistItem(text: line))
+            .toList();
+      }
+      if (_checklistItems.isEmpty) {
+        _checklistItems = [ChecklistItem()];
+      }
+      _originalChecklistItems = null; // Treat as new for change detection
+      _isDirty = true;
+    });
+  }
+
+
   Widget _buildBottomToolbar() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_showFormattingToolbar)
+        if (_showFormattingToolbar && !_isChecklistMode)
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1242,35 +1583,49 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             ),
           ),
         BottomAppBar(
-          color: const Color(0xFFF1F5F9), // Màu xám nhạt như yêu cầu
+          color: Colors.white, // Thay đổi sang màu trắng đồng nhất với giao diện ghi chú
           elevation: 0,
           padding: EdgeInsets.zero,
           child: SizedBox(
             height: 50,
-            child: Row(
-              children: [
-                _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
-                _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: () {}),
-                _toolbarButton(
-                  icon: Icons.format_color_text,
-                  tooltip: 'Định dạng',
-                  color: _showFormattingToolbar ? _primary : null,
-                  onTap: () {
-                    if (_quillController.selection.isCollapsed) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng bôi đen đoạn chữ để định dạng.')),
-                      );
-                    }
-                  },
-                ),
-                const Spacer(),
-                if (!_isUploading && _hasBeenSavedInDb)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4), // Tạo khoảng cách viền nhẹ
+              child: Row(
+                children: [
+                  // 📦 BỌC CỤM ICON BÊN TRÁI: Thêm, Bảng màu, Định dạng văn bản
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
+                      _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: () {}),
+                      _toolbarButton(
+                        icon: Icons.format_color_text,
+                        tooltip: 'Định dạng',
+                        color: _showFormattingToolbar ? _primary : null,
+                        onTap: () {
+                          if (_quillController.selection.isCollapsed) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Vui lòng bôi đen đoạn chữ để định dạng.')),
+                            );
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
-              ],
+                  
+                  const Spacer(),
+                  
+                  // Hiển thị trạng thái lưu ở giữa nếu có
+                  if (!_isUploading && _hasBeenSavedInDb)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500)),
+                    ),
+                    
+                  // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
+                  _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
+                ],
+              ),
             ),
           ),
         ),
@@ -1299,6 +1654,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               title: Text(_isRecording ? 'Dừng ghi âm' : 'Ghi âm'),
               onTap: () { Navigator.pop(context); _isRecording ? _stopRecordingAndUpload() : _startRecording(); },
             ),
+            if (!_isChecklistMode)
+              ListTile(
+                leading: const Icon(Icons.check_box_outlined, color: Colors.black54),
+                title: const Text('Danh sách việc cần làm'),
+                onTap: () { Navigator.pop(context); _switchToChecklistMode(); },
+              ),
             const SizedBox(height: 8),
           ],
         ),
@@ -1334,8 +1695,52 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 _openLabelSelectionPage();
               },
             ),
+            if (_hasBeenSavedInDb)
+              ListTile(
+                leading: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: Colors.black54),
+                title: Text(_status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleArchive();
+                },
+              ),
             const SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showRequiresSaveMessage(String action) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Vui lòng nhập nội dung để có thể $action ghi chú này'),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
+  }
+
+  Widget _buildAppBarRoundBtn({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: 44,
+          height: 44,
+          decoration: const BoxDecoration(
+            color: Color(0xFFEEEEF0),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            icon,
+            size: 22,
+            color: const Color(0xFF1C1B1F),
+          ),
         ),
       ),
     );
@@ -1345,8 +1750,31 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     return Tooltip(
       message: tooltip,
       child: InkWell(
-        onTap: onTap, borderRadius: BorderRadius.circular(8),
-        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), child: Icon(icon, size: 22, color: onTap == null ? Colors.grey.shade300 : (color ?? Colors.black54))),
+        onTap: onTap, 
+        // Đổi bo góc thành hình tròn cho hiệu ứng gợn sóng khi chạm (Ripple Effect)
+        customBorder: const CircleBorder(), 
+        child: Padding(
+          // Tạo khoảng cách (Gap) giữa các vòng tròn icon với nhau
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), 
+          
+          // 📦 ĐÂY CHÍNH LÀ BỌC CONTAINER ĐỂ TẠO VÒNG TRÒN NỀN:
+          child: Container(
+            width: 40,  // Đường kính vòng tròn
+            height: 40, // Đường kính vòng tròn
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0), // Màu xám nhạt bọc làm nền của vòng tròn (hơi đậm hơn nền thanh công cụ một chút để nổi bật)
+              shape: BoxShape.circle,        // Ép cái hộp thành hình vòng tròn xịn sò y như ảnh mẫu
+            ),
+            // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
+            child: Center( 
+              child: Icon(
+                icon, 
+                size: 20, 
+                color: onTap == null ? Colors.grey.shade400 : (color ?? Colors.black87),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

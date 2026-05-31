@@ -1,0 +1,26 @@
+# Smart Note – Antigravity Rules
+
+## Architecture (KHÔNG được vi phạm)
+- Clean Architecture: UI → Provider → Repository → Service
+- Không viết business logic bên trong Widget hoặc Screen
+- Mọi Service phải implement abstract Repository interface
+- State management: Provider + ChangeNotifier (không dùng setState ngoài local UI)
+
+## Flutter Conventions
+- Không hardcode String → dùng AppStrings
+- Không hardcode Color → dùng AppColors
+- Mỗi file chỉ chứa 1 Widget chính
+- Tên file: snake_case. Tên class: PascalCase
+
+## Taste Skill – Design Rules (KHÔNG được vi phạm)
+- Màu sắc: LUÔN dùng AppColors, KHÔNG tự ý thêm Color(0xFF...) inline
+- Icon: dùng Icons.* hoặc flutter_svg, KHÔNG vẽ SVG thủ công
+- Animation: dùng AnimationController hoặc flutter_animate package
+- Spacing: bội số của 4 (4, 8, 12, 16, 24, 32)
+- Border radius: 12 cho card, 8 cho button, 24 cho FAB
+- Font: GoogleFonts.inter cho body, GoogleFonts.spaceGrotesk cho title
+
+## CodeGraph – Context Rules
+- Trước khi sửa file nào, đọc file đó và 1 cấp import của nó trước
+- Không tự tạo thêm Provider mới nếu đã có Provider phù hợp
+- Không duplicate logic đã có trong Service layer
