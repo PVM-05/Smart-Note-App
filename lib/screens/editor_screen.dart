@@ -259,10 +259,13 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     // Tự động hiện thanh công cụ khi bôi đen chữ
     _quillController.addListener(() {
       final hasSelection = !_quillController.selection.isCollapsed;
-      if (_showFormattingToolbar != hasSelection) {
+      if (hasSelection && !_showFormattingToolbar) {
         setState(() {
-          _showFormattingToolbar = hasSelection;
+          _showFormattingToolbar = true;
         });
+      } else {
+        // Luôn gọi setState để cập nhật trạng thái các nút định dạng khi con trỏ di chuyển/thay đổi style
+        setState(() {});
       }
     });
 
@@ -736,10 +739,56 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
+    final quillBaseStyles = DefaultStyles.getInstance(context);
+    final quillCustomStyles = DefaultStyles(
+      h1: quillBaseStyles.h1?.copyWith(
+        style: quillBaseStyles.h1!.style.copyWith(fontWeight: FontWeight.w400),
+      ),
+      h2: quillBaseStyles.h2?.copyWith(
+        style: quillBaseStyles.h2!.style.copyWith(fontWeight: FontWeight.w400),
+      ),
+      h3: quillBaseStyles.h3,
+      h4: quillBaseStyles.h4,
+      h5: quillBaseStyles.h5,
+      h6: quillBaseStyles.h6,
+      paragraph: quillBaseStyles.paragraph,
+      lineHeightNormal: quillBaseStyles.lineHeightNormal,
+      lineHeightTight: quillBaseStyles.lineHeightTight,
+      lineHeightOneAndHalf: quillBaseStyles.lineHeightOneAndHalf,
+      lineHeightDouble: quillBaseStyles.lineHeightDouble,
+      bold: quillBaseStyles.bold,
+      subscript: quillBaseStyles.subscript,
+      superscript: quillBaseStyles.superscript,
+      italic: quillBaseStyles.italic,
+      small: quillBaseStyles.small,
+      underline: quillBaseStyles.underline,
+      strikeThrough: quillBaseStyles.strikeThrough,
+      inlineCode: quillBaseStyles.inlineCode,
+      link: quillBaseStyles.link,
+      color: quillBaseStyles.color,
+      placeHolder: quillBaseStyles.placeHolder,
+      lists: quillBaseStyles.lists,
+      quote: quillBaseStyles.quote,
+      code: quillBaseStyles.code,
+      indent: quillBaseStyles.indent,
+      align: quillBaseStyles.align,
+      leading: quillBaseStyles.leading,
+      sizeSmall: quillBaseStyles.sizeSmall,
+      sizeLarge: quillBaseStyles.sizeLarge,
+      sizeHuge: quillBaseStyles.sizeHuge,
+      palette: quillBaseStyles.palette,
+    );
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        if (_showFormattingToolbar) {
+          setState(() {
+            _showFormattingToolbar = false;
+          });
+          return;
+        }
         if (_isLocked && !_isUnlocked) {
           Navigator.of(context).pop();
           return;
@@ -766,6 +815,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () async {
+              if (_showFormattingToolbar) {
+                setState(() {
+                  _showFormattingToolbar = false;
+                });
+                return;
+              }
               if (_isLocked && !_isUnlocked) {
                 Navigator.of(context).pop();
                 return;
@@ -890,20 +945,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     children: [
                       if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: TextField(
                           controller: _titleController,
-                          autofocus: false, 
-                          style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1E293B)),
-                          decoration: const InputDecoration(
+                          autofocus: false,
+                          style: GoogleFonts.outfit(fontSize: 27, fontWeight: FontWeight.w400, color: const Color(0xFF475569)),
+                          decoration: InputDecoration(
                             hintText: 'Tiêu đề',
                             border: InputBorder.none,
-                            hintStyle: TextStyle(color: Colors.grey),
+                            hintStyle: TextStyle(color: Colors.grey.shade400),
                           ),
                           textCapitalization: TextCapitalization.sentences,
                           maxLines: null,
                         ),
                       ),
+                      const SizedBox(height: 8),
                       Expanded(
                         child: _isChecklistMode
                             ? _buildChecklistEditor()
@@ -920,12 +976,13 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                                       QuillEditor.basic(
                                         controller: _quillController,
                                         focusNode: _editorFocusNode,
-                                        config: const QuillEditorConfig(
+                                        config: QuillEditorConfig(
                                           scrollable: true,
                                           expands: false,
                                           autoFocus: false,
                                           padding: EdgeInsets.zero,
                                           placeholder: 'Ghi chú',
+                                          customStyles: quillCustomStyles,
                                         ),
                                       ),
                                       if (_audioUrls.isNotEmpty) ...[
@@ -1176,50 +1233,50 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () async {
-              if (_playingUrl == url) {
-                _audioPlayer.stop();
-                setState(() { _playingUrl = null; _isPlaying = false; });
-              }
-              _setUploadState(
-                isUploading: true,
-                message: 'Đang xóa âm thanh khỏi đám mây...',
-                bannerColor: const Color(0xFFEFF6FF),
-                bannerTextColor: const Color(0xFF1E40AF),
-                statusIcon: const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
-                ),
-              );
-              try {
-                await _cloudinary.deleteFile(url, resourceType: 'video');
-                if (mounted) {
-                  setState(() {
-                    _audioUrls.removeAt(index);
-                  });
-                  await _saveNote(isAutosave: true);
-                  _setUploadState(
-                    isUploading: false,
-                    message: 'Đã xóa âm thanh thành công.',
-                    bannerColor: const Color(0xFFECFDF5),
-                    bannerTextColor: const Color(0xFF065F46),
-                    statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-                    autoHide: true,
-                  );
+              onTap: () async {
+                if (_playingUrl == url) {
+                  await _audioPlayer.stop();
+                  setState(() { _playingUrl = null; _isPlaying = false; });
                 }
-              } catch (e) {
-                if (mounted) {
-                  _setUploadState(
-                    isUploading: false,
-                    message: 'Xóa âm thanh thất bại.',
-                    bannerColor: const Color(0xFFFEF2F2),
-                    bannerTextColor: const Color(0xFF991B1B),
-                    statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-                    autoHide: true,
-                  );
+                _setUploadState(
+                  isUploading: true,
+                  message: 'Đang xóa âm thanh khỏi đám mây...',
+                  bannerColor: const Color(0xFFEFF6FF),
+                  bannerTextColor: const Color(0xFF1E40AF),
+                  statusIcon: const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+                  ),
+                );
+                try {
+                  await _cloudinary.deleteFile(url, resourceType: 'video');
+                  if (mounted) {
+                    setState(() {
+                      _audioUrls.removeAt(index);
+                    });
+                    await _saveNote(isAutosave: true);
+                    _setUploadState(
+                      isUploading: false,
+                      message: 'Đã xóa âm thanh thành công.',
+                      bannerColor: const Color(0xFFECFDF5),
+                      bannerTextColor: const Color(0xFF065F46),
+                      statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+                      autoHide: true,
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    _setUploadState(
+                      isUploading: false,
+                      message: 'Xóa âm thanh thất bại.',
+                      bannerColor: const Color(0xFFFEF2F2),
+                      bannerTextColor: const Color(0xFF991B1B),
+                      statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+                      autoHide: true,
+                    );
+                  }
                 }
-              }
             },
             child: Icon(Icons.delete_outline_rounded, color: Colors.grey.shade400, size: 20),
           ),
@@ -1543,93 +1600,236 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
 
   Widget _buildBottomToolbar() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_showFormattingToolbar && !_isChecklistMode)
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: QuillSimpleToolbar(
-              controller: _quillController,
-              config: const QuillSimpleToolbarConfig(
-                showFontFamily: false,
-                showFontSize: false,
-                showStrikeThrough: true,
-                showInlineCode: false,
-                showColorButton: true,
-                showBackgroundColorButton: true,
-                showClearFormat: false,
-                showAlignmentButtons: false,
-                showLeftAlignment: false,
-                showCenterAlignment: false,
-                showRightAlignment: false,
-                showJustifyAlignment: false,
-                showHeaderStyle: true,
-                showListNumbers: true,
-                showListBullets: true,
-                showListCheck: true,
-                showCodeBlock: false,
-                showQuote: true,
-                showIndent: false,
-                showLink: true,
-                showUndo: false,
-                showRedo: false,
-                showDirection: false,
-                showSearchButton: false,
-                showSubscript: false,
-                showSuperscript: false,
-              ),
-            ),
-          ),
-        BottomAppBar(
-          color: Colors.white, // Thay đổi sang màu trắng đồng nhất với giao diện ghi chú
-          elevation: 0,
-          padding: EdgeInsets.zero,
-          child: SizedBox(
-            height: 50,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4), // Tạo khoảng cách viền nhẹ
-              child: Row(
-                children: [
-                  // 📦 BỌC CỤM ICON BÊN TRÁI: Thêm, Bảng màu, Định dạng văn bản
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+    if (_showFormattingToolbar && !_isChecklistMode) {
+      return BottomAppBar(
+        color: Colors.white,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        child: SizedBox(
+          height: 50,
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
                     children: [
-                      _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
-                      _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: () {}),
-                      _toolbarButton(
-                        icon: Icons.format_color_text,
-                        tooltip: 'Định dạng',
-                        color: _showFormattingToolbar ? _primary : null,
-                        onTap: () {
-                          if (_quillController.selection.isCollapsed) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Vui lòng bôi đen đoạn chữ để định dạng.')),
-                            );
-                          }
-                        },
-                      ),
+                      // Nhóm 1: Kiểu chữ (Header, Normal)
+                      _formattingButton(text: 'H1', isActive: _isAttributeActive(Attribute.h1), onTap: () => _toggleHeader(Attribute.h1)),
+                      _formattingButton(text: 'H2', isActive: _isAttributeActive(Attribute.h2), onTap: () => _toggleHeader(Attribute.h2)),
+                      _formattingButton(text: 'Aa', isActive: _isNormalTextActive(), onTap: _clearHeader),
+                      _formattingDivider(),
+                      // Nhóm 2: Định dạng inline (Bold, Italic,...)
+                      _formattingButton(icon: Icons.format_bold, isActive: _isAttributeActive(Attribute.bold), onTap: () => _toggleInline(Attribute.bold)),
+                      _formattingButton(icon: Icons.format_italic, isActive: _isAttributeActive(Attribute.italic), onTap: () => _toggleInline(Attribute.italic)),
+                      _formattingButton(icon: Icons.format_underline, isActive: _isAttributeActive(Attribute.underline), onTap: () => _toggleInline(Attribute.underline)),
+                      _formattingButton(icon: Icons.strikethrough_s, isActive: _isAttributeActive(Attribute.strikeThrough), onTap: () => _toggleInline(Attribute.strikeThrough)),
+                      _formattingButton(icon: Icons.format_clear, isActive: false, onTap: _clearInlineStyles),
+                      _formattingDivider(),
+                      // Nhóm 3: Kiểu danh sách (List)
+                      _formattingButton(icon: Icons.format_list_bulleted, isActive: _isAttributeActive(Attribute.ul), onTap: () => _toggleList(Attribute.ul)),
+                      _formattingButton(icon: Icons.format_list_numbered, isActive: _isAttributeActive(Attribute.ol), onTap: () => _toggleList(Attribute.ol)),
+                      _formattingButton(icon: Icons.format_quote, isActive: _isAttributeActive(Attribute.blockQuote), onTap: () => _toggleInline(Attribute.blockQuote)),
                     ],
                   ),
-                  
-                  const Spacer(),
-                  
-                  // Hiển thị trạng thái lưu ở giữa nếu có
-                  if (!_isUploading && _hasBeenSavedInDb)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500)),
-                    ),
-                    
-                  // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
-                  _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
+                ),
+              ),
+              // Nhóm 4: Nút Đóng (Ghim cố định)
+              _closeFormattingButton(),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return BottomAppBar(
+      color: Colors.white, // Thay đổi sang màu trắng đồng nhất với giao diện ghi chú
+      elevation: 0,
+      padding: EdgeInsets.zero,
+      child: SizedBox(
+        height: 50,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4), // Tạo khoảng cách viền nhẹ
+          child: Row(
+            children: [
+              // 📦 BỌC CỤM ICON BÊN TRÁI: Thêm, Bảng màu, Định dạng văn bản
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
+                  _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: () {}),
+                  _toolbarButton(
+                    icon: Icons.format_color_text,
+                    tooltip: 'Định dạng',
+                    color: _showFormattingToolbar ? _primary : null,
+                    onTap: () {
+                      setState(() {
+                        _showFormattingToolbar = true;
+                      });
+                    },
+                  ),
                 ],
               ),
+              
+              const Spacer(),
+              
+              // Hiển thị trạng thái lưu ở giữa nếu có
+              if (!_isUploading && _hasBeenSavedInDb)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500)),
+                ),
+                
+              // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
+              _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _isAttributeActive(Attribute attr) {
+    if (attr.key == Attribute.header.key) {
+      final value = _quillController.getSelectionStyle().attributes[Attribute.header.key]?.value;
+      return value == attr.value;
+    }
+    if (attr.key == Attribute.list.key) {
+      final value = _quillController.getSelectionStyle().attributes[Attribute.list.key]?.value;
+      return value == attr.value;
+    }
+    return _quillController.getSelectionStyle().containsKey(attr.key);
+  }
+
+  bool _isNormalTextActive() {
+    final headerValue = _quillController.getSelectionStyle().attributes[Attribute.header.key]?.value;
+    return headerValue == null;
+  }
+
+  void _toggleHeader(Attribute headerAttr) {
+    final currentHeaderValue = _quillController.getSelectionStyle().attributes[Attribute.header.key]?.value;
+    if (currentHeaderValue == headerAttr.value) {
+      _quillController.formatSelection(Attribute.clone(Attribute.header, null));
+    } else {
+      // Apply header, but ensure it's not bold (use regular weight)
+      _quillController.formatSelection(headerAttr);
+      // Remove bold if present so header text stays normal weight
+      if (_quillController.getSelectionStyle().containsKey(Attribute.bold.key)) {
+        _quillController.formatSelection(Attribute.clone(Attribute.bold, null));
+      }
+    }
+  }
+
+  void _clearHeader() {
+    _quillController.formatSelection(Attribute.clone(Attribute.header, null));
+  }
+
+  void _toggleList(Attribute listAttr) {
+    final currentListValue = _quillController.getSelectionStyle().attributes[Attribute.list.key]?.value;
+    if (currentListValue == listAttr.value) {
+      _quillController.formatSelection(Attribute.clone(Attribute.list, null));
+    } else {
+      _quillController.formatSelection(listAttr);
+    }
+  }
+
+  void _toggleInline(Attribute inlineAttr) {
+    final isApplied = _quillController.getSelectionStyle().containsKey(inlineAttr.key);
+    _quillController.formatSelection(
+      isApplied ? Attribute.clone(inlineAttr, null) : inlineAttr,
+    );
+  }
+
+  void _clearInlineStyles() {
+    final attrs = [Attribute.bold, Attribute.italic, Attribute.underline, Attribute.strikeThrough];
+    for (final a in attrs) {
+      if (_quillController.getSelectionStyle().containsKey(a.key)) {
+        _quillController.formatSelection(Attribute.clone(a, null));
+      }
+    }
+  }
+
+  Widget _formattingButton({
+    String? text,
+    IconData? icon,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    final activeBgColor = const Color(0xFFCCE8FF); // Màu nền khi active
+    final inactiveBgColor = const Color(0xFFF3F4F6); // Màu nền khi inactive
+    final activeColor = const Color(0xFF1E6FB8); // icon active (xanh tiêu chuẩn)
+    final inactiveColor = const Color(0xFF6B7280); // icon inactive (xám trung tính)
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isActive ? activeBgColor : inactiveBgColor,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: text != null
+                ? Text(
+                    text,
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w600,
+                      fontSize: text == 'Aa' ? 18 : 16,
+                      color: isActive ? activeColor : inactiveColor,
+                    ),
+                  )
+                : Icon(
+                    icon,
+                    size: 22,
+                    color: isActive ? activeColor : inactiveColor,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _formattingDivider() {
+    return Container(
+      width: 1,
+      height: 24,
+      color: Colors.grey.shade300,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+    );
+  }
+
+  Widget _closeFormattingButton() {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6, left: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _showFormattingToolbar = false;
+            });
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.close,
+              size: 20,
+              color: Colors.black54,
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1646,7 +1846,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.image_outlined, color: Colors.black54),
-              title: const Text('Thêm ảnh'),
+              title: const Text('Thêm hình ảnh'),
               onTap: () { Navigator.pop(context); _showImageSourceSheet(); },
             ),
             ListTile(
@@ -1657,7 +1857,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             if (!_isChecklistMode)
               ListTile(
                 leading: const Icon(Icons.check_box_outlined, color: Colors.black54),
-                title: const Text('Danh sách việc cần làm'),
+                title: const Text('Hộp kiểm'),
                 onTap: () { Navigator.pop(context); _switchToChecklistMode(); },
               ),
             const SizedBox(height: 8),
@@ -1730,16 +1930,18 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         onTap: onTap,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: 44,
-          height: 44,
-          decoration: const BoxDecoration(
-            color: Color(0xFFEEEEF0),
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F4F6),
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            icon,
-            size: 22,
-            color: const Color(0xFF1C1B1F),
+          child: Center(
+            child: Icon(
+              icon,
+              size: 22,
+              color: const Color(0xFF6B7280),
+            ),
           ),
         ),
       ),
@@ -1755,22 +1957,22 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         customBorder: const CircleBorder(), 
         child: Padding(
           // Tạo khoảng cách (Gap) giữa các vòng tròn icon với nhau
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), 
-          
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), 
+
           // 📦 ĐÂY CHÍNH LÀ BỌC CONTAINER ĐỂ TẠO VÒNG TRÒN NỀN:
           child: Container(
-            width: 40,  // Đường kính vòng tròn
-            height: 40, // Đường kính vòng tròn
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0), // Màu xám nhạt bọc làm nền của vòng tròn (hơi đậm hơn nền thanh công cụ một chút để nổi bật)
-              shape: BoxShape.circle,        // Ép cái hộp thành hình vòng tròn xịn sò y như ảnh mẫu
+              color: const Color(0xFFF3F4F6),
+              shape: BoxShape.circle,
             ),
             // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
             child: Center( 
               child: Icon(
                 icon, 
-                size: 20, 
-                color: onTap == null ? Colors.grey.shade400 : (color ?? Colors.black87),
+                size: 22, 
+                color: onTap == null ? const Color(0xFF6B7280) : (color ?? const Color(0xFF1C1B1F)),
               ),
             ),
           ),
