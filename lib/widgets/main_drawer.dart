@@ -1,6 +1,7 @@
 // lib/widgets/main_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../core/design/app_colors.dart';
 import '../providers/note_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/manage_labels_screen.dart';
@@ -17,8 +18,6 @@ class MainDrawer extends StatelessWidget {
     required this.currentRoute,
     this.onLabelSelected, // <── THÊM DÒNG NÀY
   });
-
-  static const Color primaryColor = Color(0xFF2E75B6);
 
   @override
   Widget build(BuildContext context) {
@@ -41,14 +40,14 @@ class MainDrawer extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: const [
-                      SizedBox(width: 12),
+                    children: [
+                      const SizedBox(width: 12),
                       Text(
                         'Smart Note',
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
-                          color: primaryColor,
+                          color: AppColors.textPrimary(context),
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -105,12 +104,12 @@ class MainDrawer extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Nhãn',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: primaryColor,
+                        color: AppColors.textMetadata(context),
                         letterSpacing: 1,
                       ),
                     ),
@@ -127,12 +126,12 @@ class MainDrawer extends StatelessWidget {
                           MaterialPageRoute(builder: (_) => const ManageLabelsScreen()),
                         );
                       },
-                      child: const Text(
+                      child: Text(
                         'Chỉnh sửa',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: primaryColor,
+                          color: AppColors.textMetadata(context),
                         ),
                       ),
                     ),
@@ -246,7 +245,7 @@ class MainDrawer extends StatelessWidget {
         thickness: 1,
         indent: 16,
         endIndent: 16,
-        color: Colors.grey.shade300,
+        color: AppColors.divider(context),
       ),
     );
   }
@@ -269,18 +268,22 @@ class MainDrawer extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           selected: isSelected,
-          selectedTileColor: primaryColor.withValues(alpha: 0.12),
+          selectedTileColor: AppColors.drawerSelectedBackground(context),
           leading: Icon(
             icon,
             size: 22,
-            color: isSelected ? primaryColor : Colors.black87,
+            color: isSelected
+                ? AppColors.drawerSelectedForeground(context)
+                : AppColors.textPrimary(context),
           ),
           title: Text(
             label,
             style: TextStyle(
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? primaryColor : Colors.black87,
+              color: isSelected
+                  ? AppColors.drawerSelectedForeground(context)
+                  : AppColors.textPrimary(context),
             ),
           ),
           onTap: onTap,

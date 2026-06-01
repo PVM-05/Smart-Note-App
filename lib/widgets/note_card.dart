@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:convert';
+import '../core/design/app_colors.dart';
 import '../models/note_model.dart';
 
 class NoteCard extends StatelessWidget {
@@ -22,8 +23,19 @@ class NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tối ưu hóa màu sắc tĩnh để tránh tính toán run-time alpha `.withValues`
-    const Color contentColor = Color(0xDA475569);
+    final Color cardColor = _resolveCardColor(context);
+    final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
+    final bool onDarkNoteBg = hasCustomColor && cardColor.computeLuminance() < 0.45;
+
+    final Color titleColor = hasCustomColor
+        ? (onDarkNoteBg ? Colors.white : const Color(0xFF0F172A))
+        : AppColors.textPrimary(context);
+    final Color contentColor = hasCustomColor
+        ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.86) : const Color(0xFF1E293B).withValues(alpha: 0.86))
+        : AppColors.textSecondary(context).withValues(alpha: 0.86);
+    final Color metadataColor = hasCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
+        : AppColors.textMetadata(context);
 
     final bool isLocked = note.isLocked;
 
@@ -38,17 +50,68 @@ class NoteCard extends StatelessWidget {
         ? 'Nội dung đã được bảo vệ'
         : (isChecklist ? '' : _getPlainText(note.content));
 
+    final cardBody = _buildCardBody(
+      context,
+      titleColor: titleColor,
+      contentColor: contentColor,
+      metadataColor: metadataColor,
+      displayTitle: displayTitle,
+      displayContent: displayContent,
+      isChecklist: isChecklist,
+      hasImages: hasImages,
+      hasAudio: hasAudio,
+      hasTags: hasTags,
+    );
+
     return Card(
       elevation: 0,
       clipBehavior: Clip.antiAlias, // Giúp ảnh bo tròn mượt mà khớp theo góc của Card
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      color: Colors.white, // Cố định màu nền trắng
+      color: cardColor,
       margin: EdgeInsets.zero,
-      child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Masonry / OpenContainer đôi khi đo chiều cao tạm quá thấp → tránh overflow (vạch vàng-đen).
+          final tightHeight = constraints.hasBoundedHeight &&
+              constraints.maxHeight < 120 &&
+              constraints.maxHeight != double.infinity;
+
+          if (!tightHeight) return cardBody;
+
+          return SizedBox(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                maxHeight: double.infinity,
+                maxWidth: constraints.maxWidth,
+                child: cardBody,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCardBody(
+    BuildContext context, {
+    required Color titleColor,
+    required Color contentColor,
+    required Color metadataColor,
+    required String displayTitle,
+    required String displayContent,
+    required bool isChecklist,
+    required bool hasImages,
+    required bool hasAudio,
+    required bool hasTags,
+  }) {
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min, // Tự co giãn chiều cao linh hoạt theo nội dung
+        mainAxisSize: MainAxisSize.min,
         children: [
 
           // ── 1. HÌNH ẢNH TOÀN BỘ (GOOGLE KEEP STYLE) ──
@@ -58,19 +121,19 @@ class NoteCard extends StatelessWidget {
               fit: BoxFit.fitWidth, // Chiếm trọn bề ngang, hiển thị nguyên vẹn tỉ lệ ảnh không bị cắt xén
               placeholder: (context, url) => Container(
                 height: 120,
-                color: const Color(0xFFF8FAFC),
-                child: const Center(
+                color: AppColors.surface(context),
+                child: Center(
                   child: SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.placeholder(context)),
                   ),
                 ),
               ),
               errorWidget: (context, url, error) => Container(
                 height: 60,
-                color: const Color(0xFFF1F5F9),
-                child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 20),
+                color: AppColors.inputBackground(context),
+                child: Icon(Icons.broken_image_outlined, color: AppColors.placeholder(context), size: 20),
               ),
               memCacheWidth: 300, // Memory-friendly behavior: limits image decode size to 300px width
             ),
@@ -92,11 +155,12 @@ class NoteCard extends StatelessWidget {
                         children: [
                           if (displayTitle.isNotEmpty)
                             _buildHighlightedText(
+                              context,
                               displayTitle,
                               style: GoogleFonts.outfit(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF1A202C),
+                                color: titleColor,
                                 letterSpacing: -0.3,
                               ),
                               maxLines: 2,
@@ -106,7 +170,7 @@ class NoteCard extends StatelessWidget {
                     ),
                     if (onMenuPressed != null)
                       IconButton(
-                        icon: const Icon(Icons.more_vert, size: 18, color: Color(0xFF94A3B8)),
+                        icon: Icon(Icons.more_vert, size: 18, color: metadataColor),
                         onPressed: onMenuPressed,
                         constraints: const BoxConstraints(),
                         padding: EdgeInsets.zero,
@@ -119,6 +183,7 @@ class NoteCard extends StatelessWidget {
 
                 if (displayContent.isNotEmpty)
                   _buildHighlightedText(
+                    context,
                     displayContent,
                     style: GoogleFonts.outfit(
                       fontSize: 13,
@@ -130,12 +195,12 @@ class NoteCard extends StatelessWidget {
 
                 // ── 3b. PREVIEW CHECKLIST ──
                 if (isChecklist)
-                  _buildChecklistPreview(),
+                  _buildChecklistPreview(context),
 
                 // ── 4. HIỂN THỊ BIỂU TƯỢNG VÀ TÊN FILE ÂM THANH 1 ──
                 if (hasAudio) ...[
                   const SizedBox(height: 10),
-                  _buildAudioFileAttachment(note.audioUrls.first),
+                  _buildAudioFileAttachment(context, note.audioUrls.first),
                 ],
 
                 // ── 5. FOOTER: DANH SÁCH THẺ (TAGS) ──
@@ -149,14 +214,14 @@ class NoteCard extends StatelessWidget {
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9), // Màu nền xám nhạt dịu mắt cho Tag
+                            color: AppColors.inputBackground(context),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             tag,
                             style: GoogleFonts.outfit(
                               fontSize: 10,
-                              color: const Color(0xFF64748B),
+                              color: metadataColor,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -168,12 +233,17 @@ class NoteCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
+      );
+  }
+
+  Color _resolveCardColor(BuildContext context) {
+    final resolved = AppColors.resolveNoteBackground(context, note.noteColor);
+    if (resolved != null) return resolved;
+    return AppColors.surface(context);
   }
 
   // Widget hiển thị Biểu tượng Micro + Tên file âm thanh gọn gàng
-  Widget _buildAudioFileAttachment(String audioUrl) {
+  Widget _buildAudioFileAttachment(BuildContext context, String audioUrl) {
     // Tự động bóc tách lấy tên file từ cuối đường dẫn URL (loại bỏ bớt các ký tự thư mục của Cloudinary)
     String fileName = 'Ghi âm thanh 1';
     try {
@@ -184,19 +254,27 @@ class NoteCard extends StatelessWidget {
       }
     } catch (_) {}
 
+    final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
+    final bool onDarkNoteBg = hasCustomColor &&
+        (_resolveCardColor(context).computeLuminance() < 0.45);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC), // Nền xám nhạt tinh tế bao bọc file đính kèm
+        color: hasCustomColor
+            ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05))
+            : AppColors.surface(context),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min, // Chỉ chiếm không gian vừa đủ theo tên file
         children: [
-          const Icon(
+          Icon(
             Icons.mic_none_rounded, // Biểu tượng ghi âm
             size: 16,
-            color: Color(0xFF475569),
+            color: hasCustomColor
+                ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B))
+                : AppColors.textSecondary(context),
           ),
           const SizedBox(width: 6),
           Flexible(
@@ -204,7 +282,9 @@ class NoteCard extends StatelessWidget {
               fileName, // Tên file âm thanh được trích xuất hoặc tên mặc định
               style: GoogleFonts.outfit(
                 fontSize: 12,
-                color: const Color(0xFF475569),
+                color: hasCustomColor
+                    ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B))
+                    : AppColors.textSecondary(context),
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
@@ -217,11 +297,21 @@ class NoteCard extends StatelessWidget {
   }
 
   // Widget hiển thị preview các mục checklist với checkbox icons
-  Widget _buildChecklistPreview() {
+  Widget _buildChecklistPreview(BuildContext context) {
     try {
       final decoded = jsonDecode(note.content);
       final items = (decoded['items'] as List? ?? []).take(6).toList();
       if (items.isEmpty) return const SizedBox.shrink();
+
+      final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
+      final bool onDarkNoteBg = hasCustomColor &&
+          (_resolveCardColor(context).computeLuminance() < 0.45);
+      final Color checkedColor = hasCustomColor
+          ? (onDarkNoteBg ? const Color(0xFF94A3B8) : const Color(0xFF94A3B8))
+          : AppColors.placeholder(context);
+      final Color uncheckedColor = hasCustomColor
+          ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B))
+          : AppColors.textSecondary(context);
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,7 +326,7 @@ class NoteCard extends StatelessWidget {
                 Icon(
                   checked ? Icons.check_box : Icons.check_box_outline_blank,
                   size: 16,
-                  color: checked ? const Color(0xFF94A3B8) : const Color(0xFF94A3B8),
+                  color: checked ? checkedColor : uncheckedColor,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -244,7 +334,7 @@ class NoteCard extends StatelessWidget {
                     text,
                     style: GoogleFonts.outfit(
                       fontSize: 13,
-                      color: checked ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                      color: checked ? checkedColor : uncheckedColor,
                       decoration: checked ? TextDecoration.lineThrough : TextDecoration.none,
                       height: 1.4,
                     ),
@@ -264,6 +354,7 @@ class NoteCard extends StatelessWidget {
 
   // ⚡ SIÊU TỐI ƯU CPU: Giải thuật so khớp chuỗi tĩnh không dùng vòng lặp vô hạn
   Widget _buildHighlightedText(
+      BuildContext context,
       String text, {
         required TextStyle style,
         int maxLines = 1,
@@ -306,8 +397,8 @@ class NoteCard extends StatelessWidget {
       spans.add(TextSpan(
         text: text.substring(index, index + query.length),
         style: style.copyWith(
-          backgroundColor: const Color(0xFFFEF08A),
-          color: const Color(0xFF1E293B),
+          backgroundColor: AppColors.warning.withValues(alpha: 0.22),
+          color: AppColors.textPrimary(context),
         ),
       ));
       start = index + query.length;

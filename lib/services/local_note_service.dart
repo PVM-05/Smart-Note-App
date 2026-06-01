@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/note_model.dart';
-import 'dart:convert';
 
 class LocalNoteService {
   static Database? _db;
@@ -18,7 +17,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 6,
+      version: 5,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -28,7 +27,6 @@ class LocalNoteService {
             content TEXT,
             status TEXT DEFAULT 'normal',
             is_synced INTEGER DEFAULT 0,
-            is_locked INTEGER DEFAULT 0,
             tags TEXT,
             image_urls TEXT,
             audio_urls TEXT,          
@@ -51,19 +49,8 @@ class LocalNoteService {
           await db.execute("ALTER TABLE notes ADD COLUMN tags TEXT");
         }
         if (oldVersion < 5) {
-          // 🌟 VÁ LỖI PHÒNG THỦ MIGRATION: Kiểm tra trùng cột trước khi thêm
-          final columns = await db.rawQuery("PRAGMA table_info(notes)");
-          final columnNames = columns.map((c) => c['name'] as String).toList();
-
-          if (!columnNames.contains('image_urls')) {
-            await db.execute("ALTER TABLE notes ADD COLUMN image_urls TEXT");
-          }
-          if (!columnNames.contains('audio_urls')) {
-            await db.execute("ALTER TABLE notes ADD COLUMN audio_urls TEXT");
-          }
-        }
-        if (oldVersion < 6) {
-          await db.execute("ALTER TABLE notes ADD COLUMN is_locked INTEGER DEFAULT 0");
+          await db.execute("ALTER TABLE notes ADD COLUMN image_urls TEXT");
+          await db.execute("ALTER TABLE notes ADD COLUMN audio_urls TEXT");
         }
       },
     );
@@ -80,7 +67,6 @@ class LocalNoteService {
       return;
     }
     final database = await db;
-    // Tách biệt rõ ràng thao tác ghi đè an toàn cho luồng Offline-first
     await database.insert('notes', note.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
@@ -137,16 +123,13 @@ class LocalNoteService {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  // ── SỬA LỖI SEARCH NÂNG CAO CHUẨN GOOGLE KEEP STYLE ──
+  // ── SỬA LỖI & NÂNG CẤP SEARCH NÂNG CAO CHUẨN GOOGLE KEEP STYLE ──
   Future<List<Note>> searchNotes({required String userId, required String query}) async {
-    // SỬA TẠI ĐÂY: Dùng getAbsoluteAllNotes để không bỏ sót các note ở Archive hay Trash khi lọc Token
-    final allNotes = await getAbsoluteAllNotes(userId: userId);
+    // 1. Tải toàn bộ dữ liệu hoạt động của User lên bộ nhớ tạm để bóc tách mảng (Client-side filtering)
+    // Thay đổi từ 'getNotes' thành 'getAllNotes' bám sát hàm định nghĩa gốc của bạn
+    final allNotes = await getAllNotes(userId: userId);
 
-    if (query.trim().isEmpty) {
-      // Nếu ô tìm kiếm trống, chỉ hiển thị những note đang hoạt động bình thường
-      return allNotes.where((n) => n.status != 'trash' && n.status != 'archived').toList();
-    }
-
+    if (query.trim().isEmpty) return allNotes;
     final lowerQuery = query.toLowerCase();
 
     // ⚡ BỘ NÃO PHÂN TÍCH TOKEN TỪ SEARCH SCREEN CHIP
@@ -155,7 +138,6 @@ class LocalNoteService {
     final hasUrlToken = lowerQuery.contains('has:url');
     final isPinnedToken = lowerQuery.contains('is:pinned');
     final isArchivedToken = lowerQuery.contains('is:archived');
-    final isTrashToken = lowerQuery.contains('is:trash');
 
     // ⚡ TRÍCH XUẤT TỪ KHÓA VĂN BẢN THUẦN TÚY: Gỡ bỏ toàn bộ mã lệnh token
     String cleanTextQuery = query
@@ -164,7 +146,6 @@ class LocalNoteService {
         .replaceAll('has:url', '')
         .replaceAll('is:pinned', '')
         .replaceAll('is:archived', '')
-        .replaceAll('is:trash', '')
         .trim()
         .toLowerCase();
 
@@ -178,13 +159,8 @@ class LocalNoteService {
       }
     }
 
+    // 2. THỰC HIỆN LỌC ĐỒNG THỜI TOÀN BỘ ĐIỀU KIỆN (Khắc phục lỗi không hiển thị kết quả)
     return allNotes.where((note) {
-      // Nếu note thuộc thùng rác, chỉ hiển thị nếu người dùng gõ đích danh token 'is:trash'
-      if (note.status == 'trash' && !isTrashToken) return false;
-      if (isTrashToken && note.status != 'trash') return false;
-
-      final plainText = _getPlainText(note.content);
-
       // Điều kiện 1: Nếu chọn nút "Hình ảnh" -> Thẻ note phải chứa ít nhất 1 ảnh
       if (hasImageToken && note.imageUrls.isEmpty) return false;
 
@@ -194,17 +170,17 @@ class LocalNoteService {
       // Điều kiện 3: Nếu chọn nút "URL" -> Nội dung text của note phải chứa đường link
       if (hasUrlToken) {
         final urlRegex = RegExp(r'(https?:\/\/|www\.)[^\s/$.?#].[^\s]*', caseSensitive: false);
-        if (!urlRegex.hasMatch(plainText)) return false;
+        if (!urlRegex.hasMatch(note.content)) return false;
       }
 
       // Điều kiện 4: Trạng thái Ghim hệ thống
       if (isPinnedToken && note.status != 'pinned') return false;
 
-      // Điều kiện 5: Trạng thái Lưu trữ
+      // Điều kiện 5: Trạng thái Lưu trữ (Vì getAllNotes đã chặn 'trash', ta check 'archived')
       if (isArchivedToken && note.status != 'archived') return false;
 
-      // Nếu không chọn chip "Lưu trữ" hoặc "Thùng rác", mặc định không hiện note đã lưu trữ
-      if (!isArchivedToken && !isTrashToken && note.status == 'archived') return false;
+      // Nếu không chọn chip "Lưu trữ", mặc định kết quả tìm kiếm thông thường chỉ hiển thị note đang active (không hiện note đã lưu trữ)
+      if (!isArchivedToken && note.status == 'archived') return false;
 
       // Điều kiện 6: Nhãn dán (Mảng Tags vỏ bọc văn bản)
       if (targetLabel != null && !note.tags.map((t) => t.toLowerCase()).contains(targetLabel.toLowerCase())) {
@@ -214,7 +190,7 @@ class LocalNoteService {
       // Điều kiện 7: Lọc kết hợp chuỗi văn bản gõ thêm thủ công (Tìm trong cả Tiêu đề và Nội dung)
       if (cleanTextQuery.isNotEmpty) {
         final matchTitle = note.title.toLowerCase().contains(cleanTextQuery);
-        final matchContent = plainText.toLowerCase().contains(cleanTextQuery);
+        final matchContent = note.content.toLowerCase().contains(cleanTextQuery);
         if (!matchTitle && !matchContent) return false;
       }
 
@@ -304,30 +280,5 @@ class LocalNoteService {
       where: 'user_id = ?',
       whereArgs: [userId],
     );
-  }
-
-  String _getPlainText(String content) {
-    if (content.isEmpty) return '';
-    try {
-      final decoded = jsonDecode(content);
-      // Hỗ trợ checklist JSON: {"type":"checklist","items":[...]}
-      if (decoded is Map && decoded['type'] == 'checklist') {
-        final items = decoded['items'] as List? ?? [];
-        return items.map((i) => i['text'] ?? '').where((t) => t.toString().trim().isNotEmpty).join(' ').trim();
-      }
-      if (decoded is List) {
-        final buffer = StringBuffer();
-        for (final item in decoded) {
-          if (item is Map && item.containsKey('insert')) {
-            final val = item['insert'];
-            if (val is String) {
-              buffer.write(val);
-            }
-          }
-        }
-        return buffer.toString().trim();
-      }
-    } catch (_) {}
-    return content.trim();
   }
 }

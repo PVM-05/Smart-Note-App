@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
+import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
@@ -18,8 +19,6 @@ class TrashScreen extends StatefulWidget {
 }
 
 class _TrashScreenState extends State<TrashScreen> {
-  static const _primary = Color(0xFF2E75B6);
-
   @override
   void initState() {
     super.initState();
@@ -46,7 +45,7 @@ class _TrashScreenState extends State<TrashScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Xóa'),
           ),
         ],
@@ -65,7 +64,7 @@ class _TrashScreenState extends State<TrashScreen> {
         final isSelectionMode = provider.isTrashSelectionMode;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF8FAFC),
+          backgroundColor: AppColors.background(context),
           drawer: const MainDrawer(currentRoute: '/trash'),
 
           // Chuyển mạch AppBar tùy theo trạng thái chọn
@@ -97,11 +96,11 @@ class _TrashScreenState extends State<TrashScreen> {
 
     return Column(
       children: [
-        const Padding(
-          padding: EdgeInsets.all(16.0),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Text(
             'Ghi chú trong Thùng rác sẽ bị xóa tự động sau 7 ngày.',
-            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+            style: TextStyle(fontStyle: FontStyle.italic, color: AppColors.textMetadata(context)),
           ),
         ),
         Expanded(
@@ -129,7 +128,7 @@ class _TrashScreenState extends State<TrashScreen> {
     return Container(
       decoration: BoxDecoration(
         border: Border.all(
-          color: isSelected ? _primary : Colors.transparent,
+          color: isSelected ? AppColors.primary : Colors.transparent,
           width: 2,
         ),
         borderRadius: BorderRadius.circular(16),
@@ -137,7 +136,7 @@ class _TrashScreenState extends State<TrashScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Material(
-          color: isSelected ? _primary.withValues(alpha: 0.05) : Colors.white,
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.05) : AppColors.surface(context),
           child: InkWell(
             // NHẤN GIỮ: Bật chế độ chọn
             onLongPress: () {
@@ -164,23 +163,23 @@ class _TrashScreenState extends State<TrashScreen> {
   // APPBAR BÌNH THƯỜNG
   AppBar _normalAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background(context),
       elevation: 0,
       automaticallyImplyLeading: false,
       leading: Builder(
         builder: (context) => IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black87),
+          icon: Icon(Icons.menu, color: AppColors.textPrimary(context)),
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
-      title: const Text(
+      title: Text(
         'Thùng rác',
-        style: TextStyle(color: Colors.black87, fontSize: 18),
+        style: TextStyle(color: AppColors.textPrimary(context), fontSize: 18),
       ),
       actions: [
         // Thêm nút Xóa toàn bộ Thùng rác nhanh (Tùy chọn)
         IconButton(
-          icon: const Icon(Icons.delete_sweep, color: Colors.black87),
+          icon: Icon(Icons.delete_sweep, color: AppColors.textPrimary(context)),
           tooltip: 'Dọn sạch thùng rác',
           onPressed: () {
             if (Provider.of<NoteProvider>(context, listen: false).trashNotes.isNotEmpty) {
@@ -199,27 +198,27 @@ class _TrashScreenState extends State<TrashScreen> {
   // APPBAR KHI CHỌN NHIỀU
   AppBar _selectionAppBar(NoteProvider provider) {
     return AppBar(
-      backgroundColor: const Color(0xFFE2E8F0), // Màu xám nhạt
+      backgroundColor: AppColors.inputBackground(context),
       leading: IconButton(
-        icon: const Icon(Icons.close, color: Colors.black87),
+        icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
         onPressed: () => provider.clearTrashSelection(),
       ),
       title: Text(
         '${provider.selectedTrashNoteIds.length} đã chọn',
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: AppColors.textPrimary(context),
           fontWeight: FontWeight.bold,
           fontSize: 18,
         ),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.restore, color: _primary),
+          icon: const Icon(Icons.restore, color: AppColors.primary),
           tooltip: 'Khôi phục',
           onPressed: () => provider.restoreSelectedTrashNotes(),
         ),
         IconButton(
-          icon: const Icon(Icons.delete_forever, color: Colors.red),
+          icon: const Icon(Icons.delete_forever, color: AppColors.error),
           tooltip: 'Xóa vĩnh viễn',
           onPressed: () => _confirmDeleteSelected(provider),
         ),
@@ -243,7 +242,7 @@ class _TrashScreenState extends State<TrashScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.restore, color: _primary),
+              leading: const Icon(Icons.restore, color: AppColors.primary),
               title: const Text('Khôi phục ghi chú'),
               onTap: () {
                 provider.restoreNote(note.id);
@@ -255,8 +254,8 @@ class _TrashScreenState extends State<TrashScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_forever, color: Colors.red),
-              title: const Text('Xóa vĩnh viễn', style: TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.delete_forever, color: AppColors.error),
+              title: Text('Xóa vĩnh viễn', style: TextStyle(color: AppColors.error)),
               onTap: () async {
                 Navigator.pop(context); // Đóng BottomSheet trước
 

@@ -8,6 +8,7 @@ import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
 import '../core/app_strings.dart';
+import '../core/design/app_colors.dart';
 import '../widgets/empty_state.dart';
 import 'editor_screen.dart';
 
@@ -92,11 +93,11 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppColors.background(context),
       body: SafeArea(
         child: Column(
           children: [
-            _buildSearchBar(),
+            _buildSearchBar(context),
             Expanded(
               child: Consumer<NoteProvider>(
                 builder: (context, noteProvider, child) {
@@ -107,11 +108,11 @@ class _SearchScreenState extends State<SearchScreen> {
 
                   // Đang gõ chữ HOẶC đang kích hoạt Chip lọc đa phương tiện -> Hiện danh sách Note kết quả
                   if (_searchController.text.isNotEmpty || _activeFilters.isNotEmpty || noteProvider.isSearching) {
-                    return _buildSearchResults(noteProvider);
+                    return _buildSearchResults(context, noteProvider);
                   }
 
                   // Trạng thái mặc định ban đầu -> Hiện menu các bộ lọc gợi ý
-                  return _buildPredefinedFilters(noteProvider);
+                  return _buildPredefinedFilters(context, noteProvider);
                 },
               ),
             ),
@@ -121,16 +122,16 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(BuildContext context) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       constraints: const BoxConstraints(minHeight: 48),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.searchBarBackground(context),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.textPrimary(context).withValues(alpha: 0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           )
@@ -140,7 +141,7 @@ class _SearchScreenState extends State<SearchScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+            icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)),
             onPressed: () {
               Provider.of<NoteProvider>(context, listen: false).clearSearch();
               Navigator.pop(context);
@@ -154,7 +155,7 @@ class _SearchScreenState extends State<SearchScreen> {
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: _activeFilters.isEmpty ? 'Tìm kiếm ghi chú của bạn' : '',
-                hintStyle: GoogleFonts.outfit(color: const Color(0xFF64748B), fontSize: 15),
+                hintStyle: GoogleFonts.outfit(color: AppColors.textMetadata(context).withOpacity(0.6), fontSize: 15, fontWeight: FontWeight.w300,),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -170,18 +171,18 @@ class _SearchScreenState extends State<SearchScreen> {
                     scrollDirection: Axis.horizontal, // Cuộn ngang mượt mà nếu chọn đồng thời nhiều loại bộ lọc
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: _activeFilters.map((f) => _buildChip(f)).toList(),
+                      children: _activeFilters.map((f) => _buildChip(context, f)).toList(),
                     ),
                   ),
                 ),
               ),
-              style: GoogleFonts.outfit(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
+              style: GoogleFonts.outfit(fontSize: 15, color: AppColors.textPrimary(context), fontWeight: FontWeight.w500),
             ),
           ),
 
           if (_searchController.text.isNotEmpty || _activeFilters.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.clear, size: 20, color: Color(0xFF64748B)),
+              icon: Icon(Icons.clear, size: 20, color: AppColors.textMetadata(context)),
               onPressed: () {
                 _searchController.clear();
                 setState(() {
@@ -198,14 +199,14 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   // Thiết kế giao diện viên Chip lọc đa phương tiện
-  Widget _buildChip(FilterToken filter) {
+  Widget _buildChip(BuildContext context, FilterToken filter) {
     return Container(
       margin: const EdgeInsets.only(right: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.12), // Màu xanh nhạt tối giản chuẩn Google Keep
+        color: AppColors.filterChipBackground(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.divider(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -214,14 +215,14 @@ class _SearchScreenState extends State<SearchScreen> {
             filter.label,
             style: GoogleFonts.outfit(
               fontSize: 13,
-              color: Colors.blue[800],
+              color: AppColors.filterChipForeground(context),
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: () => _removeFilter(filter),
-            child: Icon(Icons.cancel, size: 16, color: Colors.blue[600]),
+            child: Icon(Icons.cancel, size: 16, color: AppColors.filterChipForeground(context)),
           ),
         ],
       ),
@@ -229,7 +230,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   // KHU VỰC HIỂN THỊ CÁC BỘ LỌC ĐA PHƯƠNG TIỆN GỢI Ý (Đầy đủ Hình ảnh, Âm thanh, URL, Nhãn dán)
-  Widget _buildPredefinedFilters(NoteProvider noteProvider) {
+  Widget _buildPredefinedFilters(BuildContext context, NoteProvider noteProvider) {
     final labels = noteProvider.allLabels;
 
     return Align(
@@ -242,7 +243,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // ===================================
             // DANH MỤC LOẠI ĐA PHƯƠNG TIỆN (MEDIA FILTERS)
             // ===================================
-            Text('Loại ghi chú', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.8)),
+            Text('Loại ghi chú', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 16,
@@ -250,10 +251,10 @@ class _SearchScreenState extends State<SearchScreen> {
               alignment: WrapAlignment.start,
               crossAxisAlignment: WrapCrossAlignment.start,
               children: [
-                _buildFilterIconItem(Icons.check_box_outlined, 'Danh sách', () => _onFilterTap('Danh sách', 'has:list')),
-                _buildFilterIconItem(Icons.image_outlined, 'Hình ảnh', () => _onFilterTap('Hình ảnh', 'has:image')),
-                _buildFilterIconItem(Icons.mic_none_rounded, 'Âm thanh', () => _onFilterTap('Âm thanh', 'has:audio')), // 🌟 NÂNG CẤP: Lọc riêng tệp ghi âm Cloudinary
-                _buildFilterIconItem(Icons.link_rounded, 'URL', () => _onFilterTap('URL', 'has:url')),
+                _buildFilterIconItem(context, Icons.check_box_outlined, 'Danh sách', () => _onFilterTap('Danh sách', 'has:list')),
+                _buildFilterIconItem(context, Icons.image_outlined, 'Hình ảnh', () => _onFilterTap('Hình ảnh', 'has:image')),
+                _buildFilterIconItem(context, Icons.mic_none_rounded, 'Âm thanh', () => _onFilterTap('Âm thanh', 'has:audio')),
+                _buildFilterIconItem(context, Icons.link_rounded, 'URL', () => _onFilterTap('URL', 'has:url')),
               ],
             ),
 
@@ -263,7 +264,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // DANH MỤC NHÃN DÁN (TAGS)
             // ===================================
             if (labels.isNotEmpty) ...[
-              Text('Nhãn dán', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.8)),
+              Text('Nhãn dán', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 16,
@@ -271,7 +272,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 alignment: WrapAlignment.start,
                 crossAxisAlignment: WrapCrossAlignment.start,
                 children: labels.map((label) {
-                  return _buildFilterIconItem(Icons.label_outline_rounded, label, () => _onFilterTap(label, 'label:"$label"'));
+                  return _buildFilterIconItem(context, Icons.label_outline_rounded, label, () => _onFilterTap(label, 'label:"$label"'));
                 }).toList(),
               ),
               const SizedBox(height: 36),
@@ -280,7 +281,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // ===================================
             // DANH MỤC TRẠNG THÁI GHI CHÚ
             // ===================================
-            Text('Trạng thái', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.8)),
+            Text('Trạng thái', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 16,
@@ -288,8 +289,8 @@ class _SearchScreenState extends State<SearchScreen> {
               alignment: WrapAlignment.start,
               crossAxisAlignment: WrapCrossAlignment.start,
               children: [
-                _buildFilterIconItem(Icons.push_pin_outlined, 'Được ghim', () => _onFilterTap('Được ghim', 'is:pinned')),
-                _buildFilterIconItem(Icons.archive_outlined, 'Kho Lưu trữ', () => _onFilterTap('Lưu trữ', 'is:archived')),
+                _buildFilterIconItem(context, Icons.push_pin_outlined, 'Được ghim', () => _onFilterTap('Được ghim', 'is:pinned')),
+                _buildFilterIconItem(context, Icons.archive_outlined, 'Kho Lưu trữ', () => _onFilterTap('Lưu trữ', 'is:archived')),
               ],
             ),
           ],
@@ -298,7 +299,8 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildFilterIconItem(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildFilterIconItem(BuildContext context, IconData icon, String label, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
@@ -312,10 +314,15 @@ class _SearchScreenState extends State<SearchScreen> {
               width: 56,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.grey.shade300, width: 1.2),
-                color: Colors.white, // Chuyển sang nền trắng phẳng tinh tế sạch sẽ
+                color: AppColors.filterIconCircleBackground(context),
+                border: Border.all(
+                  color: isDark
+                      ? AppColors.divider(context)
+                      : const Color(0xFFE2E8F0),
+                  width: 1.0,
+                ),
               ),
-              child: Icon(icon, color: const Color(0xFF475569), size: 24),
+              child: Icon(icon, color: AppColors.filterIconColor(context), size: 24),
             ),
             const SizedBox(height: 8),
             Text(
@@ -323,7 +330,7 @@ class _SearchScreenState extends State<SearchScreen> {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
+              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textPrimary(context), fontWeight: FontWeight.w400),
             ),
           ],
         ),
@@ -348,7 +355,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSearchResults(NoteProvider provider) {
+  Widget _buildSearchResults(BuildContext context, NoteProvider provider) {
     final notes = provider.notes;
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -361,7 +368,7 @@ class _SearchScreenState extends State<SearchScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[500],
+                color: AppColors.textMetadata(context),
                 letterSpacing: 0.8,
               ),
             ),

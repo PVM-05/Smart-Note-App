@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:animations/animations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/sync_provider.dart';
@@ -41,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _syncBannerTimer;
   String? _lastStatusMessage;
 
-  static const _primary = Color(0xFF2E75B6);
+  static const _primary = AppColors.primary;
 
   @override
   void initState() {
@@ -143,11 +144,11 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               // 1. Lớp nền mờ kính chuyển động
               // Nền phủ tối nhẹ kiểu Google Keep
-              AnimatedBuilder(
+                  AnimatedBuilder(
                 animation: animation,
                 builder: (context, child) {
                   return Container(
-                    color: Colors.black.withValues(
+                    color: AppColors.textPrimary(context).withValues(
                       alpha: (animation.value * 0.5).clamp(0.0, 1.0),
                     ),
                   );
@@ -193,14 +194,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                 alignment: Alignment.bottomRight,
                                 child: FadeTransition(
                                   opacity: animation,
-                                  child: Container(
+                                    child: Container(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: AppColors.surface(context),
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.08),
+                                          color: AppColors.textPrimary(context).withValues(alpha: 0.08),
                                           blurRadius: 12,
                                           offset: const Offset(0, 4),
                                         )
@@ -224,11 +225,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 style: GoogleFonts.roboto(
                                                   fontSize: 14.5,
                                                   fontWeight: FontWeight.w500,
-                                                  color: const Color(0xFF3C4043),
+                                                  color: AppColors.textSecondary(context),
                                                 ),
                                               ),
                                               const SizedBox(width: 14),
-                                              Icon(item['icon'] as IconData, color: const Color(0xFF5F6368), size: 22),
+                                              Icon(item['icon'] as IconData, color: AppColors.textMetadata(context), size: 22),
                                             ],
                                           ),
                                         ),
@@ -244,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // Nút FAB giả lập - chỉ xoay icon dấu cộng bên trong
                           FloatingActionButton(
                             elevation: 4,
-                            backgroundColor: Colors.white,
+                            backgroundColor: AppColors.surface(context),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -315,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(seconds: 4),
           action: SnackBarAction(
             label: 'Hoàn tác',
-            textColor: const Color(0xFF2E75B6),
+             textColor: _primary,
             onPressed: () async {
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
               for (final id in deletedIds) {
@@ -346,11 +347,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: TextField(
                   controller: newLabelController,
-                  decoration: InputDecoration(
+                    decoration: InputDecoration(
                     hintText: 'Tạo nhãn mới...',
                     isDense: true,
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.add_circle, color: Color(0xFF2E75B6)),
+                      icon: Icon(Icons.add_circle, color: _primary),
                       onPressed: () async {
                         final newTag = newLabelController.text.trim();
                         if (newTag.isNotEmpty) {
@@ -431,7 +432,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: GoogleFonts.roboto(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1E293B),
+                    color: AppColors.textPrimary(context),
                   ),
                 ),
               ),
@@ -468,13 +469,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = _sortType == type;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-      leading: Icon(icon, color: isSelected ? _primary : const Color(0xFF64748B)),
+      leading: Icon(icon, color: isSelected ? _primary : AppColors.textMetadata(context)),
       title: Text(
         title,
         style: GoogleFonts.roboto(
           fontSize: 15,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          color: isSelected ? _primary : const Color(0xFF1E293B),
+          color: isSelected ? _primary : AppColors.textPrimary(context),
         ),
       ),
       trailing: isSelected ? const Icon(Icons.check, color: _primary, size: 20) : null,
@@ -517,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final isSelectionMode = noteProvider.isSelectionMode;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF1F5F9),
+          backgroundColor: AppColors.background(context),
           drawer: MainDrawer(
             currentRoute: '/home',
             onLabelSelected: () {
@@ -561,7 +562,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     closedShape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    closedColor: Colors.white,
+                    closedColor: AppColors.fabBackground(context),
                     openBuilder: (context, _) => const EditorScreen(note: null),
                     onClosed: (_) async {
                       // Refresh danh sách sau khi đóng editor
@@ -574,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     closedBuilder: (context, openContainer) {
                       return FloatingActionButton(
                         elevation: 0,
-                        backgroundColor: Colors.white,
+                        backgroundColor: AppColors.fabBackground(context),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -584,9 +585,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             openContainer();
                           }
                         },
-                        child: const Icon(
+                        child: Icon(
                           Icons.add,
-                          color: _primary,
+                          color: AppColors.fabForeground(context),
                           size: 28,
                         ),
                       );
@@ -617,29 +618,29 @@ class _HomeScreenState extends State<HomeScreen> {
     if (isOffline) {
       if (hasUnsynced) {
         message = 'Chờ kết nối mạng để đồng bộ';
-        color = const Color(0xFFFFFBEB); // Soft amber
-        textColor = const Color(0xFF92400E);
-        icon = const SizedBox(
+        color = AppColors.warning.withValues(alpha: 0.12);
+        textColor = AppColors.warning;
+        icon = SizedBox(
           width: 12,
           height: 12,
-          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706)),
+          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
         );
       } else {
         message = 'Đang ngoại tuyến';
-        color = const Color(0xFFFFF7ED); // Soft orange-amber
-        textColor = const Color(0xFF9A3412);
-        icon = const Icon(Icons.cloud_off, color: Color(0xFFF97316), size: 14);
+        color = AppColors.warning.withValues(alpha: 0.10);
+        textColor = AppColors.warning;
+        icon = Icon(Icons.cloud_off, color: AppColors.warning, size: 14);
       }
     } else {
       switch (status) {
         case SyncStatus.syncing:
           message = 'Đang đồng bộ...';
-          color = const Color(0xFFEFF6FF); // Light blue
-          textColor = const Color(0xFF1E40AF);
-          icon = const SizedBox(
+          color = AppColors.primary.withValues(alpha: 0.12);
+          textColor = AppColors.primary;
+          icon = SizedBox(
             width: 12,
             height: 12,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
           );
           break;
         case SyncStatus.success:
@@ -647,18 +648,18 @@ class _HomeScreenState extends State<HomeScreen> {
         default:
           if (hasUnsynced) {
             message = 'Đang chuẩn bị đồng bộ...';
-            color = const Color(0xFFEFF6FF);
-            textColor = const Color(0xFF1E40AF);
-            icon = const SizedBox(
+            color = AppColors.primary.withValues(alpha: 0.12);
+            textColor = AppColors.primary;
+            icon = SizedBox(
               width: 12,
               height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
             );
           } else {
             message = 'Đã đồng bộ';
-            color = const Color(0xFFECFDF5); // Light green
-            textColor = const Color(0xFF065F46);
-            icon = const Icon(Icons.cloud_done, color: Color(0xFF10B981), size: 14);
+            color = AppColors.success.withValues(alpha: 0.12);
+            textColor = AppColors.success;
+            icon = Icon(Icons.cloud_done, color: AppColors.success, size: 14);
           }
           break;
       }
@@ -784,7 +785,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey[500],
+                    color: AppColors.textMetadata(context),
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -799,14 +800,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Text(
-                    'Khác',
-                    style: GoogleFonts.roboto(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[500],
-                      letterSpacing: 0.5,
+                      'Khác',
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textMetadata(context),
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
                 ),
               ),
               _buildNotesSliverSection(normalNotes, noteProvider),
@@ -820,13 +821,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Progress Indicator load thêm dữ liệu
           if (noteProvider.isLoadingMore)
-            const SliverToBoxAdapter(
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Center(
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2E75B6)),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
                   ),
                 ),
               ),
@@ -843,8 +844,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelectionMode = provider.isSelectionMode;
 
     // Định nghĩa tĩnh các hằng số màu sắc tránh gây rò rỉ bộ nhớ (memory allocation) khi render 60fps
-    const Color selectBorderColor = Color(0xFF2E75B6);
-    const Color selectBgColor = Color(0x0F2E75B6);
+    final Color selectBorderColor = _primary;
+    final Color selectBgColor = _primary.withValues(alpha: 0.06);
 
     return Container(
       margin: _isGrid
@@ -882,15 +883,15 @@ class _HomeScreenState extends State<HomeScreen> {
             return AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOutCubic,
-              decoration: BoxDecoration(
+                decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isSelected ? selectBorderColor : Colors.transparent,
                   width: 2,
                 ),
-                color: isSelected ? selectBgColor : Colors.white,
+                color: isSelected ? selectBgColor : AppColors.surface(context),
               ),
-              child: Material(
+                  child: Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(14),
                 clipBehavior: Clip.antiAlias,
@@ -946,24 +947,25 @@ class _HomeScreenState extends State<HomeScreen> {
       leadingWidth: 56,
       leading: Builder(
         builder: (context) => IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF1E293B), size: 22),
+          icon: Icon(Icons.menu, color: AppColors.textPrimary(context), size: 22),
           style: IconButton.styleFrom(
-            hoverColor: const Color(0xFFE2E8F0),
-            highlightColor: const Color(0xFFCBD5E1),
+            hoverColor: AppColors.ripple(context),
+            highlightColor: AppColors.divider(context),
             splashFactory: InkSparkle.splashFactory,
           ),
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
-      title: Container(
+      title: Builder(
+        builder: (context) => Container(
         height: 44,
         margin: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.searchBarBackground(context),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: AppColors.textPrimary(context).withValues(alpha: 0.06),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -992,9 +994,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Text(
                     'Tìm kiếm',
                     style: GoogleFonts.roboto(
-                      color: const Color(0xFF64748B),
+                      color: AppColors.placeholder(context),
                       fontSize: 15,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: FontWeight.w300,
                     ),
                   ),
                 ),
@@ -1005,11 +1007,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(
                 _isGrid ? Icons.view_agenda_outlined : Icons.grid_view_outlined,
                 size: 24,
-                color: const Color(0xFF1E293B),
+                color: AppColors.textPrimary(context),
               ),
               style: IconButton.styleFrom(
-                hoverColor: const Color(0xFFE2E8F0),
-                highlightColor: const Color(0xFFCBD5E1),
+                hoverColor: AppColors.ripple(context),
+                highlightColor: AppColors.divider(context),
                 splashFactory: InkSparkle.splashFactory,
                 padding: const EdgeInsets.all(8),
               ),
@@ -1020,14 +1022,14 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.swap_vert,
                 size: 24,
-                color: Color(0xFF1E293B),
+                color: AppColors.textPrimary(context),
               ),
               style: IconButton.styleFrom(
-                hoverColor: const Color(0xFFE2E8F0),
-                highlightColor: const Color(0xFFCBD5E1),
+                hoverColor: AppColors.ripple(context),
+                highlightColor: AppColors.divider(context),
                 splashFactory: InkSparkle.splashFactory,
                 padding: const EdgeInsets.all(8),
               ),
@@ -1036,6 +1038,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 6),
           ],
         ),
+      ),
       ),
       centerTitle: false,
       actions: [
@@ -1050,7 +1053,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   child: CircleAvatar(
                     radius: 18,
-                    backgroundColor: const Color(0xFF2563EB),
+                    backgroundColor: Theme.of(context).brightness == Brightness.dark
+                        ? AppColors.darkAccent
+                        : AppColors.primary,
                     backgroundImage: (auth.userData?['photoUrl'] != null && auth.userData!['photoUrl'].toString().isNotEmpty)
                         ? NetworkImage(auth.userData!['photoUrl'])
                         : null,
@@ -1076,38 +1081,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   AppBar _selectionAppBar(NoteProvider provider) {
     return AppBar(
-      backgroundColor: const Color(0xFFE2E8F0),
+      backgroundColor: AppColors.inputBackground(context),
       leading: IconButton(
-        icon: const Icon(Icons.close, color: Colors.black87),
+        icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
         tooltip: 'Hủy chọn',
         onPressed: () => provider.clearSelection(),
       ),
       title: Text(
         '${provider.selectedNoteIds.length} đã chọn',
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: AppColors.textPrimary(context),
           fontWeight: FontWeight.bold,
           fontSize: 18,
         ),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.label_outline, color: Colors.black87),
+          icon: Icon(Icons.label_outline, color: AppColors.textPrimary(context)),
           tooltip: 'Thay đổi nhãn dán',
           onPressed: () => _showBatchTagDialog(context, provider),
         ),
         IconButton(
-          icon: const Icon(Icons.push_pin_outlined, color: Colors.black87),
+          icon: Icon(Icons.push_pin_outlined, color: AppColors.textPrimary(context)),
           tooltip: 'Ghim/Bỏ ghim hàng loạt',
           onPressed: () => provider.togglePinSelectedNotes(),
         ),
         IconButton(
-          icon: const Icon(Icons.archive_outlined, color: Colors.black87),
+          icon: Icon(Icons.archive_outlined, color: AppColors.textPrimary(context)),
           tooltip: 'Lưu trữ',
           onPressed: () => _archiveSelectedNotes(provider),
         ),
         IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          icon: Icon(Icons.delete_outline, color: AppColors.error),
           tooltip: 'Chuyển vào thùng rác',
           onPressed: () => _moveToTrashSelected(provider),
         ),

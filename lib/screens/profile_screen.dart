@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:firebase_storage/firebase_storage.dart';
+import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import 'login_screen.dart';
@@ -30,11 +31,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
-
-
-
-  static const _primary = Color(0xFF2E75B6);
-
   @override
   void initState() {
     super.initState();
@@ -158,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: GoogleFonts.roboto()),
-      backgroundColor: isError ? Colors.red[700] : const Color(0xFF388E3C),
+      backgroundColor: isError ? AppColors.error : AppColors.success,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
@@ -173,7 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -199,11 +195,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: GoogleFonts.roboto(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF111827),
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
@@ -214,11 +210,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.roboto(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF4B5563),
+                      color: AppColors.textSecondary(context),
                     ),
                   ),
                   const SizedBox(height: 6),
                   _buildField(
+                    context: context,
                     controller: _nameController,
                     hint: 'Tên hiển thị',
                   ),
@@ -228,11 +225,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.roboto(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF4B5563),
+                      color: AppColors.textSecondary(context),
                     ),
                   ),
                   const SizedBox(height: 6),
                   _buildField(
+                    context: context,
                     controller: _bioController,
                     hint: 'Viết gì đó về bản thân...',
                     maxLines: 3,
@@ -245,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: () => Navigator.pop(context),
                         child: Text(
                           'Hủy',
-                          style: GoogleFonts.roboto(color: const Color(0xFF6B7280)),
+                          style: GoogleFonts.roboto(color: AppColors.textMetadata(context)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -261,8 +259,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 navigator.pop();
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E75B6),
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.onPrimary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -274,7 +272,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                    color: AppColors.onPrimary,
                                 ),
                               )
                             : Text('Lưu thay đổi',
@@ -300,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -326,17 +324,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         style: GoogleFonts.roboto(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF111827),
+                          color: AppColors.textPrimary(context),
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _buildField(
+                    context: context,
                     controller: _oldPasswordController,
                     hint: 'Mật khẩu hiện tại',
                     isPassword: true,
@@ -345,6 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildField(
+                    context: context,
                     controller: _newPasswordController,
                     hint: 'Mật khẩu mới (tối thiểu 6 ký tự)',
                     isPassword: true,
@@ -353,6 +353,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildField(
+                    context: context,
                     controller: _confirmPasswordController,
                     hint: 'Xác nhận mật khẩu mới',
                     isPassword: true,
@@ -367,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: () => Navigator.pop(context),
                         child: Text(
                           'Hủy',
-                          style: GoogleFonts.roboto(color: const Color(0xFF6B7280)),
+                          style: GoogleFonts.roboto(color: AppColors.textMetadata(context)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -385,8 +386,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 }
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E75B6),
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.onPrimary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
@@ -398,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                    color: AppColors.onPrimary,
                                 ),
                               )
                             : Text('Cập nhật',
@@ -516,25 +517,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 false;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF9FAFB), // bg-gray-50
+          backgroundColor: AppColors.background(context),
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: AppColors.background(context),
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF374151)),
+              icon: Icon(Icons.arrow_back, color: AppColors.textSecondary(context)),
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
               'Cài đặt',
               style: GoogleFonts.roboto(
-                color: const Color(0xFF111827),
+                color: AppColors.textPrimary(context),
                 fontWeight: FontWeight.w600,
                 fontSize: 18,
               ),
             ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(1),
-              child: Container(color: const Color(0xFFE5E7EB), height: 1),
+              child: Container(color: AppColors.divider(context), height: 1),
             ),
           ),
           body: ListView(
@@ -546,14 +547,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
+                      colors: [AppColors.primary, AppColors.primaryVariant],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
+                        color: AppColors.primaryVariant.withValues(alpha: 0.25),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       )
@@ -573,7 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 32,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                                  backgroundColor: AppColors.onPrimary.withValues(alpha: 0.2),
                                   backgroundImage: photoUrl.isNotEmpty
                                       ? NetworkImage(photoUrl)
                                       : null,
@@ -582,7 +583,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           width: 24,
                                           height: 24,
                                           child: CircularProgressIndicator(
-                                            color: Colors.white,
+                                            color: AppColors.onPrimary,
                                             strokeWidth: 2,
                                           ),
                                         )
@@ -593,7 +594,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   : 'U',
                                               style: GoogleFonts.roboto(
                                                 fontSize: 24,
-                                                color: Colors.white,
+                                                color: AppColors.onPrimary,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             )
@@ -603,7 +604,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 20,
                                   height: 20,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: AppColors.onPrimary,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
@@ -612,8 +613,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       )
                                     ],
                                   ),
-                                  child: const Icon(Icons.camera_alt,
-                                      size: 11, color: Color(0xFF374151)),
+                                  child: Icon(Icons.camera_alt,
+                                      size: 11, color: AppColors.textSecondary(context)),
                                 ),
                               ],
                             ),
@@ -627,7 +628,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     style: GoogleFonts.roboto(
                                       fontSize: 17,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                      color: AppColors.onPrimary,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -637,7 +638,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     'Smart Note Pro',
                                     style: GoogleFonts.roboto(
                                       fontSize: 13,
-                                      color: Colors.white.withValues(alpha: 0.8),
+                                      color: AppColors.onPrimary.withValues(alpha: 0.8),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -645,17 +646,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: AppColors.onPrimary.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.3),
+                                        color: AppColors.onPrimary.withValues(alpha: 0.3),
                                       ),
                                     ),
                                     child: Text(
                                       '✨ Premium Member',
                                       style: GoogleFonts.roboto(
                                         fontSize: 10,
-                                        color: Colors.white,
+                                        color: AppColors.onPrimary,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -672,21 +673,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
 
               // ── 2. SECTIONS ──
-              _buildSectionTitle('TÀI KHOẢN'),
-              _buildSectionCard([
+              _buildSectionTitle(context, 'TÀI KHOẢN'),
+              _buildSectionCard(context, [
                 _buildSectionItem(
+                  context,
                   icon: Icons.person_outline_rounded,
-                  iconColor: const Color(0xFF2563EB), // text-blue-600
-                  iconBg: const Color(0xFFEFF6FF), // bg-blue-50
+                  iconColor: AppColors.primaryVariant,
+                  iconBg: AppColors.primary.withValues(alpha: 0.12),
                   label: 'Thông tin cá nhân',
                   description: 'Quản lý thông tin tài khoản',
                   onTap: () => _showPersonalInfoBottomSheet(context, auth),
                 ),
                 if (isEmailProvider)
                   _buildSectionItem(
+                    context,
                     icon: Icons.lock_outline_rounded,
-                    iconColor: const Color(0xFF16A34A), // text-green-600
-                    iconBg: const Color(0xFFF0FDF4), // bg-green-50
+                    iconColor: AppColors.success,
+                    iconBg: AppColors.success.withValues(alpha: 0.1),
                     label: 'Bảo mật',
                     description: 'Mật khẩu và xác thực',
                     onTap: () => _showSecurityBottomSheet(context),
@@ -694,20 +697,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ]),
 
               const SizedBox(height: 16),
-              _buildSectionTitle('TÙY CHỈNH'),
-              _buildSectionCard([
+              _buildSectionTitle(context, 'TÙY CHỈNH'),
+              _buildSectionCard(context, [
                 _buildSectionItem(
+                  context,
                   icon: Icons.palette_outlined,
-                  iconColor: const Color(0xFF9333EA), // text-purple-600
-                  iconBg: const Color(0xFFFAF5FF), // bg-purple-50
+                  iconColor: const Color(0xFF9333EA),
+                  iconBg: const Color(0xFF9333EA).withValues(alpha: 0.1),
                   label: 'Giao diện',
                   description: 'Màu sắc và chủ đề',
                   onTap: () => _showComingSoonToast(context, 'Giao diện'),
                 ),
                 _buildSectionItem(
+                  context,
                   icon: Icons.notifications_none_rounded,
-                  iconColor: const Color(0xFFEA580C), // text-orange-600
-                  iconBg: const Color(0xFFFFF7ED), // bg-orange-50
+                  iconColor: const Color(0xFFEA580C),
+                  iconBg: const Color(0xFFEA580C).withValues(alpha: 0.1),
                   label: 'Thông báo',
                   description: 'Quản lý nhắc nhở',
                   onTap: () => _showComingSoonToast(context, 'Thông báo'),
@@ -715,20 +720,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ]),
 
               const SizedBox(height: 16),
-              _buildSectionTitle('HỖ TRỢ'),
-              _buildSectionCard([
+              _buildSectionTitle(context, 'HỖ TRỢ'),
+              _buildSectionCard(context, [
                 _buildSectionItem(
+                  context,
                   icon: Icons.help_outline_rounded,
-                  iconColor: const Color(0xFF0D9488), // text-teal-600
-                  iconBg: const Color(0xFFF0FDFA), // bg-teal-50
+                  iconColor: const Color(0xFF0D9488),
+                  iconBg: const Color(0xFF0D9488).withValues(alpha: 0.1),
                   label: 'Trợ giúp',
                   description: 'Hướng dẫn sử dụng',
                   onTap: () => _showComingSoonToast(context, 'Trợ giúp'),
                 ),
                 _buildSectionItem(
+                  context,
                   icon: Icons.info_outline_rounded,
-                  iconColor: const Color(0xFF4B5563), // text-gray-600
-                  iconBg: const Color(0xFFF3F4F6), // bg-gray-50
+                  iconColor: AppColors.textSecondary(context),
+                  iconBg: AppColors.surface(context),
                   label: 'Về ứng dụng',
                   description: 'Phiên bản 1.0.0',
                   onTap: () => _showAppInfoDialog(context),
@@ -742,9 +749,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.surface(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFECACA), width: 2), // border-red-200
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.25), width: 2),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.02),
@@ -763,12 +770,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.logout_rounded, color: Color(0xFFDC2626), size: 20),
+                            const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'Đăng xuất tài khoản',
                               style: GoogleFonts.roboto(
-                                color: const Color(0xFFDC2626),
+                                color: AppColors.error,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -788,7 +795,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 8),
       child: Text(
@@ -796,33 +803,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: GoogleFonts.roboto(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: const Color(0xFF6B7280), // text-gray-500
+          color: AppColors.textMetadata(context),
           letterSpacing: 1.2,
         ),
       ),
     );
   }
 
-  Widget _buildSectionCard(List<Widget> children) {
+  Widget _buildSectionCard(BuildContext context, List<Widget> children) {
     List<Widget> dividedChildren = [];
     for (int i = 0; i < children.length; i++) {
       dividedChildren.add(children[i]);
       if (i != children.length - 1) {
-        dividedChildren.add(
-          const Divider(
-            height: 1,
-            thickness: 1,
-            indent: 68,
-            color: Color(0xFFF3F4F6),
-          ),
-        );
+        dividedChildren.add(Divider(
+          height: 1,
+          thickness: 1,
+          indent: 68,
+          color: AppColors.divider(context),
+        ));
       }
     }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -841,7 +846,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionItem({
+  Widget _buildSectionItem(
+    BuildContext context, {
     required IconData icon,
     required Color iconColor,
     required Color iconBg,
@@ -879,7 +885,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       style: GoogleFonts.roboto(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF111827),
+                        color: AppColors.textPrimary(context),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -887,15 +893,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       description,
                       style: GoogleFonts.roboto(
                         fontSize: 13,
-                        color: const Color(0xFF6B7280),
+                        color: AppColors.textMetadata(context),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.arrow_forward_ios_rounded,
-                color: Color(0xFF9CA3AF),
+                color: AppColors.textMetadata(context),
                 size: 14,
               ),
             ],
@@ -906,6 +912,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildField({
+    required BuildContext context,
     required TextEditingController controller,
     required String hint,
     int maxLines = 1,
@@ -917,31 +924,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
       controller: controller,
       obscureText: obscure,
       maxLines: isPassword ? 1 : maxLines,
-      style: GoogleFonts.roboto(fontSize: 14, color: Colors.black87),
+      style: GoogleFonts.roboto(fontSize: 14, color: AppColors.textPrimary(context)),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.roboto(color: Colors.grey[400], fontSize: 14),
+        hintStyle: GoogleFonts.roboto(color: AppColors.placeholder(context), fontSize: 14),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
                     obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                     size: 18,
-                    color: Colors.grey[400]),
+                    color: AppColors.placeholder(context)),
                 onPressed: onToggle,
               )
             : null,
         filled: true,
-        fillColor: const Color(0xFFF9FAFB),
+        fillColor: AppColors.inputBackground(context),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            borderSide: BorderSide(color: AppColors.divider(context))),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            borderSide: BorderSide(color: AppColors.divider(context))),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: _primary, width: 1.5)),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }

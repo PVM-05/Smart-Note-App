@@ -5,6 +5,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../core/design/app_colors.dart';
 import '../models/note_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
@@ -22,8 +23,6 @@ class ArchiveScreen extends StatefulWidget {
 }
 
 class _ArchiveScreenState extends State<ArchiveScreen> {
-  static const _primary = Color(0xFF2E75B6);
-
   bool _isGrid = true;
 
   @override
@@ -98,7 +97,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
               Navigator.pop(ctx, true);
             },
             style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
+              foregroundColor: AppColors.error,
             ),
             child: const Text(
               'Chuyển vào thùng rác',
@@ -121,7 +120,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
             provider.isArchiveSelectionMode;
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF8FAFC),
+          backgroundColor: AppColors.background(context),
 
           drawer: const MainDrawer(
             currentRoute: '/archive',
@@ -282,7 +281,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       decoration: BoxDecoration(
         border: Border.all(
           color: isSelected
-              ? _primary
+              ? AppColors.primary
               : Colors.transparent,
           width: 2,
         ),
@@ -299,8 +298,8 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
 
         child: Material(
           color: isSelected
-              ? _primary.withValues(alpha: 0.05)
-              : Colors.white,
+              ? AppColors.primary.withValues(alpha: 0.05)
+              : AppColors.surface(context),
 
           child: InkWell(
             onLongPress: () {
@@ -335,7 +334,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
 
   AppBar _normalAppBar(BuildContext context) {
     return AppBar(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background(context),
 
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -344,9 +343,9 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
 
       leading: Builder(
         builder: (context) => IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.menu,
-            color: Colors.black87,
+            color: AppColors.textPrimary(context),
           ),
 
           onPressed: () {
@@ -359,7 +358,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         'Lưu trữ',
 
         style: GoogleFonts.roboto(
-          color: Colors.black87,
+          color: AppColors.textPrimary(context),
           fontSize: 18,
           fontWeight: FontWeight.w500,
         ),
@@ -372,7 +371,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
                 ? Icons.view_agenda_outlined
                 : Icons.grid_view_outlined,
 
-            color: Colors.black87,
+            color: AppColors.textPrimary(context),
           ),
 
           tooltip: 'Đổi bố cục',
@@ -393,14 +392,14 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       NoteProvider provider,
       ) {
     return AppBar(
-      backgroundColor: const Color(0xFFE2E8F0),
+      backgroundColor: AppColors.inputBackground(context),
 
       elevation: 0,
 
       leading: IconButton(
-        icon: const Icon(
+        icon: Icon(
           Icons.close,
-          color: Colors.black87,
+          color: AppColors.textPrimary(context),
         ),
 
         onPressed: () {
@@ -412,7 +411,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         '${provider.selectedArchiveNoteIds.length} đã chọn',
 
         style: GoogleFonts.roboto(
-          color: Colors.black87,
+          color: AppColors.textPrimary(context),
           fontWeight: FontWeight.bold,
           fontSize: 18,
         ),
@@ -422,7 +421,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         IconButton(
           icon: const Icon(
             Icons.unarchive_outlined,
-            color: _primary,
+            color: AppColors.primary,
           ),
 
           tooltip: 'Bỏ lưu trữ',
@@ -482,7 +481,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
                 ),
 
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: AppColors.divider(context),
 
                   borderRadius:
                   BorderRadius.circular(2),
@@ -492,7 +491,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
               ListTile(
                 leading: const Icon(
                   Icons.unarchive_outlined,
-                  color: _primary,
+                  color: AppColors.primary,
                 ),
 
                 title: const Text(
@@ -527,14 +526,14 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,
-                  color: Colors.red,
+                  color: AppColors.error,
                 ),
 
                 title: const Text(
                   'Chuyển vào thùng rác',
 
                   style: TextStyle(
-                    color: Colors.red,
+                    color: AppColors.error,
                   ),
                 ),
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import '../core/design/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -65,11 +66,11 @@ class _SplashScreenState extends State<SplashScreen>
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF2E75B6), Color(0xFF1A237E)],
+            colors: [AppColors.primary, AppColors.primaryVariant],
           ),
         ),
         child: Stack(
@@ -84,10 +85,10 @@ class _SplashScreenState extends State<SplashScreen>
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: AppColors.onPrimary.withValues(alpha: 0.1),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: AppColors.onPrimary.withValues(alpha: 0.1),
                           blurRadius: 40,
                           spreadRadius: 10,
                         ),
@@ -118,7 +119,7 @@ class _SplashScreenState extends State<SplashScreen>
                   'CAPTURE IDEAS INSTANTLY',
                   style: GoogleFonts.roboto(
                     fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.7),
+                      color: AppColors.onPrimary.withValues(alpha: 0.7),
                     letterSpacing: 2,
                     fontWeight: FontWeight.w300,
                   ),
@@ -136,7 +137,7 @@ class _SplashScreenState extends State<SplashScreen>
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       valueColor: AlwaysStoppedAnimation(
-                        Colors.white.withValues(alpha: 0.3),
+                        AppColors.onPrimary.withValues(alpha: 0.3),
                       ),
                     ),
                   ),
@@ -145,7 +146,7 @@ class _SplashScreenState extends State<SplashScreen>
                     'Version 2.0.0',
                     style: GoogleFonts.roboto(
                       fontSize: 12,
-                      color: Colors.white24,
+                      color: AppColors.onPrimary.withValues(alpha: 0.24),
                     ),
                   ),
                 ],
