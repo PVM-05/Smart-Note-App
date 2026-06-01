@@ -1,7 +1,9 @@
 // lib/screens/manage_labels_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/note_provider.dart';
+import '../core/design/app_colors.dart';
 
 class ManageLabelsScreen extends StatefulWidget {
   const ManageLabelsScreen({super.key});
@@ -36,11 +38,12 @@ class _ManageLabelsScreenState extends State<ManageLabelsScreen> {
     final labels = provider.allLabels;
 
     return Scaffold(
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: const Text('Chỉnh sửa nhãn', style: TextStyle(fontSize: 18)),
+        title: Text('Chỉnh sửa nhãn', style: GoogleFonts.spaceGrotesk(fontSize: 18, color: AppColors.textPrimary(context), fontWeight: FontWeight.bold)),
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black87,
+        foregroundColor: AppColors.textPrimary(context),
       ),
       body: Column(
         children: [
@@ -48,12 +51,12 @@ class _ManageLabelsScreenState extends State<ManageLabelsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              border: Border(bottom: BorderSide(color: AppColors.divider(context))),
             ),
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(_isWritingNew ? Icons.close : Icons.add, color: Colors.black54),
+                  icon: Icon(_isWritingNew ? Icons.close : Icons.add, color: AppColors.textSecondary(context)),
                   onPressed: () {
                     if (_isWritingNew) {
                       _createController.clear();
@@ -72,17 +75,18 @@ class _ManageLabelsScreenState extends State<ManageLabelsScreen> {
                         setState(() => _isWritingNew = val.isNotEmpty);
                       }
                     },
-                    decoration: const InputDecoration(
+                    style: GoogleFonts.inter(color: AppColors.textPrimary(context), fontSize: 15),
+                    decoration: InputDecoration(
                       hintText: 'Tạo nhãn mới',
                       border: InputBorder.none,
-                      hintStyle: TextStyle(color: Colors.grey),
+                      hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
                     ),
                     onSubmitted: (_) => _createNewLabel(provider),
                   ),
                 ),
                 if (_isWritingNew)
                   IconButton(
-                    icon: const Icon(Icons.check, color: Color(0xFF2E75B6)),
+                    icon: const Icon(Icons.check, color: AppColors.primary),
                     onPressed: () => _createNewLabel(provider),
                   ),
               ],
@@ -153,7 +157,7 @@ class _EditableLabelRowState extends State<_EditableLabelRow> {
           IconButton(
             icon: Icon(
               _hasFocus ? Icons.delete_outline : Icons.label_outline,
-              color: _hasFocus ? Colors.red : Colors.black54,
+              color: _hasFocus ? AppColors.error : AppColors.textSecondary(context),
             ),
             onPressed: () {
               if (_hasFocus) {
@@ -168,7 +172,7 @@ class _EditableLabelRowState extends State<_EditableLabelRow> {
               controller: _editController,
               focusNode: _focusNode,
               decoration: const InputDecoration(border: InputBorder.none),
-              style: const TextStyle(fontSize: 15),
+              style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary(context)),
               onSubmitted: (_) => _saveRename(provider),
             ),
           ),
@@ -176,7 +180,7 @@ class _EditableLabelRowState extends State<_EditableLabelRow> {
           IconButton(
             icon: Icon(
               _hasFocus ? Icons.check : Icons.edit_outlined,
-              color: _hasFocus ? const Color(0xFF2E75B6) : Colors.black38,
+              color: _hasFocus ? AppColors.primary : AppColors.textMetadata(context),
               size: 20,
             ),
             onPressed: () {

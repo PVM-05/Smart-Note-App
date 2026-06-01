@@ -4,7 +4,7 @@
 // Tự động thích nghi màu sắc theo giao diện Sáng / Tối của ứng dụng.
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import '../core/app_colors.dart';
+import '../core/design/app_colors.dart';
 
 class NoteCardShimmer extends StatelessWidget {
   final bool isGrid;
@@ -19,9 +19,9 @@ class NoteCardShimmer extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Chọn màu shimmer phù hợp với giao diện để đạt thẩm mỹ cao
-    final baseColor      = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0); // Màu nền skeleton
-    final highlightColor = isDark ? const Color(0xFF3A3A3A) : const Color(0xFFF5F5F5); // Màu ánh sáng lướt qua
-    final cardColor      = isDark ? AppColors.darkSurface   : Colors.white;             // Màu nền card
+    final baseColor = isDark ? AppColors.darkPlaceholder : AppColors.placeholder(context); // Màu nền skeleton
+    final highlightColor = isDark ? AppColors.darkDivider : AppColors.divider(context); // Màu ánh sáng lướt qua
+    final cardColor = isDark ? AppColors.darkSurface : AppColors.surface(context); // Màu nền card
 
     return Shimmer.fromColors(
       baseColor: baseColor,
@@ -32,7 +32,7 @@ class NoteCardShimmer extends StatelessWidget {
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE2E8F0),
+            color: isDark ? AppColors.darkPlaceholder : AppColors.divider(context),
             width: 1,
           ),
         ),

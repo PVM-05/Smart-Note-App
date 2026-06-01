@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../screens/profile_screen.dart';
@@ -29,7 +30,7 @@ class ProfileDrawer extends StatelessWidget {
             Align(
               alignment: Alignment.topRight,
               child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.black54),
+                icon: Icon(Icons.close, color: AppColors.textMetadata(context)),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
@@ -39,7 +40,7 @@ class ProfileDrawer extends StatelessWidget {
             // ── AVATAR ──
             CircleAvatar(
               radius: 42,
-              backgroundColor: const Color(0xFF2E75B6),
+              backgroundColor: AppColors.primary,
               backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
               child: photoUrl.isEmpty
                   ? Text(
@@ -56,7 +57,7 @@ class ProfileDrawer extends StatelessWidget {
             Text(
               displayName,
               style: GoogleFonts.roboto(
-                  fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black87),
+              fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary(context)),
             ),
 
             const SizedBox(height: 4),
@@ -64,7 +65,7 @@ class ProfileDrawer extends StatelessWidget {
             // ── EMAIL ──
             Text(
               email,
-              style: GoogleFonts.roboto(fontSize: 13, color: Colors.grey[500]),
+              style: GoogleFonts.roboto(fontSize: 13, color: AppColors.textMetadata(context)),
             ),
 
             const SizedBox(height: 20),
@@ -81,8 +82,8 @@ class ProfileDrawer extends StatelessWidget {
                   );
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.black87,
-                  side: const BorderSide(color: Color(0xFFDADADA)),
+                  foregroundColor: AppColors.textPrimary(context),
+                  side: BorderSide(color: AppColors.divider(context)),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -90,8 +91,8 @@ class ProfileDrawer extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.manage_accounts_outlined,
-                        size: 18, color: Colors.black54),
+                    Icon(Icons.manage_accounts_outlined,
+                      size: 18, color: AppColors.textMetadata(context)),
                     const SizedBox(width: 8),
                     Text('Quản lý tài khoản',
                         style: GoogleFonts.roboto(
@@ -103,15 +104,15 @@ class ProfileDrawer extends StatelessWidget {
 
             const Spacer(),
 
-            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            Divider(height: 1, color: AppColors.divider(context)),
 
             // ── ĐĂNG XUẤT ──
             ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
+                leading: const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
               title: Text(
                 'Đăng xuất',
                 style: GoogleFonts.roboto(
-                    color: Colors.red, fontWeight: FontWeight.w600, fontSize: 15),
+                  color: AppColors.error, fontWeight: FontWeight.w600, fontSize: 15),
               ),
               onTap: () => _signOut(context, auth),
             ),
@@ -149,7 +150,7 @@ class ProfileDrawer extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx, true),
             child: Text('Đăng xuất',
                 style: GoogleFonts.roboto(
-                    color: Colors.red, fontWeight: FontWeight.bold)),
+                    color: AppColors.error, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

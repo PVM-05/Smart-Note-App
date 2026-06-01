@@ -20,7 +20,7 @@ import 'package:uuid/uuid.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
-import '../core/app_colors.dart';
+import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
 
 class EditorScreen extends StatefulWidget {
@@ -44,6 +44,7 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver {
   late TextEditingController _titleController;
   late QuillController _quillController;
+  final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _editorFocusNode = FocusNode();
   bool _isDirty = false;
   bool _showFormattingToolbar = false;
@@ -53,6 +54,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   List<String> _tags = [];
   List<String> _imageUrls = [];
   List<String> _audioUrls = [];
+  String? _noteColor;
 
   // Checklist mode
   bool _isChecklistMode = false;
@@ -145,9 +147,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
   final _cloudinary = CloudinaryService();
 
-  static const _primary = Color(0xFF2E75B6);
+  static const _primary = AppColors.primary;
   static const _recordColor = Color(0xFFEF4444);
-
 
   // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
   bool _hasChanges() {
@@ -155,6 +156,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final originalTags = widget.note?.tags ?? const [];
     final originalImages = widget.note?.imageUrls ?? const [];
     final originalAudios = widget.note?.audioUrls ?? const [];
+    final originalColor = widget.note?.noteColor;
 
     final currentTitle = _titleController.text.trim();
 
@@ -162,15 +164,16 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final tagsChanged = !listEquals(originalTags, _tags);
     final imagesChanged = !listEquals(originalImages, _imageUrls);
     final audiosChanged = !listEquals(originalAudios, _audioUrls);
+    final colorChanged = originalColor != _noteColor;
 
     // Checklist mode: so sánh items
     if (_isChecklistMode) {
       final checklistChanged = _hasChecklistChanged();
-      return titleChanged || checklistChanged || tagsChanged || imagesChanged || audiosChanged;
+      return titleChanged || checklistChanged || tagsChanged || imagesChanged || audiosChanged || colorChanged;
     }
 
     final contentChanged = _isDirty;
-    return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged;
+    return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged || colorChanged;
   }
 
   bool _hasChecklistChanged() {
@@ -249,8 +252,15 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     _tags = List.from(widget.note?.tags ?? []);
     _imageUrls = List.from(widget.note?.imageUrls ?? []);
     _audioUrls = List.from(widget.note?.audioUrls ?? []);
+    _noteColor = widget.note?.noteColor;
 
     _titleController.addListener(_onTextChanged);
+    _titleFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _editorFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
     _quillController.document.changes.listen((_) {
       _isDirty = true;
       _onTextChanged();
@@ -313,6 +323,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     _bannerTimer?.cancel();
     _titleController.dispose();
     _quillController.dispose();
+    _titleFocusNode.dispose();
     _editorFocusNode.dispose();
     _audioPlayer.stop();
     _recorder.dispose();
@@ -423,10 +434,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final bool isEmpty;
     if (_isChecklistMode) {
       isEmpty = title.isEmpty && _checklistItems.every((i) => i.text.trim().isEmpty)
-          && _tags.isEmpty && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
+        && _tags.isEmpty && _imageUrls.isEmpty && _audioUrls.isEmpty && _noteColor == null && !_isRecording;
     } else {
       isEmpty = title.isEmpty && plainText.isEmpty && _tags.isEmpty
-          && _imageUrls.isEmpty && _audioUrls.isEmpty && !_isRecording;
+        && _imageUrls.isEmpty && _audioUrls.isEmpty && _noteColor == null && !_isRecording;
     }
 
     if (isEmpty && !_hasBeenSavedInDb) return;
@@ -448,6 +459,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       tags: _tags,
       imageUrls: _imageUrls,
       audioUrls: _audioUrls,
+      noteColor: _noteColor,
       status: _status,
       isSynced: false,
       createdAt: _createdAt,
@@ -739,36 +751,65 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
+    final isCustomColor = _noteColor != null;
+    final onDarkNoteBg = isCustomColor && _isNoteBackgroundDark(context);
+    final textColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B))
+        : null;
+    final placeholderColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
+        : null;
+
     final quillBaseStyles = DefaultStyles.getInstance(context);
     final quillCustomStyles = DefaultStyles(
       h1: quillBaseStyles.h1?.copyWith(
-        style: quillBaseStyles.h1!.style.copyWith(fontWeight: FontWeight.w400),
+        style: quillBaseStyles.h1!.style.copyWith(
+          fontWeight: FontWeight.w400,
+          color: textColor,
+        ),
       ),
       h2: quillBaseStyles.h2?.copyWith(
-        style: quillBaseStyles.h2!.style.copyWith(fontWeight: FontWeight.w400),
+        style: quillBaseStyles.h2!.style.copyWith(
+          fontWeight: FontWeight.w400,
+          color: textColor,
+        ),
       ),
-      h3: quillBaseStyles.h3,
-      h4: quillBaseStyles.h4,
-      h5: quillBaseStyles.h5,
-      h6: quillBaseStyles.h6,
-      paragraph: quillBaseStyles.paragraph,
+      h3: quillBaseStyles.h3?.copyWith(
+        style: quillBaseStyles.h3!.style.copyWith(color: textColor),
+      ),
+      h4: quillBaseStyles.h4?.copyWith(
+        style: quillBaseStyles.h4!.style.copyWith(color: textColor),
+      ),
+      h5: quillBaseStyles.h5?.copyWith(
+        style: quillBaseStyles.h5!.style.copyWith(color: textColor),
+      ),
+      h6: quillBaseStyles.h6?.copyWith(
+        style: quillBaseStyles.h6!.style.copyWith(color: textColor),
+      ),
+      paragraph: quillBaseStyles.paragraph?.copyWith(
+        style: quillBaseStyles.paragraph!.style.copyWith(color: textColor),
+      ),
       lineHeightNormal: quillBaseStyles.lineHeightNormal,
       lineHeightTight: quillBaseStyles.lineHeightTight,
       lineHeightOneAndHalf: quillBaseStyles.lineHeightOneAndHalf,
       lineHeightDouble: quillBaseStyles.lineHeightDouble,
-      bold: quillBaseStyles.bold,
+      bold: quillBaseStyles.bold?.copyWith(color: textColor),
       subscript: quillBaseStyles.subscript,
       superscript: quillBaseStyles.superscript,
-      italic: quillBaseStyles.italic,
+      italic: quillBaseStyles.italic?.copyWith(color: textColor),
       small: quillBaseStyles.small,
-      underline: quillBaseStyles.underline,
-      strikeThrough: quillBaseStyles.strikeThrough,
+      underline: quillBaseStyles.underline?.copyWith(color: textColor),
+      strikeThrough: quillBaseStyles.strikeThrough?.copyWith(color: textColor),
       inlineCode: quillBaseStyles.inlineCode,
       link: quillBaseStyles.link,
       color: quillBaseStyles.color,
-      placeHolder: quillBaseStyles.placeHolder,
+      placeHolder: quillBaseStyles.placeHolder?.copyWith(
+        style: quillBaseStyles.placeHolder!.style.copyWith(color: placeholderColor),
+      ),
       lists: quillBaseStyles.lists,
-      quote: quillBaseStyles.quote,
+      quote: quillBaseStyles.quote?.copyWith(
+        style: quillBaseStyles.quote!.style.copyWith(color: textColor),
+      ),
       code: quillBaseStyles.code,
       indent: quillBaseStyles.indent,
       align: quillBaseStyles.align,
@@ -808,12 +849,17 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: _noteBackgroundColor(context) ?? AppColors.background(context),
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: _noteBackgroundColor(context) ?? AppColors.background(context),
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            icon: Icon(
+              Icons.arrow_back,
+              color: isCustomColor
+                  ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B))
+                  : AppColors.textPrimary(context),
+            ),
             onPressed: () async {
               if (_showFormattingToolbar) {
                 setState(() {
@@ -938,7 +984,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     ),
                   ),
                 if (_isUploading)
-                  LinearProgressIndicator(backgroundColor: Colors.grey.shade100, color: _primary),
+                  LinearProgressIndicator(backgroundColor: AppColors.divider(context), color: _primary),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -948,12 +994,23 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: TextField(
                           controller: _titleController,
+                          focusNode: _titleFocusNode,
                           autofocus: false,
-                          style: GoogleFonts.outfit(fontSize: 27, fontWeight: FontWeight.w400, color: const Color(0xFF475569)),
+                          style: GoogleFonts.outfit(
+                            fontSize: 27, 
+                            fontWeight: FontWeight.w400, 
+                            color: isCustomColor
+                                ? (onDarkNoteBg ? Colors.white : const Color(0xFF0F172A))
+                                : AppColors.textSecondary(context),
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Tiêu đề',
                             border: InputBorder.none,
-                            hintStyle: TextStyle(color: Colors.grey.shade400),
+                            hintStyle: TextStyle(
+                              color: isCustomColor
+                                  ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
+                                  : AppColors.placeholder(context),
+                            ),
                           ),
                           textCapitalization: TextCapitalization.sentences,
                           maxLines: null,
@@ -998,10 +1055,16 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                                         Wrap(
                                           spacing: 8, runSpacing: 6,
                                           children: _tags.map((tag) => Chip(
-                                            label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
-                                            backgroundColor: const Color(0xFFF1F5F9),
+                                            label: Text(
+                                              tag, 
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 12, 
+                                                color: _noteColor != null ? const Color(0xFF1E293B) : AppColors.textSecondary(context),
+                                              ),
+                                            ),
+                                            backgroundColor: _noteColor != null ? Colors.black.withValues(alpha: 0.05) : AppColors.inputBackground(context),
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                            side: BorderSide(color: Colors.grey.shade200),
+                                            side: BorderSide(color: _noteColor != null ? Colors.black.withValues(alpha: 0.08) : AppColors.divider(context)),
                                           )).toList(),
                                         ),
                                       ],
@@ -1014,7 +1077,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     ],
                   ),
                 ),
-                if (!(_isLocked && !_isUnlocked)) _buildBottomToolbar(),
+                if (!(_isLocked && !_isUnlocked) && !_titleFocusNode.hasFocus) _buildBottomToolbar(),
           ],
         ),
             if (_isLocked)
@@ -1024,9 +1087,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 child: IgnorePointer(
                   ignoring: _isUnlocked,
                   child: Container(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF0F0F0F)
-                        : Colors.white,
+                    color: AppColors.background(context),
                     width: double.infinity,
                     height: double.infinity,
                     child: Column(
@@ -1053,9 +1114,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white
-                                : Colors.black87,
+                            color: AppColors.textPrimary(context),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1063,7 +1122,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                           'Chạm để mở khóa bằng sinh trắc học',
                           style: GoogleFonts.inter(
                             fontSize: 14,
-                            color: Colors.grey,
+                            color: AppColors.textMetadata(context),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -1183,13 +1242,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final isThisPlaying = _playingUrl == url && _isPlaying;
     final isThisLoaded = _playingUrl == url;
 
+    final isCustomColor = _noteColor != null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isThisPlaying ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+        color: isThisPlaying 
+            ? (isCustomColor ? const Color(0xFFBFDBFE).withValues(alpha: 0.3) : const Color(0xFFEFF6FF))
+            : (isCustomColor ? Colors.black.withValues(alpha: 0.03) : const Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: isThisPlaying ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isThisPlaying 
+              ? const Color(0xFFBFDBFE)
+              : (isCustomColor ? Colors.black.withValues(alpha: 0.06) : const Color(0xFFE2E8F0)),
+        ),
       ),
       child: Row(
         children: [
@@ -1206,11 +1273,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ghi âm âm thanh ${index + 1}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+                Text(
+                  'Ghi âm âm thanh ${index + 1}', 
+                  style: GoogleFonts.outfit(
+                    fontSize: 14, 
+                    fontWeight: FontWeight.w600, 
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   isThisLoaded ? '${_formatDuration(_playPosition)} / ${_formatDuration(_playTotal)}' : '00:00',
-                  style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey.shade500),
+                  style: GoogleFonts.outfit(
+                    fontSize: 11, 
+                    color: isCustomColor ? const Color(0xFF64748B) : Colors.grey.shade500,
+                  ),
                 ),
               ],
             ),
@@ -1465,6 +1542,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   }
 
   Widget _buildChecklistTile(ChecklistItem item, int index) {
+    final isCustomColor = _noteColor != null;
+    final textThemeColor = isCustomColor ? const Color(0xFF1E293B) : AppColors.textSecondary(context);
+    final hintColor = isCustomColor ? const Color(0xFF64748B) : AppColors.placeholder(context);
+
     return Container(
       key: ValueKey(item.id),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
@@ -1475,7 +1556,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             index: index,
             child: Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Icon(Icons.drag_indicator, color: Colors.grey.shade500, size: 20),
+              child: Icon(
+                Icons.drag_indicator, 
+                color: isCustomColor ? const Color(0xFF64748B) : Colors.grey.shade500, 
+                size: 20,
+              ),
             ),
           ),
           // Checkbox
@@ -1490,7 +1575,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               },
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               activeColor: _primary,
-              side: BorderSide(color: Colors.grey.shade600, width: 1.5),
+              side: BorderSide(
+                color: isCustomColor ? const Color(0xFF475569) : Colors.grey.shade600, 
+                width: 1.5,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -1501,15 +1589,15 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 ..selection = TextSelection.collapsed(offset: item.text.length),
               style: GoogleFonts.outfit(
                 fontSize: 15,
-                color: item.checked ? Colors.grey.shade400 : const Color(0xFF1E293B),
+                color: item.checked ? Colors.grey.shade400 : textThemeColor,
                 decoration: item.checked ? TextDecoration.lineThrough : TextDecoration.none,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Mục danh sách',
-                hintStyle: TextStyle(color: Color(0xFF94A3B8)),
+                hintStyle: TextStyle(color: hintColor),
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
               onChanged: (val) {
                 item.text = val;
@@ -1531,7 +1619,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               },
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Icon(Icons.close, color: Colors.grey.shade500, size: 18),
+                child: Icon(
+                  Icons.close, 
+                  color: isCustomColor ? const Color(0xFF64748B) : Colors.grey.shade500, 
+                  size: 18,
+                ),
               ),
             ),
         ],
@@ -1616,21 +1708,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                   child: Row(
                     children: [
                       // Nhóm 1: Kiểu chữ (Header, Normal)
-                      _formattingButton(text: 'H1', isActive: _isAttributeActive(Attribute.h1), onTap: () => _toggleHeader(Attribute.h1)),
-                      _formattingButton(text: 'H2', isActive: _isAttributeActive(Attribute.h2), onTap: () => _toggleHeader(Attribute.h2)),
-                      _formattingButton(text: 'Aa', isActive: _isNormalTextActive(), onTap: _clearHeader),
+                      _formattingButton(text: 'H1', isActive: _isAttributeActive(Attribute.h1), onTap: () => _toggleHeader(Attribute.h1), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(text: 'H2', isActive: _isAttributeActive(Attribute.h2), onTap: () => _toggleHeader(Attribute.h2), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(text: 'Aa', isActive: _isNormalTextActive(), onTap: _clearHeader, disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
                       _formattingDivider(),
                       // Nhóm 2: Định dạng inline (Bold, Italic,...)
-                      _formattingButton(icon: Icons.format_bold, isActive: _isAttributeActive(Attribute.bold), onTap: () => _toggleInline(Attribute.bold)),
-                      _formattingButton(icon: Icons.format_italic, isActive: _isAttributeActive(Attribute.italic), onTap: () => _toggleInline(Attribute.italic)),
-                      _formattingButton(icon: Icons.format_underline, isActive: _isAttributeActive(Attribute.underline), onTap: () => _toggleInline(Attribute.underline)),
-                      _formattingButton(icon: Icons.strikethrough_s, isActive: _isAttributeActive(Attribute.strikeThrough), onTap: () => _toggleInline(Attribute.strikeThrough)),
-                      _formattingButton(icon: Icons.format_clear, isActive: false, onTap: _clearInlineStyles),
+                      _formattingButton(icon: Icons.format_bold, isActive: _isAttributeActive(Attribute.bold), onTap: () => _toggleInline(Attribute.bold), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(icon: Icons.format_italic, isActive: _isAttributeActive(Attribute.italic), onTap: () => _toggleInline(Attribute.italic), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(icon: Icons.format_underline, isActive: _isAttributeActive(Attribute.underline), onTap: () => _toggleInline(Attribute.underline), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(icon: Icons.strikethrough_s, isActive: _isAttributeActive(Attribute.strikeThrough), onTap: () => _toggleInline(Attribute.strikeThrough), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(icon: Icons.format_clear, isActive: false, onTap: _clearInlineStyles, disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
                       _formattingDivider(),
                       // Nhóm 3: Kiểu danh sách (List)
-                      _formattingButton(icon: Icons.format_list_bulleted, isActive: _isAttributeActive(Attribute.ul), onTap: () => _toggleList(Attribute.ul)),
-                      _formattingButton(icon: Icons.format_list_numbered, isActive: _isAttributeActive(Attribute.ol), onTap: () => _toggleList(Attribute.ol)),
-                      _formattingButton(icon: Icons.format_quote, isActive: _isAttributeActive(Attribute.blockQuote), onTap: () => _toggleInline(Attribute.blockQuote)),
+                      _formattingButton(icon: Icons.format_list_bulleted, isActive: _isAttributeActive(Attribute.ul), onTap: () => _toggleList(Attribute.ul), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(icon: Icons.format_list_numbered, isActive: _isAttributeActive(Attribute.ol), onTap: () => _toggleList(Attribute.ol), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
+                      _formattingButton(icon: Icons.format_quote, isActive: _isAttributeActive(Attribute.blockQuote), onTap: () => _toggleInline(Attribute.blockQuote), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
                     ],
                   ),
                 ),
@@ -1644,7 +1736,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     }
 
     return BottomAppBar(
-      color: Colors.white, // Thay đổi sang màu trắng đồng nhất với giao diện ghi chú
+      color: _noteBackgroundColor(context) ?? AppColors.toolbarBackground(context),
       elevation: 0,
       padding: EdgeInsets.zero,
       child: SizedBox(
@@ -1658,7 +1750,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
-                  _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: () {}),
+                  _toolbarButton(
+                    icon: Icons.palette_outlined,
+                    tooltip: 'Màu sắc',
+                    color: _noteBackgroundColor(context),
+                    onTap: _showColorPicker,
+                  ),
                   _toolbarButton(
                     icon: Icons.format_color_text,
                     tooltip: 'Định dạng',
@@ -1755,25 +1852,35 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     IconData? icon,
     required bool isActive,
     required VoidCallback onTap,
+    bool disabled = false,
   }) {
-    final activeBgColor = const Color(0xFFCCE8FF); // Màu nền khi active
-    final inactiveBgColor = const Color(0xFFF3F4F6); // Màu nền khi inactive
-    final activeColor = const Color(0xFF1E6FB8); // icon active (xanh tiêu chuẩn)
-    final inactiveColor = const Color(0xFF6B7280); // icon inactive (xám trung tính)
+    final isTextButton = text != null;
+    final activeBgColor = isTextButton
+        ? AppColors.inputBackground(context)
+        : AppColors.primary.withValues(alpha: 0.16);
+    final inactiveBgColor = AppColors.inputBackground(context);
+    final activeColor = isTextButton
+        ? AppColors.textPrimary(context)
+        : AppColors.primaryVariant;
+    final inactiveColor = AppColors.textMetadata(context);
+    final disabledColor = AppColors.textMetadata(context).withValues(alpha: 0.6);
+
+    final bgColor = disabled ? inactiveBgColor : (isActive ? activeBgColor : inactiveBgColor);
+    final contentColor = disabled ? disabledColor : (isActive ? activeColor : inactiveColor);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: disabled ? null : onTap,
           customBorder: const CircleBorder(),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isActive ? activeBgColor : inactiveBgColor,
+              color: bgColor,
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
@@ -1783,13 +1890,13 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     style: GoogleFonts.outfit(
                       fontWeight: FontWeight.w600,
                       fontSize: text == 'Aa' ? 18 : 16,
-                      color: isActive ? activeColor : inactiveColor,
+                      color: contentColor,
                     ),
                   )
                 : Icon(
                     icon,
-                    size: 22,
-                    color: isActive ? activeColor : inactiveColor,
+                    size: 24,
+                    color: contentColor,
                   ),
           ),
         ),
@@ -1801,7 +1908,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     return Container(
       width: 1,
       height: 24,
-      color: Colors.grey.shade300,
+      color: AppColors.divider(context),
       margin: const EdgeInsets.symmetric(horizontal: 8),
     );
   }
@@ -1822,10 +1929,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             width: 40,
             height: 40,
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.close,
               size: 20,
-              color: Colors.black54,
+              color: AppColors.textSecondary(context),
             ),
           ),
         ),
@@ -1842,21 +1949,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.divider(context), borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.image_outlined, color: Colors.black54),
+              leading: Icon(Icons.image_outlined, color: AppColors.textSecondary(context)),
               title: const Text('Thêm hình ảnh'),
               onTap: () { Navigator.pop(context); _showImageSourceSheet(); },
             ),
             ListTile(
-              leading: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined, color: _isRecording ? _recordColor : Colors.black54),
+              leading: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined, color: _isRecording ? _recordColor : AppColors.textSecondary(context)),
               title: Text(_isRecording ? 'Dừng ghi âm' : 'Ghi âm'),
               onTap: () { Navigator.pop(context); _isRecording ? _stopRecordingAndUpload() : _startRecording(); },
             ),
             if (!_isChecklistMode)
               ListTile(
-                leading: const Icon(Icons.check_box_outlined, color: Colors.black54),
+                leading: Icon(Icons.check_box_outlined, color: AppColors.textSecondary(context)),
                 title: const Text('Hộp kiểm'),
                 onTap: () { Navigator.pop(context); _switchToChecklistMode(); },
               ),
@@ -1876,11 +1983,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.divider(context), borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             if (_hasBeenSavedInDb)
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.black54),
+                leading: Icon(Icons.delete_outline, color: AppColors.textSecondary(context)),
                 title: const Text('Xóa ghi chú'),
                 onTap: () {
                   Navigator.pop(context);
@@ -1888,7 +1995,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 },
               ),
             ListTile(
-              leading: const Icon(Icons.label_outline, color: Colors.black54),
+              leading: Icon(Icons.label_outline, color: AppColors.textSecondary(context)),
               title: const Text('Nhãn'),
               onTap: () {
                 Navigator.pop(context);
@@ -1897,7 +2004,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             ),
             if (_hasBeenSavedInDb)
               ListTile(
-                leading: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: Colors.black54),
+                leading: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: AppColors.textSecondary(context)),
                 title: Text(_status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ'),
                 onTap: () {
                   Navigator.pop(context);
@@ -1924,6 +2031,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     required String tooltip,
     required VoidCallback? onTap,
   }) {
+    final isCustomColor = _noteColor != null;
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -1932,15 +2040,15 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           margin: const EdgeInsets.symmetric(horizontal: 4),
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F4F6),
+          decoration: const BoxDecoration(
+            color: Colors.transparent,
             shape: BoxShape.circle,
           ),
           child: Center(
             child: Icon(
               icon,
               size: 22,
-              color: const Color(0xFF6B7280),
+              color: isCustomColor ? const Color(0xFF1E293B) : AppColors.textMetadata(context),
             ),
           ),
         ),
@@ -1949,6 +2057,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   }
 
   Widget _toolbarButton({required IconData icon, required String tooltip, VoidCallback? onTap, Color? color}) {
+    final isCustomColor = _noteColor != null;
+    final defaultIconColor = isCustomColor ? const Color(0xFF1E293B) : AppColors.textPrimary(context);
+    final metadataIconColor = isCustomColor ? const Color(0xFF64748B) : AppColors.textMetadata(context);
+
     return Tooltip(
       message: tooltip,
       child: InkWell(
@@ -1963,23 +2075,191 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           child: Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              shape: BoxShape.circle,
-            ),
-            // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
-            child: Center( 
-              child: Icon(
-                icon, 
-                size: 22, 
-                color: onTap == null ? const Color(0xFF6B7280) : (color ?? const Color(0xFF1C1B1F)),
+            decoration: const BoxDecoration(
+                color: Colors.transparent,
+                shape: BoxShape.circle,
               ),
-            ),
+              // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
+              child: Center( 
+                child: Icon(
+                  icon, 
+                  size: 22, 
+                  color: onTap == null ? metadataIconColor : (color ?? defaultIconColor),
+                ),
+              ),
           ),
         ),
       ),
     );
   }
+
+  Color? _noteBackgroundColor(BuildContext context) =>
+      AppColors.resolveNoteBackground(context, _noteColor);
+
+  bool _isNoteBackgroundDark(BuildContext context) {
+    final bg = _noteBackgroundColor(context);
+    if (bg == null) return false;
+    return bg.computeLuminance() < 0.45;
+  }
+
+  void _showColorPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final palette = AppColors.noteBackgroundPalette(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Chọn màu ghi chú',
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary(ctx),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 48,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: palette.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return _noteColorSwatch(
+                          context: ctx,
+                          tooltip: 'Mặc định',
+                          fillColor: AppColors.notePickerClearSwatch(ctx),
+                          isClear: true,
+                          isSelected: _noteColor == null,
+                          onTap: () {
+                            setState(() => _noteColor = null);
+                            Navigator.pop(ctx);
+                            _saveNote(isAutosave: true);
+                          },
+                        );
+                      }
+                      final entry = palette[index - 1];
+                      final isSelected =
+                          AppColors.isNotePaletteColorSelected(_noteColor, entry);
+                      return _noteColorSwatch(
+                        context: ctx,
+                        tooltip: entry.label,
+                        fillColor: entry.displayColor(ctx),
+                        isClear: false,
+                        isSelected: isSelected,
+                        onTap: () {
+                          setState(() => _noteColor = entry.storageHex);
+                          Navigator.pop(ctx);
+                          _saveNote(isAutosave: true);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _noteColorSwatch({
+    required BuildContext context,
+    required String tooltip,
+    required Color fillColor,
+    required bool isClear,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final accent = AppColors.notePickerAccent(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Tooltip(
+      message: tooltip,
+      preferBelow: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: fillColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? accent : AppColors.divider(context),
+                    width: isSelected ? 2.5 : 1,
+                  ),
+                ),
+                child: isClear
+                    ? (isDark
+                        ? const Icon(Icons.water_drop_outlined, size: 18, color: Colors.white70)
+                        : CustomPaint(
+                            painter: _NoColorSlashPainter(
+                              color: AppColors.textMetadata(context),
+                            ),
+                          ))
+                    : null,
+              ),
+              if (isSelected)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check, size: 12, color: Colors.white),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NoColorSlashPainter extends CustomPainter {
+  _NoColorSlashPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * 0.22, size.height * 0.78),
+      Offset(size.width * 0.78, size.height * 0.22),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _NoColorSlashPainter oldDelegate) => oldDelegate.color != color;
 }
 
 class _LabelSelectionScreen extends StatefulWidget {
@@ -1994,7 +2274,6 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
   late List<String> _selectedTags;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  static const _primary = Color(0xFF2E75B6);
 
   @override
   void initState() { super.initState(); _selectedTags = List.from(widget.initialTags); }
@@ -2009,30 +2288,32 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
     final showCreate = _searchQuery.trim().isNotEmpty && !allLabels.any((l) => l.toLowerCase() == _searchQuery.trim().toLowerCase());
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        backgroundColor: Colors.white, elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black87), onPressed: () => Navigator.pop(context)),
+        backgroundColor: AppColors.background(context), elevation: 0,
+        leading: IconButton(icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)), onPressed: () => Navigator.pop(context)),
         titleSpacing: 0,
         title: TextField(
           controller: _searchController, autofocus: true,
+          style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
           decoration: InputDecoration(
             hintText: 'Nhập tên nhãn', border: InputBorder.none,
-            suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: const Icon(Icons.clear, size: 20), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) : null,
+            hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
+            suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: Icon(Icons.clear, size: 20, color: AppColors.textSecondary(context)), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) : null,
           ),
           onChanged: (val) => setState(() => _searchQuery = val),
         ),
       ),
       body: Column(
         children: [
-          const Divider(height: 1),
+          Divider(height: 1, color: AppColors.divider(context)),
           Expanded(
             child: ListView(
               children: [
                 if (showCreate)
                   ListTile(
-                    leading: const Icon(Icons.add, color: _primary),
-                    title: Text('Tạo "${_searchQuery.trim()}"'),
+                    leading: const Icon(Icons.add, color: AppColors.primary),
+                    title: Text('Tạo "${_searchQuery.trim()}"', style: GoogleFonts.inter(color: AppColors.textPrimary(context))),
                     onTap: () {
                       final newTag = _searchQuery.trim();
                       provider.addLabel(newTag);
@@ -2043,7 +2324,8 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 ...filteredLabels.map((label) {
                   final isChecked = _selectedTags.contains(label);
                   return CheckboxListTile(
-                    title: Text(label), value: isChecked, activeColor: _primary,
+                    title: Text(label, style: GoogleFonts.inter(color: AppColors.textPrimary(context))), value: isChecked, activeColor: AppColors.primary,
+                    checkColor: AppColors.onPrimary,
                     onChanged: (val) {
                       setState(() { if (val == true) { _selectedTags.add(label); } else { _selectedTags.remove(label); } });
                       widget.onTagsChanged(_selectedTags);

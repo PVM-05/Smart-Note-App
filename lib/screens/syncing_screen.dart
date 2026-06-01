@@ -150,7 +150,7 @@ class _SyncingScreenState extends State<SyncingScreen> {
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withValues(alpha: 0.5), // ✅ Sử dụng withValues theo quy chuẩn mới
+                            color: Colors.blue.withValues(alpha: 0.5),
                             blurRadius: 8,
                             spreadRadius: 1,
                           ),

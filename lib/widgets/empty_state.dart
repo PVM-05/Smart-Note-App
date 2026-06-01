@@ -4,7 +4,7 @@
 // mô tả và nút hành động tùy chọn (ví dụ: "Xóa bộ lọc").
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../core/app_colors.dart';
+import '../core/design/app_colors.dart';
 
 class EmptyStateWidget extends StatefulWidget {
   final IconData icon;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../utils/connectivity_helper.dart';
 import 'syncing_screen.dart';
@@ -18,8 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLogin = true;
   bool _obscurePassword = true;
 
-  static const _primary = Color(0xFF2E75B6);
-  static const _secondary = Color(0xFF1A237E);
+  static const _primary = AppColors.primary;
+  static const _secondary = AppColors.primaryVariant;
 
   @override
   void dispose() {
@@ -81,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        backgroundColor: Colors.white,
+      backgroundColor: AppColors.background(context),
         body: Container(
           height: double.infinity,
           decoration: BoxDecoration(
@@ -91,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
               radius: 1.5,
               colors: [
                 _primary.withValues(alpha: 0.08),
-                Colors.white,
+                AppColors.background(context),
                 _secondary.withValues(alpha: 0.03),
               ],
             ),
@@ -138,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: GoogleFonts.roboto(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: AppColors.textPrimary(context),
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -154,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           textAlign: TextAlign.center,
                           style: GoogleFonts.roboto(
                             fontSize: 15,
-                            color: Colors.grey[600],
+                            color: AppColors.textMetadata(context),
                           ),
                         ),
                       ),
@@ -198,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: Text(
                                   'Quên mật khẩu?',
                                   style: GoogleFonts.roboto(
-                                    color: _primary,
+                                    color: AppColors.primary,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 14,
                                   ),
@@ -214,21 +215,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
+                            color: AppColors.error.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.shade200),
+                            border: Border.all(color: AppColors.error.withValues(alpha: 0.22)),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(Icons.error_outline_rounded,
-                                  color: Colors.red.shade700, size: 20),
+                                  color: AppColors.error, size: 20),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   auth.error!,
                                   style: GoogleFonts.roboto(
-                                    color: Colors.red.shade800,
+                                    color: AppColors.error,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                     height: 1.4,
@@ -269,6 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: GoogleFonts.roboto(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w600,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
@@ -279,16 +281,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       // ── ĐƯỜNG KẺ "HOẶC TIẾP TỤC VỚI" ──
                       Row(
                         children: [
-                          Expanded(child: Divider(color: Colors.grey[300])),
+                          Expanded(child: Divider(color: AppColors.divider(context))),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
                               'Hoặc tiếp tục với',
                               style: GoogleFonts.roboto(
-                                  color: Colors.grey[500], fontSize: 13),
+                                  color: AppColors.textMetadata(context), fontSize: 13),
                             ),
                           ),
-                          Expanded(child: Divider(color: Colors.grey[300])),
+                          Expanded(child: Divider(color: AppColors.divider(context))),
                         ],
                       ),
                       const SizedBox(height: 24),
@@ -300,11 +302,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             : () => _handleGoogleLogin(context, auth),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 56),
-                          side: BorderSide(color: Colors.grey.shade300),
+                          side: BorderSide(color: AppColors.divider(context)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          backgroundColor: Colors.white,
+                          backgroundColor: AppColors.surface(context),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -317,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Text(
                               'Đăng nhập bằng Google',
                               style: GoogleFonts.roboto(
-                                color: Colors.black87,
+                                color: AppColors.textPrimary(context),
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -337,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ? 'Chưa có tài khoản? '
                                 : 'Đã có tài khoản? ',
                             style: GoogleFonts.roboto(
-                              color: Colors.grey[600],
+                              color: AppColors.textMetadata(context),
                               fontSize: 15,
                             ),
                           ),
@@ -349,7 +351,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Text(
                               _isLogin ? 'Đăng ký ngay' : 'Đăng nhập',
                               style: GoogleFonts.roboto(
-                                color: _primary,
+                                color: AppColors.primary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
                               ),
@@ -383,20 +385,20 @@ class _LoginScreenState extends State<LoginScreen> {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
-      style: GoogleFonts.roboto(color: Colors.black87, fontSize: 15),
+      style: GoogleFonts.roboto(color: AppColors.textPrimary(context), fontSize: 15),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.roboto(color: Colors.grey[500], fontSize: 15),
+        labelStyle: GoogleFonts.roboto(color: AppColors.textMetadata(context), fontSize: 15),
         floatingLabelStyle:
             GoogleFonts.roboto(color: _primary, fontWeight: FontWeight.w600),
-        prefixIcon: Icon(icon, color: Colors.grey[500], size: 22),
+        prefixIcon: Icon(icon, color: AppColors.textMetadata(context), size: 22),
         suffixIcon: isPassword
             ? IconButton(
                 icon: Icon(
                   obscureText
                       ? Icons.visibility_off_outlined
                       : Icons.visibility_outlined,
-                  color: Colors.grey[400],
+                  color: AppColors.placeholder(context),
                   size: 22,
                 ),
                 onPressed: onToggleVisibility,
@@ -404,14 +406,14 @@ class _LoginScreenState extends State<LoginScreen> {
               )
             : null,
         filled: true,
-        fillColor: const Color(0xFFF8F9FA), // Màu xám siêu nhạt cho nền
+        fillColor: AppColors.inputBackground(context),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
 
         // Viền khi bình thường
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5),
+          borderSide: BorderSide(color: AppColors.divider(context), width: 1.5),
         ),
         // Viền khi bấm vào (Focus)
         focusedBorder: OutlineInputBorder(
