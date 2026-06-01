@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:provider/provider.dart';
 import '../services/biometric_service.dart';
-import '../core/app_colors.dart';
+import '../core/design/app_colors.dart';
 import '../core/app_strings.dart';
+import '../providers/theme_provider.dart';
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
@@ -14,12 +16,9 @@ class SettingScreen extends StatefulWidget {
 
 class _SettingScreenState extends State<SettingScreen> {
   // Trạng thái local cho các cấu hình cài đặt
-  bool _isDarkMode = false;
   String _selectedLanguage = 'Tiếng Việt';
   bool _biometricEnabled = false;
   final BiometricService _biometricService = BiometricService();
-
-  static const Color primaryColor = Color(0xFF2E75B6);
 
   @override
   void initState() {
@@ -43,6 +42,9 @@ class _SettingScreenState extends State<SettingScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         centerTitle: true,
+        backgroundColor: AppColors.background(context),
+        foregroundColor: AppColors.textPrimary(context),
+        elevation: 0,
       ),
       body: ListView(
         physics: const BouncingScrollPhysics(),
@@ -50,28 +52,38 @@ class _SettingScreenState extends State<SettingScreen> {
           const SizedBox(height: 12),
 
           // ================= CHỨC NĂNG 1: ĐỔI THEME =================
-          SwitchListTile(
-            secondary: Icon(
-              _isDarkMode ? Icons.dark_mode : Icons.light_mode,
-              color: primaryColor,
-            ),
-            title: const Text(
-              'Chế độ tối (Dark Mode)',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-            ),
-            subtitle: const Text('Thay đổi giao diện sáng hoặc tối cho ứng dụng'),
-            value: _isDarkMode,
-            activeThumbColor: primaryColor,
-            onChanged: (bool value) {
-              setState(() {
-                _isDarkMode = value;
-              });
-              ScaffoldMessenger.of(context).clearSnackBars();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_isDarkMode ? '🌙 Đã chuyển sang giao diện tối' : '☀️ Đã chuyển sang giao diện sáng'),
-                  duration: const Duration(seconds: 1),
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              return SwitchListTile(
+                secondary: Icon(
+                  themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                  color: AppColors.primary,
                 ),
+                title: const Text(
+                  'Chế độ tối (Dark Mode)',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                subtitle: const Text('Thay đổi giao diện sáng hoặc tối cho ứng dụng'),
+                value: themeProvider.isDarkMode,
+                activeThumbColor: AppColors.primary,
+                onChanged: (bool value) async {
+                  final localContext = context;
+                  final messenger = ScaffoldMessenger.of(localContext);
+                  await themeProvider.toggleDarkMode();
+                  if (mounted) {
+                    messenger.clearSnackBars();
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          themeProvider.isDarkMode 
+                            ? '🌙 Đã chuyển sang giao diện tối' 
+                            : '☀️ Đã chuyển sang giao diện sáng'
+                        ),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                },
               );
             },
           ),
@@ -79,7 +91,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 2: ĐỔI NGÔN NGỮ =================
           ListTile(
-            leading: const Icon(Icons.language, color: primaryColor),
+            leading: const Icon(Icons.language, color: AppColors.primary),
             title: const Text(
               'Ngôn ngữ',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
@@ -90,9 +102,9 @@ class _SettingScreenState extends State<SettingScreen> {
               children: [
                 Text(
                   _selectedLanguage,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                  style: TextStyle(color: AppColors.textMetadata(context), fontSize: 14),
                 ),
-                const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textMetadata(context)),
               ],
             ),
             onTap: () => _showLanguageDialog(),
@@ -185,7 +197,7 @@ class _SettingScreenState extends State<SettingScreen> {
       height: 1,
       thickness: 1,
       indent: 64, // Lùi đầu dòng để thẳng hàng với text bên cạnh icon
-      color: Colors.grey.shade200,
+      color: AppColors.divider(context),
     );
   }
 
@@ -201,7 +213,7 @@ class _SettingScreenState extends State<SettingScreen> {
           children: [
             ListTile(
               title: const Text('Tiếng Việt'),
-              trailing: _selectedLanguage == 'Tiếng Việt' ? const Icon(Icons.check_circle, color: primaryColor) : null,
+              trailing: _selectedLanguage == 'Tiếng Việt' ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
               onTap: () {
                 setState(() => _selectedLanguage = 'Tiếng Việt');
                 Navigator.pop(context);
@@ -209,7 +221,7 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
             ListTile(
               title: const Text('Tiếng Anh'),
-              trailing: _selectedLanguage == 'English' ? const Icon(Icons.check_circle, color: primaryColor) : null,
+              trailing: _selectedLanguage == 'English' ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
               onTap: () {
                 setState(() => _selectedLanguage = 'English');
                 Navigator.pop(context);
