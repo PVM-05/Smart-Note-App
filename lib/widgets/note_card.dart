@@ -135,7 +135,6 @@ class NoteCard extends StatelessWidget {
                 color: AppColors.inputBackground(context),
                 child: Icon(Icons.broken_image_outlined, color: AppColors.placeholder(context), size: 20),
               ),
-              memCacheWidth: 300, // Memory-friendly behavior: limits image decode size to 300px width
             ),
 
           // Phần thân chứa Tiêu đề, Nội dung văn bản, Thông tin file ghi âm và Chân thẻ

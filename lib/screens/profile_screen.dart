@@ -696,52 +696,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
               ]),
 
-              const SizedBox(height: 16),
-              _buildSectionTitle(context, 'TÙY CHỈNH'),
-              _buildSectionCard(context, [
-                _buildSectionItem(
-                  context,
-                  icon: Icons.palette_outlined,
-                  iconColor: const Color(0xFF9333EA),
-                  iconBg: const Color(0xFF9333EA).withValues(alpha: 0.1),
-                  label: 'Giao diện',
-                  description: 'Màu sắc và chủ đề',
-                  onTap: () => _showComingSoonToast(context, 'Giao diện'),
-                ),
-                _buildSectionItem(
-                  context,
-                  icon: Icons.notifications_none_rounded,
-                  iconColor: const Color(0xFFEA580C),
-                  iconBg: const Color(0xFFEA580C).withValues(alpha: 0.1),
-                  label: 'Thông báo',
-                  description: 'Quản lý nhắc nhở',
-                  onTap: () => _showComingSoonToast(context, 'Thông báo'),
-                ),
-              ]),
-
-              const SizedBox(height: 16),
-              _buildSectionTitle(context, 'HỖ TRỢ'),
-              _buildSectionCard(context, [
-                _buildSectionItem(
-                  context,
-                  icon: Icons.help_outline_rounded,
-                  iconColor: const Color(0xFF0D9488),
-                  iconBg: const Color(0xFF0D9488).withValues(alpha: 0.1),
-                  label: 'Trợ giúp',
-                  description: 'Hướng dẫn sử dụng',
-                  onTap: () => _showComingSoonToast(context, 'Trợ giúp'),
-                ),
-                _buildSectionItem(
-                  context,
-                  icon: Icons.info_outline_rounded,
-                  iconColor: AppColors.textSecondary(context),
-                  iconBg: AppColors.surface(context),
-                  label: 'Về ứng dụng',
-                  description: 'Phiên bản 1.0.0',
-                  onTap: () => _showAppInfoDialog(context),
-                ),
-              ]),
-
               const SizedBox(height: 32),
 
               // ── 3. LOGOUT BUTTON ──

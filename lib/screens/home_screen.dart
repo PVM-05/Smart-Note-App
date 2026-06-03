@@ -73,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ScaffoldMessenger.of(context).clearSnackBars();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: const Text('☁️ Dữ liệu đã được cập nhật từ cloud'),
+                content: const Text('Dữ liệu đã được cập nhật'),
                 duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

@@ -986,10 +986,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 if (_isUploading)
                   LinearProgressIndicator(backgroundColor: AppColors.divider(context), color: _primary),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: TextField(
@@ -1017,25 +1019,25 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Expanded(
-                        child: _isChecklistMode
-                            ? _buildChecklistEditor()
-                            : GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  _editorFocusNode.requestFocus();
-                                },
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      QuillEditor.basic(
-                                        controller: _quillController,
-                                        focusNode: _editorFocusNode,
-                                        config: QuillEditorConfig(
-                                          scrollable: true,
-                                          expands: false,
+                      if (_isChecklistMode)
+                        _buildChecklistEditor()
+                      else
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            _editorFocusNode.requestFocus();
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                QuillEditor.basic(
+                                  controller: _quillController,
+                                  focusNode: _editorFocusNode,
+                                  config: QuillEditorConfig(
+                                    scrollable: false,
+                                    expands: false,
                                           autoFocus: false,
                                           padding: EdgeInsets.zero,
                                           placeholder: 'Ghi chú',
@@ -1071,12 +1073,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                                       const SizedBox(height: 20),
                                     ],
                                   ),
-                                ),
-                              ),
-                      ),
+                            ),
+                          ),
                     ],
                   ),
                 ),
+              ),
                 if (!(_isLocked && !_isUnlocked) && !_titleFocusNode.hasFocus) _buildBottomToolbar(),
           ],
         ),
@@ -1447,10 +1449,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           ),
         ),
         // Checklist items
-        Expanded(
-          child: ReorderableListView.builder(
-            buildDefaultDragHandles: false,
-            itemCount: _checklistItems.length + 1, // +1 cho nút "+ Mục danh sách"
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          itemCount: _checklistItems.length + 1, // +1 cho nút "+ Mục danh sách"
             onReorder: (oldIndex, newIndex) {
               if (oldIndex >= _checklistItems.length || newIndex > _checklistItems.length) return;
               setState(() {
@@ -1505,10 +1508,9 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               return _buildChecklistTile(item, index);
             },
           ),
-        ),
         // Audio + Recording + Tags phía dưới checklist
         if (_audioUrls.isNotEmpty || _isRecording || _tags.isNotEmpty)
-          SingleChildScrollView(
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1964,7 +1966,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             if (!_isChecklistMode)
               ListTile(
                 leading: Icon(Icons.check_box_outlined, color: AppColors.textSecondary(context)),
-                title: const Text('Hộp kiểm'),
+                title: const Text('Danh sách'),
                 onTap: () { Navigator.pop(context); _switchToChecklistMode(); },
               ),
             const SizedBox(height: 8),
