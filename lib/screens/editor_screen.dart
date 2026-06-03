@@ -11,7 +11,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Text;
 import '../models/note_model.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
@@ -56,6 +57,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   final BiometricService _biometricService = BiometricService();
   List<String> _tags = [];
   List<String> _imageUrls = [];
+  List<File> _uploadingFiles = [];
+  Set<String> _deletingUrls = {};
   List<String> _audioUrls = [];
   String? _noteColor;
 
@@ -482,108 +485,48 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
   Future<void> _pickImage(ImageSource source) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    _setUploadState(
-      isUploading: true,
-      message: 'Đang tải lên hình ảnh...',
-      bannerColor: const Color(0xFFEFF6FF),
-      bannerTextColor: const Color(0xFF1E40AF),
-      statusIcon: const SizedBox(
-        width: 14,
-        height: 14,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
-      ),
-    );
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source);
+    if (picked == null) return;
 
-    try {
-      final url = source == ImageSource.gallery
-          ? await _cloudinary.pickAndUploadImage(auth.userId!)
-          : await _cloudinary.cameraAndUploadImage(auth.userId!);
-
-      if (!mounted) return;
-
-      if (url != null) {
-        setState(() => _imageUrls.add(url));
-        await _saveNote(isAutosave: true);
-        _setUploadState(
-          isUploading: false,
-          message: 'Tải lên hình ảnh thành công!',
-          bannerColor: const Color(0xFFECFDF5),
-          bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-          autoHide: true,
-        );
-      } else {
-        _setUploadState(
-          isUploading: false,
-          message: 'Tải lên hình ảnh bị hủy hoặc thất bại.',
-          bannerColor: const Color(0xFFFEF2F2),
-          bannerTextColor: const Color(0xFF991B1B),
-          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-          autoHide: true,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _setUploadState(
-        isUploading: false,
-        message: 'Lỗi: Tải lên hình ảnh thất bại.',
-        bannerColor: const Color(0xFFFEF2F2),
-        bannerTextColor: const Color(0xFF991B1B),
-        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-        autoHide: true,
-      );
-    }
-  }
-
-  Future<void> _uploadDrawing(File file) async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    _setUploadState(
-      isUploading: true,
-      message: 'Đang tải lên bản vẽ...',
-      bannerColor: const Color(0xFFEFF6FF),
-      bannerTextColor: const Color(0xFF1E40AF),
-      statusIcon: const SizedBox(
-        width: 14,
-        height: 14,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
-      ),
-    );
+    final file = File(picked.path);
+    setState(() => _uploadingFiles.add(file));
 
     try {
       final url = await _cloudinary.uploadImage(file, auth.userId!);
       if (!mounted) return;
 
-      if (url != null) {
-        setState(() => _imageUrls.add(url));
-        await _saveNote(isAutosave: true);
-        _setUploadState(
-          isUploading: false,
-          message: 'Tải lên bản vẽ thành công!',
-          bannerColor: const Color(0xFFECFDF5),
-          bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-          autoHide: true,
-        );
-      } else {
-        _setUploadState(
-          isUploading: false,
-          message: 'Tải lên bản vẽ bị hủy hoặc thất bại.',
-          bannerColor: const Color(0xFFFEF2F2),
-          bannerTextColor: const Color(0xFF991B1B),
-          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-          autoHide: true,
-        );
-      }
+      setState(() {
+        _uploadingFiles.remove(file);
+        if (url != null) _imageUrls.add(url);
+      });
+      if (url != null) await _saveNote(isAutosave: true);
     } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingFiles.remove(file));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
+      }
+    }
+  }
+
+  Future<void> _uploadDrawing(File file) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    setState(() => _uploadingFiles.add(file));
+
+    try {
+      final url = await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
       if (!mounted) return;
-      _setUploadState(
-        isUploading: false,
-        message: 'Lỗi tải lên bản vẽ.',
-        bannerColor: const Color(0xFFFEF2F2),
-        bannerTextColor: const Color(0xFF991B1B),
-        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-        autoHide: true,
-      );
+
+      setState(() {
+        _uploadingFiles.remove(file);
+        if (url != null) _imageUrls.add(url);
+      });
+      if (url != null) await _saveNote(isAutosave: true);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingFiles.remove(file));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
+      }
     }
   }
 
@@ -611,64 +554,37 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!auth.isAuthenticated || auth.userId == null) return;
 
-    _setUploadState(
-      isUploading: true,
-      message: 'Đang cập nhật bản vẽ...',
-      bannerColor: const Color(0xFFEFF6FF),
-      bannerTextColor: const Color(0xFF1E40AF),
-      statusIcon: const SizedBox(
-        width: 14,
-        height: 14,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
-      ),
-    );
+    setState(() {
+      _uploadingFiles.add(file);
+      _deletingUrls.add(oldUrl);
+    });
 
     try {
-      final url = await _cloudinary.uploadImage(file, auth.userId!);
+      final url = await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
       if (!mounted) return;
 
-      if (url != null) {
-        setState(() {
+      setState(() {
+        _uploadingFiles.remove(file);
+        _deletingUrls.remove(oldUrl);
+        if (url != null) {
           final index = _imageUrls.indexOf(oldUrl);
           if (index != -1) {
             _imageUrls[index] = url;
           } else {
             _imageUrls.add(url);
           }
-        });
-        await _saveNote(isAutosave: true);
-        
-        // Background deletion of old image
-        _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) {});
-
-        _setUploadState(
-          isUploading: false,
-          message: 'Cập nhật bản vẽ thành công!',
-          bannerColor: const Color(0xFFECFDF5),
-          bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-          autoHide: true,
-        );
-      } else {
-        _setUploadState(
-          isUploading: false,
-          message: 'Cập nhật bản vẽ bị hủy hoặc thất bại.',
-          bannerColor: const Color(0xFFFEF2F2),
-          bannerTextColor: const Color(0xFF991B1B),
-          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-          autoHide: true,
-        );
-      }
+        }
+      });
+      if (url != null) await _saveNote(isAutosave: true);
+      
+      _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) {});
     } catch (e) {
       if (!mounted) return;
-      _setUploadState(
-        isUploading: false,
-        message: 'Lỗi cập nhật bản vẽ.',
-        bannerColor: const Color(0xFFFEF2F2),
-        bannerTextColor: const Color(0xFF991B1B),
-        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-        autoHide: true,
-      );
+      setState(() {
+        _uploadingFiles.remove(file);
+        _deletingUrls.remove(oldUrl);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
     }
   }
 
@@ -1133,7 +1049,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_imageUrls.isNotEmpty) _buildGoogleKeepImageSection(),
+                        if (_imageUrls.isNotEmpty || _uploadingFiles.isNotEmpty) _buildGoogleKeepImageSection(),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: TextField(
@@ -1298,87 +1214,118 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
   Widget _buildGoogleKeepImageSection() {
     return Column(
-      children: _imageUrls.map((url) {
-        return Stack(
-          children: [
-            GestureDetector(
-              onTap: () => _editDrawingScreen(url),
-              child: CachedNetworkImage(
-                imageUrl: url,
-                width: double.infinity,
-                fit: BoxFit.fitWidth,
-                placeholder: (context, url) => Container(
-                  height: 200,
-                  color: const Color(0xFFF8FAFC),
-                  child: const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
+      children: [
+        ..._imageUrls.asMap().entries.map((entry) {
+          final index = entry.key;
+          final url = entry.value;
+          final isDrawing = url.contains('/drawings/');
+          final isDeleting = _deletingUrls.contains(url);
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Stack(
+              children: [
+                GestureDetector(
+                  onTap: isDeleting ? null : (isDrawing ? () => _editDrawingScreen(url) : () => _openImageViewer(index)),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: _noteColor != null ? AppColors.parseColor(_noteColor!) : AppColors.divider(context), 
+                        width: _noteColor != null ? 2 : 1
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: CachedNetworkImage(
+                        imageUrl: url,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        placeholder: (context, url) => Container(
+                          height: 200,
+                          color: const Color(0xFFF8FAFC),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
+                            ),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          height: 100,
+                          color: const Color(0xFFF1F5F9),
+                          child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 24),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  height: 100,
-                  color: const Color(0xFFF1F5F9),
-                  child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 24),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 12, right: 12,
-              child: GestureDetector(
-                onTap: () async {
-                  _setUploadState(
-                    isUploading: true,
-                    message: 'Đang xóa hình ảnh khỏi đám mây...',
-                    bannerColor: const Color(0xFFEFF6FF),
-                    bannerTextColor: const Color(0xFF1E40AF),
-                    statusIcon: const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+                if (isDeleting)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(color: Colors.white),
+                          ],
+                        ),
+                      ),
                     ),
-                  );
-                  try {
-                    await _cloudinary.deleteFile(url, resourceType: 'image');
-                    if (mounted) {
-                      setState(() {
-                        _imageUrls.remove(url);
-                      });
-                      await _saveNote(isAutosave: true);
-                      _setUploadState(
-                        isUploading: false,
-                        message: 'Đã xóa hình ảnh thành công.',
-                        bannerColor: const Color(0xFFECFDF5),
-                        bannerTextColor: const Color(0xFF065F46),
-                        statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-                        autoHide: true,
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      _setUploadState(
-                        isUploading: false,
-                        message: 'Xóa hình ảnh thất bại.',
-                        bannerColor: const Color(0xFFFEF2F2),
-                        bannerTextColor: const Color(0xFF991B1B),
-                        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-                        autoHide: true,
-                      );
-                    }
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-                  child: const Icon(Icons.close, color: Colors.white, size: 18),
-                ),
-              ),
+                  ),
+              ],
             ),
-          ],
-        );
-      }).toList(),
+          );
+        }),
+        ..._uploadingFiles.map((file) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Stack(
+              children: [
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _noteColor != null ? AppColors.parseColor(_noteColor!) : AppColors.divider(context), 
+                      width: _noteColor != null ? 2 : 1
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Image.file(
+                      file,
+                      width: double.infinity,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(color: Colors.white),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 
@@ -1506,33 +1453,57 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     );
   }
 
-  void _showFullImage(String url) {
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.black, insetPadding: EdgeInsets.zero,
-        child: Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                child: CachedNetworkImage(
-                  imageUrl: url,
-                  fit: BoxFit.contain,
-                  placeholder: (context, url) => const Center(
-                    child: SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => const Center(
-                    child: Icon(Icons.broken_image_outlined, color: Colors.white70, size: 40),
-                  ),
-                ),
+  void _openImageViewer(int initialIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _ImageViewer(
+          imageUrls: _imageUrls,
+          initialIndex: initialIndex,
+          onEditDrawing: (url) {
+            Navigator.pop(context);
+            _editDrawingScreen(url);
+          },
+          onDuplicate: (url) async {
+            setState(() => _imageUrls.add(url));
+            await _saveNote(isAutosave: true);
+          },
+          onDelete: (url) {
+            Navigator.pop(context);
+            _setUploadState(
+              isUploading: true,
+              message: 'Đang xóa hình ảnh khỏi đám mây...',
+              bannerColor: const Color(0xFFEFF6FF),
+              bannerTextColor: const Color(0xFF1E40AF),
+              statusIcon: const SizedBox(
+                width: 14, height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
               ),
-            ),
-            Positioned(top: 40, right: 16, child: IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 28), onPressed: () => Navigator.pop(context))),
-          ],
+            );
+            _cloudinary.deleteFile(url, resourceType: 'image').then((_) {
+              if (mounted) {
+                setState(() => _imageUrls.remove(url));
+                _saveNote(isAutosave: true);
+                _setUploadState(
+                  isUploading: false,
+                  message: 'Đã xóa hình ảnh thành công.',
+                  bannerColor: const Color(0xFFECFDF5),
+                  bannerTextColor: const Color(0xFF065F46),
+                  statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+                  autoHide: true,
+                );
+              }
+            }).catchError((_) {
+              if (mounted) {
+                _setUploadState(
+                  isUploading: false, message: 'Xóa hình ảnh thất bại.',
+                  bannerColor: const Color(0xFFFEF2F2), bannerTextColor: const Color(0xFF991B1B),
+                  statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+                  autoHide: true,
+                );
+              }
+            });
+          },
         ),
       ),
     );
@@ -1910,37 +1881,35 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                         });
                       },
                     ),
-                  if (!_isChecklistMode)
-                    ListenableBuilder(
-                      listenable: _quillController,
-                      builder: (context, _) {
-                        return Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _toolbarButton(
-                              icon: Icons.undo,
-                              tooltip: 'Hoàn tác',
-                              onTap: _quillController.hasUndo
-                                  ? () => _quillController.undo()
-                                  : null,
-                            ),
-                            _toolbarButton(
-                              icon: Icons.redo,
-                              tooltip: 'Làm lại',
-                              onTap: _quillController.hasRedo
-                                  ? () => _quillController.redo()
-                                  : null,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
                 ],
               ),
-              
               const Spacer(),
 
-
+              if (!_isChecklistMode)
+                ListenableBuilder(
+                  listenable: _quillController,
+                  builder: (context, _) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _toolbarButton(
+                          icon: Icons.undo,
+                          tooltip: 'Hoàn tác',
+                          onTap: _quillController.hasUndo
+                              ? () => _quillController.undo()
+                              : null,
+                        ),
+                        _toolbarButton(
+                          icon: Icons.redo,
+                          tooltip: 'Làm lại',
+                          onTap: _quillController.hasRedo
+                              ? () => _quillController.redo()
+                              : null,
+                        ),
+                      ],
+                    );
+                  },
+                ),
                 
               // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
               _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
@@ -2256,7 +2225,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                 child: Icon(
                   icon, 
                   size: 22, 
-                  color: onTap == null ? metadataIconColor : (color ?? defaultIconColor),
+                  color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor),
                 ),
               ),
           ),
@@ -2508,6 +2477,121 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ImageViewer extends StatefulWidget {
+  final List<String> imageUrls;
+  final int initialIndex;
+  final Function(String) onEditDrawing;
+  final Function(String) onDuplicate;
+  final Function(String) onDelete;
+
+  const _ImageViewer({
+    required this.imageUrls,
+    required this.initialIndex,
+    required this.onEditDrawing,
+    required this.onDuplicate,
+    required this.onDelete,
+  });
+
+  @override
+  State<_ImageViewer> createState() => _ImageViewerState();
+}
+
+class _ImageViewerState extends State<_ImageViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.imageUrls.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.pop(context);
+      });
+      return const Scaffold(backgroundColor: Colors.white);
+    }
+    
+    if (_currentIndex >= widget.imageUrls.length) {
+      _currentIndex = widget.imageUrls.length - 1;
+    }
+
+    final currentUrl = widget.imageUrls[_currentIndex];
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.brush),
+            tooltip: 'Vẽ đè lên ảnh',
+            onPressed: () => widget.onEditDrawing(currentUrl),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Tùy chọn ảnh',
+            onSelected: (value) {
+              if (value == 'duplicate') {
+                widget.onDuplicate(currentUrl);
+                setState(() {});
+              } else if (value == 'delete') {
+                widget.onDelete(currentUrl);
+                setState(() {});
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
+              const PopupMenuItem(value: 'delete', child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+            ],
+          ),
+        ],
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.imageUrls.length,
+        onPageChanged: (index) {
+          setState(() => _currentIndex = index);
+        },
+        itemBuilder: (context, index) {
+          return InteractiveViewer(
+            child: CachedNetworkImage(
+              imageUrl: widget.imageUrls[index],
+              fit: BoxFit.contain,
+              placeholder: (context, url) => const Center(
+                child: SizedBox(
+                  width: 30, height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.primary),
+                ),
+              ),
+              errorWidget: (context, url, error) => const Center(
+                child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
