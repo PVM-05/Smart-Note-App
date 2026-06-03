@@ -58,7 +58,7 @@ dependencies:
   path_provider: ^2.1.0
   crypto: ^3.0.3
   cached_network_image: ^3.4.1
-  flutter_quill: ^11.0.0
+  flutter_quill: ^11.5.1
   flutter_localizations:
     sdk: flutter
 dev_dependencies:
