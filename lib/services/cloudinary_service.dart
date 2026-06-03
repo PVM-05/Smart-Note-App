@@ -194,7 +194,6 @@ class CloudinaryService {
     try {
       final XFile? picked = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 80,
       );
 
       if (picked == null) return null;
@@ -213,7 +212,6 @@ class CloudinaryService {
     try {
       final XFile? picked = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 80,
       );
 
       if (picked == null) return null;

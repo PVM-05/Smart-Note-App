@@ -60,7 +60,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   color: AppColors.primary,
                 ),
                 title: const Text(
-                  'Chế độ tối (Dark Mode)',
+                  'Giao diện',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 ),
                 subtitle: const Text('Thay đổi giao diện sáng hoặc tối cho ứng dụng'),
@@ -76,8 +76,8 @@ class _SettingScreenState extends State<SettingScreen> {
                       SnackBar(
                         content: Text(
                           themeProvider.isDarkMode 
-                            ? '🌙 Đã chuyển sang giao diện tối' 
-                            : '☀️ Đã chuyển sang giao diện sáng'
+                            ? 'Đã chuyển sang giao diện tối'
+                            : 'Đã chuyển sang giao diện sáng'
                         ),
                         duration: const Duration(seconds: 1),
                       ),
@@ -186,6 +186,50 @@ class _SettingScreenState extends State<SettingScreen> {
             },
           ),
           _buildDivider(),
+
+          // ================= CHỨC NĂNG 4: THÔNG BÁO =================
+          ListTile(
+            leading: const Icon(Icons.notifications_none_rounded, color: AppColors.primary),
+            title: const Text(
+              'Thông báo',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            ),
+            subtitle: const Text('Quản lý thông báo và nhắc nhở'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tính năng Thông báo đang được phát triển!')),
+              );
+            },
+          ),
+          _buildDivider(),
+
+          // ================= CHỨC NĂNG 5: TRỢ GIÚP =================
+          ListTile(
+            leading: const Icon(Icons.help_outline_rounded, color: AppColors.primary),
+            title: const Text(
+              'Trợ giúp',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            ),
+            subtitle: const Text('Hướng dẫn sử dụng và FAQ'),
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tính năng Trợ giúp đang được phát triển!')),
+              );
+            },
+          ),
+          _buildDivider(),
+
+          // ================= CHỨC NĂNG 6: VỀ ỨNG DỤNG =================
+          ListTile(
+            leading: const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+            title: const Text(
+              'Về ứng dụng',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            ),
+            subtitle: const Text('Phiên bản 1.0.0'),
+            onTap: () => _showAppInfoDialog(),
+          ),
+          _buildDivider(),
         ],
       ),
     );
@@ -198,6 +242,39 @@ class _SettingScreenState extends State<SettingScreen> {
       thickness: 1,
       indent: 64, // Lùi đầu dòng để thẳng hàng với text bên cạnh icon
       color: AppColors.divider(context),
+    );
+  }
+
+  void _showAppInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Về ứng dụng',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Smart Note Pro',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            SizedBox(height: 4),
+            Text('Phiên bản: 1.0.0'),
+            SizedBox(height: 12),
+            Text(
+                'Ứng dụng ghi chú thông minh cao cấp được phát triển bởi đội ngũ Smart Note. Toàn bộ dữ liệu được bảo mật và đồng bộ hóa đám mây an toàn.',
+                style: TextStyle(color: Color(0xFF4B5563), fontSize: 14)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 

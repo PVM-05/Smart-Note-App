@@ -70,16 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final currentNoteProvider = Provider.of<NoteProvider>(context, listen: false);
           await currentNoteProvider.refreshNotes(currentAuth.userId!);
           if (mounted) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('☁️ Dữ liệu đã được cập nhật từ cloud'),
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                margin: const EdgeInsets.all(12),
-              ),
-            );
+            // Đã ẩn SnackBar theo yêu cầu để giao diện gọn gàng hơn
           }
         }
       });
@@ -130,7 +121,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ));
             }},
             {'icon': Icons.brush_outlined, 'title': 'Bản vẽ', 'action': () {
-              _showFeatureUnderDevelopmentDialog(context, 'Bản vẽ');
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const EditorScreen(note: null, autoOpenDrawing: true),
+              ));
             }},
             {'icon': Icons.check_box_outlined, 'title': 'Danh sách', 'action': () {
               Navigator.push(context, MaterialPageRoute(
@@ -244,6 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           // Nút FAB giả lập - chỉ xoay icon dấu cộng bên trong
                           FloatingActionButton(
+                            heroTag: null,
                             elevation: 4,
                             backgroundColor: AppColors.surface(context),
                             shape: RoundedRectangleBorder(
@@ -604,119 +598,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
 
   Widget _buildSyncStatusBanner(SyncProvider syncProvider, NoteProvider noteProvider) {
-    final isOffline = syncProvider.isOffline;
-    final status = syncProvider.status;
-    final hasUnsynced = noteProvider.notes.any((n) => !n.isSynced) ||
-        noteProvider.archivedNotes.any((n) => !n.isSynced) ||
-        noteProvider.trashNotes.any((n) => !n.isSynced);
-
-    String message;
-    Color color;
-    Color textColor;
-    Widget icon;
-
-    if (isOffline) {
-      if (hasUnsynced) {
-        message = 'Chờ kết nối mạng để đồng bộ';
-        color = AppColors.warning.withValues(alpha: 0.12);
-        textColor = AppColors.warning;
-        icon = SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warning),
-        );
-      } else {
-        message = 'Đang ngoại tuyến';
-        color = AppColors.warning.withValues(alpha: 0.10);
-        textColor = AppColors.warning;
-        icon = Icon(Icons.cloud_off, color: AppColors.warning, size: 14);
-      }
-    } else {
-      switch (status) {
-        case SyncStatus.syncing:
-          message = 'Đang đồng bộ...';
-          color = AppColors.primary.withValues(alpha: 0.12);
-          textColor = AppColors.primary;
-          icon = SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-          );
-          break;
-        case SyncStatus.success:
-        case SyncStatus.idle:
-        default:
-          if (hasUnsynced) {
-            message = 'Đang chuẩn bị đồng bộ...';
-            color = AppColors.primary.withValues(alpha: 0.12);
-            textColor = AppColors.primary;
-            icon = SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-            );
-          } else {
-            message = 'Đã đồng bộ';
-            color = AppColors.success.withValues(alpha: 0.12);
-            textColor = AppColors.success;
-            icon = Icon(Icons.cloud_done, color: AppColors.success, size: 14);
-          }
-          break;
-      }
-    }
-
-    // Banner auto-hide logic:
-    // - 'X cạ đồng bộ' (đang có unsynced / syncing / offline) → persistent
-    // - 'Đã đồng bộ' (success, clean) → tự ẩn sau 2 giây
-    if (message == 'Đã đồng bộ') {
-      if (_lastStatusMessage != 'Đã đồng bộ') {
-        _lastStatusMessage = 'Đã đồng bộ';
-        _syncBannerTimer?.cancel();
-        _syncBannerTimer = Timer(const Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() {
-              _hideSyncBanner = true;
-            });
-          }
-        });
-      }
-    } else {
-      // Offline / Syncing / Waiting → persistent: huỷ timer, luôn hiển banner
-      _lastStatusMessage = message;
-      _hideSyncBanner = false;
-      _syncBannerTimer?.cancel();
-    }
-
-    final double height = _hideSyncBanner ? 0 : 32;
-
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.fastOutSlowIn,
-      child: Container(
-        height: height,
-        width: double.infinity,
-        color: color,
-        alignment: Alignment.center,
-        child: height == 0
-            ? const SizedBox()
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  icon,
-                  const SizedBox(width: 8),
-                  Text(
-                    message,
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
+    return const SizedBox.shrink(); // Đã ẩn popup banner đồng bộ để gọn giao diện
   }
+
 
   Widget _buildBody(NoteProvider noteProvider) {
     if (noteProvider.isLoading && noteProvider.notes.isEmpty) {

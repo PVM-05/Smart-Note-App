@@ -61,6 +61,7 @@ dependencies:
   flutter_quill: ^11.5.1
   flutter_localizations:
     sdk: flutter
+  flutter_drawing_board: ^1.0.1+2
 dev_dependencies:
   flutter_test:
     sdk: flutter
