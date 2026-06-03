@@ -18,6 +18,7 @@ import '../providers/auth_provider.dart';
 import '../services/cloudinary_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'drawing_screen.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
 import '../core/design/app_colors.dart';
@@ -27,6 +28,7 @@ class EditorScreen extends StatefulWidget {
   final Note? note;
   final bool autoRecord;
   final bool autoPickImage;
+  final bool autoOpenDrawing;
   final bool isChecklistMode;
 
   const EditorScreen({
@@ -34,6 +36,7 @@ class EditorScreen extends StatefulWidget {
     this.note,
     this.autoRecord = false,
     this.autoPickImage = false,
+    this.autoOpenDrawing = false,
     this.isChecklistMode = false,
   });
 
@@ -297,6 +300,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         _startRecording();
       } else if (widget.autoPickImage) {
         _pickImage(ImageSource.gallery);
+      } else if (widget.autoOpenDrawing) {
+        _openDrawingScreen();
       }
       if (_isLocked) {
         _authenticateNote();
@@ -522,6 +527,143 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       _setUploadState(
         isUploading: false,
         message: 'Lỗi: Tải lên hình ảnh thất bại.',
+        bannerColor: const Color(0xFFFEF2F2),
+        bannerTextColor: const Color(0xFF991B1B),
+        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+        autoHide: true,
+      );
+    }
+  }
+
+  Future<void> _uploadDrawing(File file) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    _setUploadState(
+      isUploading: true,
+      message: 'Đang tải lên bản vẽ...',
+      bannerColor: const Color(0xFFEFF6FF),
+      bannerTextColor: const Color(0xFF1E40AF),
+      statusIcon: const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+      ),
+    );
+
+    try {
+      final url = await _cloudinary.uploadImage(file, auth.userId!);
+      if (!mounted) return;
+
+      if (url != null) {
+        setState(() => _imageUrls.add(url));
+        await _saveNote(isAutosave: true);
+        _setUploadState(
+          isUploading: false,
+          message: 'Tải lên bản vẽ thành công!',
+          bannerColor: const Color(0xFFECFDF5),
+          bannerTextColor: const Color(0xFF065F46),
+          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+          autoHide: true,
+        );
+      } else {
+        _setUploadState(
+          isUploading: false,
+          message: 'Tải lên bản vẽ bị hủy hoặc thất bại.',
+          bannerColor: const Color(0xFFFEF2F2),
+          bannerTextColor: const Color(0xFF991B1B),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          autoHide: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _setUploadState(
+        isUploading: false,
+        message: 'Lỗi tải lên bản vẽ.',
+        bannerColor: const Color(0xFFFEF2F2),
+        bannerTextColor: const Color(0xFF991B1B),
+        statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+        autoHide: true,
+      );
+    }
+  }
+
+  Future<void> _openDrawingScreen() async {
+    final File? drawingFile = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DrawingScreen(noteColor: _noteColor)),
+    );
+    if (drawingFile != null) {
+      _uploadDrawing(drawingFile);
+    }
+  }
+
+  Future<void> _editDrawingScreen(String oldUrl) async {
+    final File? drawingFile = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DrawingScreen(noteColor: _noteColor, initialImageUrl: oldUrl)),
+    );
+    if (drawingFile != null) {
+      _replaceDrawing(oldUrl, drawingFile);
+    }
+  }
+
+  Future<void> _replaceDrawing(String oldUrl, File file) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!auth.isAuthenticated || auth.userId == null) return;
+
+    _setUploadState(
+      isUploading: true,
+      message: 'Đang cập nhật bản vẽ...',
+      bannerColor: const Color(0xFFEFF6FF),
+      bannerTextColor: const Color(0xFF1E40AF),
+      statusIcon: const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+      ),
+    );
+
+    try {
+      final url = await _cloudinary.uploadImage(file, auth.userId!);
+      if (!mounted) return;
+
+      if (url != null) {
+        setState(() {
+          final index = _imageUrls.indexOf(oldUrl);
+          if (index != -1) {
+            _imageUrls[index] = url;
+          } else {
+            _imageUrls.add(url);
+          }
+        });
+        await _saveNote(isAutosave: true);
+        
+        // Background deletion of old image
+        _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) {});
+
+        _setUploadState(
+          isUploading: false,
+          message: 'Cập nhật bản vẽ thành công!',
+          bannerColor: const Color(0xFFECFDF5),
+          bannerTextColor: const Color(0xFF065F46),
+          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+          autoHide: true,
+        );
+      } else {
+        _setUploadState(
+          isUploading: false,
+          message: 'Cập nhật bản vẽ bị hủy hoặc thất bại.',
+          bannerColor: const Color(0xFFFEF2F2),
+          bannerTextColor: const Color(0xFF991B1B),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          autoHide: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _setUploadState(
+        isUploading: false,
+        message: 'Lỗi cập nhật bản vẽ.',
         bannerColor: const Color(0xFFFEF2F2),
         bannerTextColor: const Color(0xFF991B1B),
         statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -1160,7 +1302,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         return Stack(
           children: [
             GestureDetector(
-              onTap: () => _showFullImage(url),
+              onTap: () => _editDrawingScreen(url),
               child: CachedNetworkImage(
                 imageUrl: url,
                 width: double.infinity,
@@ -1755,30 +1897,50 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                   _toolbarButton(
                     icon: Icons.palette_outlined,
                     tooltip: 'Màu sắc',
-                    color: _noteBackgroundColor(context),
                     onTap: _showColorPicker,
                   ),
-                  _toolbarButton(
-                    icon: Icons.format_color_text,
-                    tooltip: 'Định dạng',
-                    color: _showFormattingToolbar ? _primary : null,
-                    onTap: () {
-                      setState(() {
-                        _showFormattingToolbar = true;
-                      });
-                    },
-                  ),
+                  if (!_isChecklistMode)
+                    _toolbarButton(
+                      icon: Icons.format_color_text,
+                      tooltip: 'Định dạng',
+                      color: _showFormattingToolbar ? _primary : null,
+                      onTap: () {
+                        setState(() {
+                          _showFormattingToolbar = true;
+                        });
+                      },
+                    ),
+                  if (!_isChecklistMode)
+                    ListenableBuilder(
+                      listenable: _quillController,
+                      builder: (context, _) {
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _toolbarButton(
+                              icon: Icons.undo,
+                              tooltip: 'Hoàn tác',
+                              onTap: _quillController.hasUndo
+                                  ? () => _quillController.undo()
+                                  : null,
+                            ),
+                            _toolbarButton(
+                              icon: Icons.redo,
+                              tooltip: 'Làm lại',
+                              onTap: _quillController.hasRedo
+                                  ? () => _quillController.redo()
+                                  : null,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                 ],
               ),
               
               const Spacer(),
-              
-              // Hiển thị trạng thái lưu ở giữa nếu có
-              if (!_isUploading && _hasBeenSavedInDb)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Text('Đã lưu cục bộ', style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey.shade500)),
-                ),
+
+
                 
               // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
               _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
@@ -1957,6 +2119,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               leading: Icon(Icons.image_outlined, color: AppColors.textSecondary(context)),
               title: const Text('Thêm hình ảnh'),
               onTap: () { Navigator.pop(context); _showImageSourceSheet(); },
+            ),
+            ListTile(
+              leading: Icon(Icons.brush_outlined, color: AppColors.textSecondary(context)),
+              title: const Text('Bản vẽ'),
+              onTap: () {
+                Navigator.pop(context);
+                _openDrawingScreen();
+              },
             ),
             ListTile(
               leading: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined, color: _isRecording ? _recordColor : AppColors.textSecondary(context)),

@@ -101,23 +101,7 @@ class ProfileDrawer extends StatelessWidget {
                 ),
               ),
             ),
-
             const Spacer(),
-
-            Divider(height: 1, color: AppColors.divider(context)),
-
-            // ── ĐĂNG XUẤT ──
-            ListTile(
-                leading: const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
-              title: Text(
-                'Đăng xuất',
-                style: GoogleFonts.roboto(
-                  color: AppColors.error, fontWeight: FontWeight.w600, fontSize: 15),
-              ),
-              onTap: () => _signOut(context, auth),
-            ),
-
-            const SizedBox(height: 8),
           ],
         ),
       ),
