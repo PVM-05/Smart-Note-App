@@ -23,9 +23,30 @@ class NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color cardColor = _resolveCardColor(context);
+    Color cardColor = _resolveCardColor(context);
     final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
-    final bool onDarkNoteBg = hasCustomColor && cardColor.computeLuminance() < 0.45;
+    bool onDarkNoteBg = hasCustomColor && cardColor.computeLuminance() < 0.45;
+
+    final bool isLocked = note.isLocked;
+    final hasImages = !isLocked && note.imageUrls.isNotEmpty;
+    final hasAudio = !isLocked && note.audioUrls.isNotEmpty;
+    final hasTags = !isLocked && note.tags.isNotEmpty;
+
+    BorderSide borderSide = BorderSide.none;
+
+    if (hasImages) {
+      cardColor = AppColors.surface(context);
+      onDarkNoteBg = false;
+      borderSide = BorderSide(
+        color: hasCustomColor ? AppColors.parseColor(note.noteColor!) : AppColors.divider(context),
+        width: hasCustomColor ? 2 : 1,
+      );
+    } else if (!hasCustomColor) {
+      borderSide = BorderSide(
+        color: AppColors.divider(context).withValues(alpha: 0.5),
+        width: 1,
+      );
+    }
 
     final Color titleColor = hasCustomColor
         ? (onDarkNoteBg ? Colors.white : const Color(0xFF0F172A))
@@ -36,13 +57,6 @@ class NoteCard extends StatelessWidget {
     final Color metadataColor = hasCustomColor
         ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
         : AppColors.textMetadata(context);
-
-    final bool isLocked = note.isLocked;
-
-    // Kiểm tra trạng thái dữ liệu đa phương tiện từ Note Model
-    final hasImages = !isLocked && note.imageUrls.isNotEmpty;
-    final hasAudio = !isLocked && note.audioUrls.isNotEmpty;
-    final hasTags = !isLocked && note.tags.isNotEmpty;
 
     final String displayTitle = isLocked ? '🔒 Ghi chú đã khóa' : note.title;
     final bool isChecklist = !isLocked && note.isChecklist;
@@ -68,6 +82,7 @@ class NoteCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias, // Giúp ảnh bo tròn mượt mà khớp theo góc của Card
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: borderSide,
       ),
       color: cardColor,
       margin: EdgeInsets.zero,
@@ -213,14 +228,14 @@ class NoteCard extends StatelessWidget {
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.inputBackground(context),
+                            color: Colors.white.withValues(alpha: 0.8),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             tag,
                             style: GoogleFonts.outfit(
                               fontSize: 10,
-                              color: metadataColor,
+                              color: Colors.black,
                               fontWeight: FontWeight.w500,
                             ),
                           ),

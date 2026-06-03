@@ -201,7 +201,7 @@ class AppColors {
   /// Màu hiển thị theo theme; [storedHex] luôn lưu bản **light** (canonical).
   static Color? resolveNoteBackground(BuildContext context, String? storedHex) {
     if (storedHex == null || storedHex.isEmpty) return null;
-    final parsed = _parseHexColor(storedHex);
+    final parsed = parseColor(storedHex);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     for (final entry in _notePalette) {
       if (entry.light.toARGB32() == parsed.toARGB32() ||
@@ -214,15 +214,20 @@ class AppColors {
 
   static bool isNotePaletteColorSelected(String? storedHex, NotePaletteEntry entry) {
     if (storedHex == null || storedHex.isEmpty) return false;
-    final parsed = _parseHexColor(storedHex);
+    final parsed = parseColor(storedHex);
     return entry.light.toARGB32() == parsed.toARGB32() ||
         entry.dark.toARGB32() == parsed.toARGB32();
   }
 
-  static Color _parseHexColor(String hex) {
-    var value = hex.replaceAll('#', '').trim();
-    if (value.length == 6) value = 'FF$value';
-    return Color(int.parse(value, radix: 16));
+  static Color parseColor(String hex) {
+    try {
+      var value = hex.replaceAll('#', '').trim();
+      if (value.length == 6) value = 'FF$value';
+      return Color(int.parse(value, radix: 16));
+    } catch (e) {
+      // Bắt lỗi nếu màu từ phiên bản cũ không phải là HEX (vd: "Red")
+      return Colors.transparent;
+    }
   }
 }
 
