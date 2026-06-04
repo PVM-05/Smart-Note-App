@@ -14,6 +14,14 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' hide Text;
 import '../models/note_model.dart';
+import '../features/editor/widgets/editor_upload_banner.dart';
+import '../features/editor/widgets/editor_image_section.dart';
+import '../features/editor/widgets/editor_audio_section.dart';
+import '../features/editor/widgets/editor_checklist_section.dart';
+import '../features/editor/widgets/editor_format_toolbar.dart';
+import '../features/editor/sheets/editor_add_options_sheet.dart';
+import '../features/editor/sheets/editor_more_options_sheet.dart';
+import '../features/editor/sheets/editor_color_picker_sheet.dart';
 import '../providers/note_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/cloudinary_service.dart';
@@ -45,7 +53,8 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver {
+class _EditorScreenState extends State<EditorScreen>
+    with WidgetsBindingObserver {
   late TextEditingController _titleController;
   late QuillController _quillController;
   final FocusNode _titleFocusNode = FocusNode();
@@ -121,7 +130,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Đang tải lên tệp tin'),
-        content: const Text('Có tệp tin đang được tải lên. Nếu bạn thoát bây giờ, quá trình tải lên sẽ bị hủy và tệp tin sẽ không được lưu. Bạn có chắc chắn muốn thoát?'),
+        content: const Text(
+            'Có tệp tin đang được tải lên. Nếu bạn thoát bây giờ, quá trình tải lên sẽ bị hủy và tệp tin sẽ không được lưu. Bạn có chắc chắn muốn thoát?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -175,11 +185,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     // Checklist mode: so sánh items
     if (_isChecklistMode) {
       final checklistChanged = _hasChecklistChanged();
-      return titleChanged || checklistChanged || tagsChanged || imagesChanged || audiosChanged || colorChanged;
+      return titleChanged ||
+          checklistChanged ||
+          tagsChanged ||
+          imagesChanged ||
+          audiosChanged ||
+          colorChanged;
     }
 
     final contentChanged = _isDirty;
-    return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged || colorChanged;
+    return titleChanged ||
+        contentChanged ||
+        tagsChanged ||
+        imagesChanged ||
+        audiosChanged ||
+        colorChanged;
   }
 
   bool _hasChecklistChanged() {
@@ -209,7 +229,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     _hasBeenSavedInDb = widget.note != null;
 
     _titleController = TextEditingController(text: widget.note?.title ?? '');
-    
+
     final initialContent = widget.note?.content ?? '';
 
     // Phát hiện checklist mode từ content hoặc constructor
@@ -221,11 +241,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       try {
         final decoded = jsonDecode(initialContent);
         final items = decoded['items'] as List? ?? [];
-        _checklistItems = items.map((i) => ChecklistItem.fromJson(i as Map<String, dynamic>)).toList();
+        _checklistItems = items
+            .map((i) => ChecklistItem.fromJson(i as Map<String, dynamic>))
+            .toList();
       } catch (_) {
         _checklistItems = [];
       }
-      _originalChecklistItems = _checklistItems.map((i) => i.copyWith()).toList();
+      _originalChecklistItems =
+          _checklistItems.map((i) => i.copyWith()).toList();
       _quillController = QuillController.basic();
     } else if (_isChecklistMode) {
       // New checklist note
@@ -293,7 +316,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     });
     _audioPlayer.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        if (mounted) setState(() { _isPlaying = false; _playingUrl = null; });
+        if (mounted)
+          setState(() {
+            _isPlaying = false;
+            _playingUrl = null;
+          });
       }
     });
 
@@ -364,7 +391,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         _showAuthFailedSnackBar();
       }
     } catch (e) {
-      _showAuthFailedSnackBar(message: e.toString().replaceAll('Exception: ', ''));
+      _showAuthFailedSnackBar(
+          message: e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -429,7 +457,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         'items': _checklistItems.map((item) => item.toJson()).toList(),
       };
       content = jsonEncode(checklistJson);
-      plainText = _checklistItems.map((i) => i.text).where((t) => t.trim().isNotEmpty).join(' ');
+      plainText = _checklistItems
+          .map((i) => i.text)
+          .where((t) => t.trim().isNotEmpty)
+          .join(' ');
     } else {
       content = jsonEncode(_quillController.document.toDelta().toJson());
       plainText = _quillController.document.toPlainText().trim();
@@ -441,11 +472,21 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     final provider = Provider.of<NoteProvider>(context, listen: false);
     final bool isEmpty;
     if (_isChecklistMode) {
-      isEmpty = title.isEmpty && _checklistItems.every((i) => i.text.trim().isEmpty)
-        && _tags.isEmpty && _imageUrls.isEmpty && _audioUrls.isEmpty && _noteColor == null && !_isRecording;
+      isEmpty = title.isEmpty &&
+          _checklistItems.every((i) => i.text.trim().isEmpty) &&
+          _tags.isEmpty &&
+          _imageUrls.isEmpty &&
+          _audioUrls.isEmpty &&
+          _noteColor == null &&
+          !_isRecording;
     } else {
-      isEmpty = title.isEmpty && plainText.isEmpty && _tags.isEmpty
-        && _imageUrls.isEmpty && _audioUrls.isEmpty && _noteColor == null && !_isRecording;
+      isEmpty = title.isEmpty &&
+          plainText.isEmpty &&
+          _tags.isEmpty &&
+          _imageUrls.isEmpty &&
+          _audioUrls.isEmpty &&
+          _noteColor == null &&
+          !_isRecording;
     }
 
     if (isEmpty && !_hasBeenSavedInDb) return;
@@ -504,7 +545,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
       }
     }
   }
@@ -514,7 +556,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     setState(() => _uploadingFiles.add(file));
 
     try {
-      final url = await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
+      final url =
+          await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
       if (!mounted) return;
 
       setState(() {
@@ -525,7 +568,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
       }
     }
   }
@@ -543,7 +587,9 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   Future<void> _editDrawingScreen(String oldUrl) async {
     final File? drawingFile = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => DrawingScreen(noteColor: _noteColor, initialImageUrl: oldUrl)),
+      MaterialPageRoute(
+          builder: (_) =>
+              DrawingScreen(noteColor: _noteColor, initialImageUrl: oldUrl)),
     );
     if (drawingFile != null) {
       _replaceDrawing(oldUrl, drawingFile);
@@ -560,7 +606,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     });
 
     try {
-      final url = await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
+      final url =
+          await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
       if (!mounted) return;
 
       setState(() {
@@ -576,7 +623,7 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         }
       });
       if (url != null) await _saveNote(isAutosave: true);
-      
+
       _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) {});
     } catch (e) {
       if (!mounted) return;
@@ -584,30 +631,47 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         _uploadingFiles.remove(file);
         _deletingUrls.remove(oldUrl);
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
     }
   }
 
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             ListTile(
-              leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.photo_library_outlined, color: _primary)),
+              leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.photo_library_outlined, color: _primary)),
               title: const Text('Chọn từ thư viện'),
-              onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
             ),
             ListTile(
-              leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.camera_alt_outlined, color: _primary)),
+              leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.camera_alt_outlined, color: _primary)),
               title: const Text('Chụp ảnh'),
-              onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -621,7 +685,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     if (!hasPermission) return;
 
     final dir = await getTemporaryDirectory();
-    _recordingPath = '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    _recordingPath =
+        '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
     await _recorder.start(
       const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
@@ -630,7 +695,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
     _recordDuration = Duration.zero;
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
+      if (mounted)
+        setState(() => _recordDuration += const Duration(seconds: 1));
     });
     setState(() => _isRecording = true);
   }
@@ -648,7 +714,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           message: 'Ghi âm thất bại: Không lấy được file audio.',
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
-          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          statusIcon:
+              const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
           autoHide: true,
         );
       }
@@ -665,7 +732,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       statusIcon: const SizedBox(
         width: 14,
         height: 14,
-        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+        child:
+            CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
       ),
     );
 
@@ -681,7 +749,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           message: 'Tải lên âm thanh thành công!',
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+          statusIcon: const Icon(Icons.check_circle,
+              color: Color(0xFF10B981), size: 16),
           autoHide: true,
         );
       } else {
@@ -690,7 +759,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           message: 'Tải lên âm thanh thất bại.',
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
-          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          statusIcon:
+              const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
           autoHide: true,
         );
       }
@@ -714,17 +784,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     } else {
       if (_playingUrl != url) {
         await _audioPlayer.setUrl(url);
-        setState(() { _playingUrl = url; _playPosition = Duration.zero; });
+        setState(() {
+          _playingUrl = url;
+          _playPosition = Duration.zero;
+        });
       }
       await _audioPlayer.play();
       setState(() => _isPlaying = true);
     }
-  }
-
-  String _formatDuration(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
   }
 
   Future<void> _delete() async {
@@ -732,9 +799,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xóa ghi chú?'),
-        content: const Text('Ghi chú sẽ được chuyển vào Thùng rác và tự động xóa sau 7 ngày.'),
+        content: const Text(
+            'Ghi chú sẽ được chuyển vào Thùng rác và tự động xóa sau 7 ngày.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Hủy')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -754,7 +824,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       if (!mounted) return;
 
       if (_hasBeenSavedInDb) {
-        await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
+        await Provider.of<NoteProvider>(context, listen: false)
+            .deleteNote(_noteId);
       }
 
       if (mounted) Navigator.of(context).pop();
@@ -763,7 +834,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
 
   Future<void> _togglePin() async {
     if (_hasBeenSavedInDb && widget.note != null) {
-      await Provider.of<NoteProvider>(context, listen: false).togglePin(widget.note!);
+      await Provider.of<NoteProvider>(context, listen: false)
+          .togglePin(widget.note!);
       if (mounted) Navigator.of(context).pop();
     }
   }
@@ -784,7 +856,9 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_status == 'archived' ? 'Đã chuyển vào kho lưu trữ' : 'Đã hủy lưu trữ ghi chú'),
+          content: Text(_status == 'archived'
+              ? 'Đã chuyển vào kho lưu trữ'
+              : 'Đã hủy lưu trữ ghi chú'),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -800,7 +874,9 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           initialTags: _tags,
           onTagsChanged: (updatedTags) {
             setState(() => _tags = updatedTags);
-            _saveNote(isAutosave: true); // Chuyển thành true để thực hiện lưu thay đổi nhãn ngay lập tức
+            _saveNote(
+                isAutosave:
+                    true); // Chuyển thành true để thực hiện lưu thay đổi nhãn ngay lập tức
           },
         ),
       ),
@@ -862,7 +938,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
       link: quillBaseStyles.link,
       color: quillBaseStyles.color,
       placeHolder: quillBaseStyles.placeHolder?.copyWith(
-        style: quillBaseStyles.placeHolder!.style.copyWith(color: placeholderColor),
+        style: quillBaseStyles.placeHolder!.style
+            .copyWith(color: placeholderColor),
       ),
       lists: quillBaseStyles.lists,
       quote: quillBaseStyles.quote?.copyWith(
@@ -907,9 +984,11 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor: _noteBackgroundColor(context) ?? AppColors.background(context),
+        backgroundColor:
+            _noteBackgroundColor(context) ?? AppColors.background(context),
         appBar: AppBar(
-          backgroundColor: _noteBackgroundColor(context) ?? AppColors.background(context),
+          backgroundColor:
+              _noteBackgroundColor(context) ?? AppColors.background(context),
           elevation: 0,
           leading: IconButton(
             icon: Icon(
@@ -948,7 +1027,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             if (_isUploading)
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _primary, strokeWidth: 2))),
+                child: Center(
+                    child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: _primary, strokeWidth: 2))),
               ),
             _buildAppBarRoundBtn(
               icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
@@ -959,7 +1043,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                   return;
                 }
                 final messenger = ScaffoldMessenger.of(context);
-                final provider = Provider.of<NoteProvider>(context, listen: false);
+                final provider =
+                    Provider.of<NoteProvider>(context, listen: false);
                 try {
                   final success = await provider.toggleLock(_noteId);
                   if (success) {
@@ -969,9 +1054,12 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     });
                     messenger.showSnackBar(
                       SnackBar(
-                        content: Text(_isLocked ? '🔒 Đã khóa ghi chú' : '🔓 Đã mở khóa ghi chú'),
+                        content: Text(_isLocked
+                            ? '🔒 Đã khóa ghi chú'
+                            : '🔓 Đã mở khóa ghi chú'),
                         behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                     );
                   }
@@ -984,7 +1072,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                       SnackBar(
                         content: Text(msg),
                         behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         backgroundColor: AppColors.error,
                       ),
                     );
@@ -993,7 +1082,9 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               },
             ),
             _buildAppBarRoundBtn(
-              icon: _status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined,
+              icon: _status == 'pinned'
+                  ? Icons.push_pin
+                  : Icons.push_pin_outlined,
               tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim',
               onTap: () {
                 if (!_hasBeenSavedInDb) {
@@ -1020,126 +1111,159 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
           children: [
             Column(
               children: [
-                if (_showUploadBanner && _uploadMessage != null)
-                  Container(
-                    color: _bannerColor,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        _statusIcon,
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _uploadMessage!,
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              color: _bannerTextColor,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (_isUploading)
-                  LinearProgressIndicator(backgroundColor: AppColors.divider(context), color: _primary),
+                EditorUploadBanner(
+                  showBanner: _showUploadBanner,
+                  message: _uploadMessage,
+                  bannerColor: _bannerColor,
+                  bannerTextColor: _bannerTextColor,
+                  statusIcon: _statusIcon,
+                  isUploading: _isUploading,
+                ),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_imageUrls.isNotEmpty || _uploadingFiles.isNotEmpty) _buildGoogleKeepImageSection(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: TextField(
-                          controller: _titleController,
-                          focusNode: _titleFocusNode,
-                          autofocus: false,
-                          style: GoogleFonts.outfit(
-                            fontSize: 27, 
-                            fontWeight: FontWeight.w400, 
-                            color: isCustomColor
-                                ? (onDarkNoteBg ? Colors.white : const Color(0xFF0F172A))
-                                : AppColors.textSecondary(context),
+                        if (_imageUrls.isNotEmpty || _uploadingFiles.isNotEmpty)
+                          EditorImageSection(
+                            imageUrls: _imageUrls,
+                            uploadingFiles: _uploadingFiles,
+                            deletingUrls: _deletingUrls,
+                            noteColor: _noteColor,
+                            onOpenImage: _openImageViewer,
+                            onEditDrawing: _editDrawingScreen,
                           ),
-                          decoration: InputDecoration(
-                            hintText: 'Tiêu đề',
-                            border: InputBorder.none,
-                            hintStyle: TextStyle(
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          child: TextField(
+                            controller: _titleController,
+                            focusNode: _titleFocusNode,
+                            autofocus: false,
+                            style: GoogleFonts.outfit(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w400,
                               color: isCustomColor
-                                  ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
-                                  : AppColors.placeholder(context),
+                                  ? (onDarkNoteBg
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A))
+                                  : AppColors.textSecondary(context),
                             ),
+                            decoration: InputDecoration(
+                              hintText: 'Tiêu đề',
+                              border: InputBorder.none,
+                              hintStyle: TextStyle(
+                                color: isCustomColor
+                                    ? (onDarkNoteBg
+                                        ? const Color(0xFFCBD5E1)
+                                        : const Color(0xFF64748B))
+                                    : AppColors.placeholder(context),
+                              ),
+                            ),
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLines: null,
                           ),
-                          textCapitalization: TextCapitalization.sentences,
-                          maxLines: null,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_isChecklistMode)
-                        _buildChecklistEditor()
-                      else
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            _editorFocusNode.requestFocus();
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                QuillEditor.basic(
-                                  controller: _quillController,
-                                  focusNode: _editorFocusNode,
-                                  config: QuillEditorConfig(
-                                    scrollable: false,
-                                    expands: false,
-                                          autoFocus: false,
-                                          padding: EdgeInsets.zero,
-                                          placeholder: 'Ghi chú',
-                                          customStyles: quillCustomStyles,
-                                        ),
-                                      ),
-                                      if (_audioUrls.isNotEmpty) ...[
-                                        const SizedBox(height: 16),
-                                        ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
-                                      ],
-                                      if (_isRecording) ...[
-                                        const SizedBox(height: 16),
-                                        _buildRecordingIndicator(),
-                                      ],
-                                      if (_tags.isNotEmpty) ...[
-                                        const SizedBox(height: 24),
-                                        Wrap(
-                                          spacing: 8, runSpacing: 6,
-                                          children: _tags.map((tag) => Chip(
-                                            label: Text(
-                                              tag, 
-                                              style: GoogleFonts.outfit(
-                                                fontSize: 12, 
-                                                color: _noteColor != null ? const Color(0xFF1E293B) : AppColors.textSecondary(context),
-                                              ),
-                                            ),
-                                            backgroundColor: _noteColor != null ? Colors.black.withValues(alpha: 0.05) : AppColors.inputBackground(context),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                            side: BorderSide(color: _noteColor != null ? Colors.black.withValues(alpha: 0.08) : AppColors.divider(context)),
-                                          )).toList(),
-                                        ),
-                                      ],
-                                      const SizedBox(height: 20),
-                                    ],
+                        const SizedBox(height: 8),
+                        if (_isChecklistMode)
+                          _buildChecklistEditor()
+                        else
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              _editorFocusNode.requestFocus();
+                            },
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  QuillEditor.basic(
+                                    controller: _quillController,
+                                    focusNode: _editorFocusNode,
+                                    config: QuillEditorConfig(
+                                      scrollable: false,
+                                      expands: false,
+                                      autoFocus: false,
+                                      padding: EdgeInsets.zero,
+                                      placeholder: 'Ghi chú',
+                                      customStyles: quillCustomStyles,
+                                    ),
                                   ),
+                                  if (_audioUrls.isNotEmpty ||
+                                      _isRecording) ...[
+                                    const SizedBox(height: 16),
+                                    EditorAudioSection(
+                                      audioUrls: _audioUrls,
+                                      isRecording: _isRecording,
+                                      recordDuration: _recordDuration,
+                                      playingUrl: _playingUrl,
+                                      isPlaying: _isPlaying,
+                                      playPosition: _playPosition,
+                                      playTotal: _playTotal,
+                                      noteColor: _noteColor,
+                                      onTogglePlay: _togglePlay,
+                                      onSeek: (val) => _audioPlayer.seek(
+                                          Duration(milliseconds: val.toInt())),
+                                      onDeleteAudio: _deleteAudio,
+                                      onStopRecording: _stopRecordingAndUpload,
+                                    ),
+                                  ],
+                                  if (_tags.isNotEmpty) ...[
+                                    const SizedBox(height: 24),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      children: _tags
+                                          .map((tag) => Chip(
+                                                label: Text(
+                                                  tag,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 12,
+                                                    color: _noteColor != null
+                                                        ? const Color(
+                                                            0xFF1E293B)
+                                                        : AppColors
+                                                            .textSecondary(
+                                                                context),
+                                                  ),
+                                                ),
+                                                backgroundColor: _noteColor !=
+                                                        null
+                                                    ? Colors.black
+                                                        .withValues(alpha: 0.05)
+                                                    : AppColors.inputBackground(
+                                                        context),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8)),
+                                                side: BorderSide(
+                                                    color: _noteColor != null
+                                                        ? Colors.black
+                                                            .withValues(
+                                                                alpha: 0.08)
+                                                        : AppColors.divider(
+                                                            context)),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 20),
+                                ],
+                              ),
                             ),
                           ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-                if (!(_isLocked && !_isUnlocked) && !_titleFocusNode.hasFocus) _buildBottomToolbar(),
-          ],
-        ),
+                if (!(_isLocked && !_isUnlocked) && !_titleFocusNode.hasFocus)
+                  _buildBottomToolbar(),
+              ],
+            ),
             if (_isLocked)
               AnimatedOpacity(
                 opacity: _isUnlocked ? 0.0 : 1.0,
@@ -1188,14 +1312,18 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
                           onPressed: _authenticateNote,
-                          icon: const Icon(Icons.fingerprint, color: Colors.white),
+                          icon: const Icon(Icons.fingerprint,
+                              color: Colors.white),
                           label: Text(
                             'Xác thực ngay',
-                            style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white),
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -1212,245 +1340,56 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     );
   }
 
-  Widget _buildGoogleKeepImageSection() {
-    return Column(
-      children: [
-        ..._imageUrls.asMap().entries.map((entry) {
-          final index = entry.key;
-          final url = entry.value;
-          final isDrawing = url.contains('/drawings/');
-          final isDeleting = _deletingUrls.contains(url);
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Stack(
-              children: [
-                GestureDetector(
-                  onTap: isDeleting ? null : (isDrawing ? () => _editDrawingScreen(url) : () => _openImageViewer(index)),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _noteColor != null ? AppColors.parseColor(_noteColor!) : AppColors.divider(context), 
-                        width: _noteColor != null ? 2 : 1
-                      ),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: CachedNetworkImage(
-                        imageUrl: url,
-                        width: double.infinity,
-                        fit: BoxFit.contain,
-                        placeholder: (context, url) => Container(
-                          height: 200,
-                          color: const Color(0xFFF8FAFC),
-                          child: const Center(
-                            child: SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF94A3B8)),
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          height: 100,
-                          color: const Color(0xFFF1F5F9),
-                          child: const Icon(Icons.broken_image_outlined, color: Color(0xFF94A3B8), size: 24),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (isDeleting)
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(color: Colors.white),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }),
-        ..._uploadingFiles.map((file) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Stack(
-              children: [
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _noteColor != null ? AppColors.parseColor(_noteColor!) : AppColors.divider(context), 
-                      width: _noteColor != null ? 2 : 1
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: Image.file(
-                      file,
-                      width: double.infinity,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(color: Colors.white),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildGoogleKeepAudioItem(String url, int index) {
-    final isThisPlaying = _playingUrl == url && _isPlaying;
-    final isThisLoaded = _playingUrl == url;
-
-    final isCustomColor = _noteColor != null;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isThisPlaying 
-            ? (isCustomColor ? const Color(0xFFBFDBFE).withValues(alpha: 0.3) : const Color(0xFFEFF6FF))
-            : (isCustomColor ? Colors.black.withValues(alpha: 0.03) : const Color(0xFFF8FAFC)),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: isThisPlaying 
-              ? const Color(0xFFBFDBFE)
-              : (isCustomColor ? Colors.black.withValues(alpha: 0.06) : const Color(0xFFE2E8F0)),
-        ),
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => _togglePlay(url),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: isThisPlaying ? _primary : const Color(0xFFCBD5E1),
-              child: Icon(isThisPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 20),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ghi âm âm thanh ${index + 1}', 
-                  style: GoogleFonts.outfit(
-                    fontSize: 14, 
-                    fontWeight: FontWeight.w600, 
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isThisLoaded ? '${_formatDuration(_playPosition)} / ${_formatDuration(_playTotal)}' : '00:00',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11, 
-                    color: isCustomColor ? const Color(0xFF64748B) : Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (isThisLoaded && _playTotal.inMilliseconds > 0)
-            SizedBox(
-              width: 80,
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2, thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 8),
-                ),
-                child: Slider(
-                  value: _playPosition.inMilliseconds.toDouble().clamp(0, _playTotal.inMilliseconds.toDouble()),
-                  max: _playTotal.inMilliseconds.toDouble(),
-                  activeColor: _primary, inactiveColor: Colors.grey.shade300,
-                  onChanged: (val) => _audioPlayer.seek(Duration(milliseconds: val.toInt())),
-                ),
-              ),
-            ),
-          const SizedBox(width: 8),
-          GestureDetector(
-              onTap: () async {
-                if (_playingUrl == url) {
-                  await _audioPlayer.stop();
-                  setState(() { _playingUrl = null; _isPlaying = false; });
-                }
-                _setUploadState(
-                  isUploading: true,
-                  message: 'Đang xóa âm thanh khỏi đám mây...',
-                  bannerColor: const Color(0xFFEFF6FF),
-                  bannerTextColor: const Color(0xFF1E40AF),
-                  statusIcon: const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
-                  ),
-                );
-                try {
-                  await _cloudinary.deleteFile(url, resourceType: 'video');
-                  if (mounted) {
-                    setState(() {
-                      _audioUrls.removeAt(index);
-                    });
-                    await _saveNote(isAutosave: true);
-                    _setUploadState(
-                      isUploading: false,
-                      message: 'Đã xóa âm thanh thành công.',
-                      bannerColor: const Color(0xFFECFDF5),
-                      bannerTextColor: const Color(0xFF065F46),
-                      statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-                      autoHide: true,
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    _setUploadState(
-                      isUploading: false,
-                      message: 'Xóa âm thanh thất bại.',
-                      bannerColor: const Color(0xFFFEF2F2),
-                      bannerTextColor: const Color(0xFF991B1B),
-                      statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
-                      autoHide: true,
-                    );
-                  }
-                }
-            },
-            child: Icon(Icons.delete_outline_rounded, color: Colors.grey.shade400, size: 20),
-          ),
-        ],
+  Future<void> _deleteAudio(String url, int index) async {
+    if (_playingUrl == url) {
+      await _audioPlayer.stop();
+      setState(() {
+        _playingUrl = null;
+        _isPlaying = false;
+      });
+    }
+    _setUploadState(
+      isUploading: true,
+      message: 'Đang xóa âm thanh khỏi đám mây...',
+      bannerColor: const Color(0xFFEFF6FF),
+      bannerTextColor: const Color(0xFF1E40AF),
+      statusIcon: const SizedBox(
+        width: 14,
+        height: 14,
+        child:
+            CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
       ),
     );
+    try {
+      await _cloudinary.deleteFile(url, resourceType: 'video');
+      if (mounted) {
+        setState(() {
+          _audioUrls.removeAt(index);
+        });
+        await _saveNote(isAutosave: true);
+        _setUploadState(
+          isUploading: false,
+          message: 'Đã xóa âm thanh thành công.',
+          bannerColor: const Color(0xFFECFDF5),
+          bannerTextColor: const Color(0xFF065F46),
+          statusIcon: const Icon(Icons.check_circle,
+              color: Color(0xFF10B981), size: 16),
+          autoHide: true,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _setUploadState(
+          isUploading: false,
+          message: 'Xóa âm thanh thất bại.',
+          bannerColor: const Color(0xFFFEF2F2),
+          bannerTextColor: const Color(0xFF991B1B),
+          statusIcon:
+              const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          autoHide: true,
+        );
+      }
+    }
   }
 
   void _openImageViewer(int initialIndex) {
@@ -1476,8 +1415,10 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
               bannerColor: const Color(0xFFEFF6FF),
               bannerTextColor: const Color(0xFF1E40AF),
               statusIcon: const SizedBox(
-                width: 14, height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Color(0xFF2E75B6)),
               ),
             );
             _cloudinary.deleteFile(url, resourceType: 'image').then((_) {
@@ -1489,16 +1430,20 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                   message: 'Đã xóa hình ảnh thành công.',
                   bannerColor: const Color(0xFFECFDF5),
                   bannerTextColor: const Color(0xFF065F46),
-                  statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+                  statusIcon: const Icon(Icons.check_circle,
+                      color: Color(0xFF10B981), size: 16),
                   autoHide: true,
                 );
               }
             }).catchError((_) {
               if (mounted) {
                 _setUploadState(
-                  isUploading: false, message: 'Xóa hình ảnh thất bại.',
-                  bannerColor: const Color(0xFFFEF2F2), bannerTextColor: const Color(0xFF991B1B),
-                  statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+                  isUploading: false,
+                  message: 'Xóa hình ảnh thất bại.',
+                  bannerColor: const Color(0xFFFEF2F2),
+                  bannerTextColor: const Color(0xFF991B1B),
+                  statusIcon: const Icon(Icons.error,
+                      color: Color(0xFFEF4444), size: 16),
                   autoHide: true,
                 );
               }
@@ -1509,118 +1454,37 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     );
   }
 
-  Widget _buildRecordingIndicator() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _recordColor.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: _recordColor.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.4, end: 1.0), duration: const Duration(milliseconds: 600),
-            builder: (_, val, child) => Opacity(opacity: val, child: child),
-            child: Container(width: 10, height: 10, decoration: const BoxDecoration(color: _recordColor, shape: BoxShape.circle)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text('Đang ghi âm... ${_formatDuration(_recordDuration)}', style: GoogleFonts.outfit(color: _recordColor, fontWeight: FontWeight.w600))),
-          GestureDetector(
-            onTap: _stopRecordingAndUpload,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(color: _recordColor, borderRadius: BorderRadius.circular(20)),
-              child: const Text('Dừng', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── CHECKLIST EDITOR ──
   Widget _buildChecklistEditor() {
     return Column(
       children: [
-        // Header: Icon checklist + nút X để thoát checklist mode
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(
-            children: [
-              const Icon(Icons.drag_indicator, color: Color(0xFF94A3B8), size: 20),
-              const SizedBox(width: 4),
-              Icon(Icons.check_box_outline_blank, color: Colors.grey.shade600, size: 20),
-              const Spacer(),
-              GestureDetector(
-                onTap: _exitChecklistMode,
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Icon(Icons.close, color: Colors.grey.shade700, size: 22),
-                ),
-              ),
-            ],
-          ),
+        EditorChecklistSection(
+          checklistItems: _checklistItems,
+          noteColor: _noteColor,
+          onAddChecklistItem: _addChecklistItem,
+          onAddChecklistItemAfter: _addChecklistItemAfter,
+          onRemoveChecklistItem: (index) {
+            setState(() => _checklistItems.removeAt(index));
+            _onTextChanged();
+          },
+          onItemTextChanged: (index, val) {
+            _checklistItems[index].text = val;
+            _onTextChanged();
+          },
+          onItemChecked: (index, val) {
+            setState(() => _checklistItems[index].checked = val);
+            _onTextChanged();
+          },
+          onReorder: (oldIndex, newIndex) {
+            setState(() {
+              if (newIndex > oldIndex) newIndex--;
+              final item = _checklistItems.removeAt(oldIndex);
+              _checklistItems.insert(newIndex, item);
+            });
+            _onTextChanged();
+          },
+          onExitChecklistMode: _exitChecklistMode,
         ),
-        // Checklist items
-        ReorderableListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          buildDefaultDragHandles: false,
-          itemCount: _checklistItems.length + 1, // +1 cho nút "+ Mục danh sách"
-            onReorder: (oldIndex, newIndex) {
-              if (oldIndex >= _checklistItems.length || newIndex > _checklistItems.length) return;
-              setState(() {
-                if (newIndex > oldIndex) newIndex--;
-                final item = _checklistItems.removeAt(oldIndex);
-                _checklistItems.insert(newIndex, item);
-              });
-              _onTextChanged();
-            },
-            proxyDecorator: (child, index, animation) {
-              return AnimatedBuilder(
-                animation: animation,
-                builder: (context, child) {
-                  final elevation = Tween<double>(begin: 0, end: 4).animate(animation).value;
-                  return Material(
-                    elevation: elevation,
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    child: child,
-                  );
-                },
-                child: child,
-              );
-            },
-            itemBuilder: (context, index) {
-              // Nút "+ Mục danh sách" ở cuối
-              if (index == _checklistItems.length) {
-                return Padding(
-                  key: const ValueKey('__add_item__'),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: GestureDetector(
-                    onTap: _addChecklistItem,
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 28), // Align với drag handle
-                        Icon(Icons.add, color: Colors.grey.shade600, size: 20),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Mục danh sách',
-                          style: GoogleFonts.outfit(
-                            fontSize: 15,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              final item = _checklistItems[index];
-              return _buildChecklistTile(item, index);
-            },
-          ),
         // Audio + Recording + Tags phía dưới checklist
         if (_audioUrls.isNotEmpty || _isRecording || _tags.isNotEmpty)
           Padding(
@@ -1628,24 +1492,41 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_audioUrls.isNotEmpty) ...[
+                if (_audioUrls.isNotEmpty || _isRecording) ...[
                   const SizedBox(height: 8),
-                  ..._audioUrls.asMap().entries.map((e) => _buildGoogleKeepAudioItem(e.value, e.key)),
-                ],
-                if (_isRecording) ...[
-                  const SizedBox(height: 8),
-                  _buildRecordingIndicator(),
+                  EditorAudioSection(
+                    audioUrls: _audioUrls,
+                    isRecording: _isRecording,
+                    recordDuration: _recordDuration,
+                    playingUrl: _playingUrl,
+                    isPlaying: _isPlaying,
+                    playPosition: _playPosition,
+                    playTotal: _playTotal,
+                    noteColor: _noteColor,
+                    onTogglePlay: _togglePlay,
+                    onSeek: (val) =>
+                        _audioPlayer.seek(Duration(milliseconds: val.toInt())),
+                    onDeleteAudio: _deleteAudio,
+                    onStopRecording: _stopRecordingAndUpload,
+                  ),
                 ],
                 if (_tags.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Wrap(
-                    spacing: 8, runSpacing: 6,
-                    children: _tags.map((tag) => Chip(
-                      label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      side: BorderSide(color: Colors.grey.shade200),
-                    )).toList(),
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: _tags
+                        .map((tag) => Chip(
+                              label: Text(tag,
+                                  style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      color: const Color(0xFF475569))),
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              side: BorderSide(color: Colors.grey.shade200),
+                            ))
+                        .toList(),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -1653,96 +1534,6 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildChecklistTile(ChecklistItem item, int index) {
-    final isCustomColor = _noteColor != null;
-    final textThemeColor = isCustomColor ? const Color(0xFF1E293B) : AppColors.textSecondary(context);
-    final hintColor = isCustomColor ? const Color(0xFF64748B) : AppColors.placeholder(context);
-
-    return Container(
-      key: ValueKey(item.id),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      child: Row(
-        children: [
-          // Drag handle
-          ReorderableDragStartListener(
-            index: index,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Icon(
-                Icons.drag_indicator, 
-                color: isCustomColor ? const Color(0xFF64748B) : Colors.grey.shade500, 
-                size: 20,
-              ),
-            ),
-          ),
-          // Checkbox
-          SizedBox(
-            width: 24,
-            height: 24,
-            child: Checkbox(
-              value: item.checked,
-              onChanged: (val) {
-                setState(() => item.checked = val ?? false);
-                _onTextChanged();
-              },
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-              activeColor: _primary,
-              side: BorderSide(
-                color: isCustomColor ? const Color(0xFF475569) : Colors.grey.shade600, 
-                width: 1.5,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Text field
-          Expanded(
-            child: TextField(
-              controller: TextEditingController(text: item.text)
-                ..selection = TextSelection.collapsed(offset: item.text.length),
-              style: GoogleFonts.outfit(
-                fontSize: 15,
-                color: item.checked ? Colors.grey.shade400 : textThemeColor,
-                decoration: item.checked ? TextDecoration.lineThrough : TextDecoration.none,
-              ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Mục danh sách',
-                hintStyle: TextStyle(color: hintColor),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (val) {
-                item.text = val;
-                _onTextChanged();
-              },
-              onSubmitted: (_) {
-                // Nhấn Enter → thêm item mới ngay sau item hiện tại
-                _addChecklistItemAfter(index);
-              },
-              textInputAction: TextInputAction.next,
-            ),
-          ),
-          // Nút xóa item
-          if (_checklistItems.length > 1)
-            GestureDetector(
-              onTap: () {
-                setState(() => _checklistItems.removeAt(index));
-                _onTextChanged();
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Icon(
-                  Icons.close, 
-                  color: isCustomColor ? const Color(0xFF64748B) : Colors.grey.shade500, 
-                  size: 18,
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 
@@ -1792,7 +1583,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     setState(() {
       _isChecklistMode = true;
       if (plainText.isNotEmpty) {
-        _checklistItems = plainText.split('\n')
+        _checklistItems = plainText
+            .split('\n')
             .where((line) => line.trim().isNotEmpty)
             .map((line) => ChecklistItem(text: line))
             .toList();
@@ -1805,66 +1597,41 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     });
   }
 
-
   Widget _buildBottomToolbar() {
     if (_showFormattingToolbar && !_isChecklistMode) {
-      return BottomAppBar(
-        color: Colors.white,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        child: SizedBox(
-          height: 50,
-          child: Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    children: [
-                      // Nhóm 1: Kiểu chữ (Header, Normal)
-                      _formattingButton(text: 'H1', isActive: _isAttributeActive(Attribute.h1), onTap: () => _toggleHeader(Attribute.h1), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(text: 'H2', isActive: _isAttributeActive(Attribute.h2), onTap: () => _toggleHeader(Attribute.h2), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(text: 'Aa', isActive: _isNormalTextActive(), onTap: _clearHeader, disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingDivider(),
-                      // Nhóm 2: Định dạng inline (Bold, Italic,...)
-                      _formattingButton(icon: Icons.format_bold, isActive: _isAttributeActive(Attribute.bold), onTap: () => _toggleInline(Attribute.bold), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(icon: Icons.format_italic, isActive: _isAttributeActive(Attribute.italic), onTap: () => _toggleInline(Attribute.italic), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(icon: Icons.format_underline, isActive: _isAttributeActive(Attribute.underline), onTap: () => _toggleInline(Attribute.underline), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(icon: Icons.strikethrough_s, isActive: _isAttributeActive(Attribute.strikeThrough), onTap: () => _toggleInline(Attribute.strikeThrough), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(icon: Icons.format_clear, isActive: false, onTap: _clearInlineStyles, disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingDivider(),
-                      // Nhóm 3: Kiểu danh sách (List)
-                      _formattingButton(icon: Icons.format_list_bulleted, isActive: _isAttributeActive(Attribute.ul), onTap: () => _toggleList(Attribute.ul), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(icon: Icons.format_list_numbered, isActive: _isAttributeActive(Attribute.ol), onTap: () => _toggleList(Attribute.ol), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                      _formattingButton(icon: Icons.format_quote, isActive: _isAttributeActive(Attribute.blockQuote), onTap: () => _toggleInline(Attribute.blockQuote), disabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus),
-                    ],
-                  ),
-                ),
-              ),
-              // Nhóm 4: Nút Đóng (Ghim cố định)
-              _closeFormattingButton(),
-            ],
-          ),
-        ),
+      return EditorFormatToolbar(
+        quillController: _quillController,
+        onClose: () {
+          setState(() {
+            _showFormattingToolbar = false;
+          });
+        },
+        isButtonsDisabled: _isChecklistMode ||
+            _titleFocusNode.hasFocus ||
+            !_editorFocusNode.hasFocus,
       );
     }
 
     return BottomAppBar(
-      color: _noteBackgroundColor(context) ?? AppColors.toolbarBackground(context),
+      color:
+          _noteBackgroundColor(context) ?? AppColors.toolbarBackground(context),
       elevation: 0,
       padding: EdgeInsets.zero,
       child: SizedBox(
         height: 50,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4), // Tạo khoảng cách viền nhẹ
+          padding: const EdgeInsets.symmetric(
+              horizontal: 4), // Tạo khoảng cách viền nhẹ
           child: Row(
             children: [
               // 📦 BỌC CỤM ICON BÊN TRÁI: Thêm, Bảng màu, Định dạng văn bản
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
+                  _toolbarButton(
+                      icon: Icons.add_box_outlined,
+                      tooltip: 'Thêm',
+                      onTap: _isUploading ? null : _showAddOptions),
                   _toolbarButton(
                     icon: Icons.palette_outlined,
                     tooltip: 'Màu sắc',
@@ -1910,163 +1677,13 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
                     );
                   },
                 ),
-                
+
               // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
-              _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
+              _toolbarButton(
+                  icon: Icons.more_vert,
+                  tooltip: 'Thêm nữa',
+                  onTap: _showMoreOptions),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  bool _isAttributeActive(Attribute attr) {
-    if (attr.key == Attribute.header.key) {
-      final value = _quillController.getSelectionStyle().attributes[Attribute.header.key]?.value;
-      return value == attr.value;
-    }
-    if (attr.key == Attribute.list.key) {
-      final value = _quillController.getSelectionStyle().attributes[Attribute.list.key]?.value;
-      return value == attr.value;
-    }
-    return _quillController.getSelectionStyle().containsKey(attr.key);
-  }
-
-  bool _isNormalTextActive() {
-    final headerValue = _quillController.getSelectionStyle().attributes[Attribute.header.key]?.value;
-    return headerValue == null;
-  }
-
-  void _toggleHeader(Attribute headerAttr) {
-    final currentHeaderValue = _quillController.getSelectionStyle().attributes[Attribute.header.key]?.value;
-    if (currentHeaderValue == headerAttr.value) {
-      _quillController.formatSelection(Attribute.clone(Attribute.header, null));
-    } else {
-      // Apply header, but ensure it's not bold (use regular weight)
-      _quillController.formatSelection(headerAttr);
-      // Remove bold if present so header text stays normal weight
-      if (_quillController.getSelectionStyle().containsKey(Attribute.bold.key)) {
-        _quillController.formatSelection(Attribute.clone(Attribute.bold, null));
-      }
-    }
-  }
-
-  void _clearHeader() {
-    _quillController.formatSelection(Attribute.clone(Attribute.header, null));
-  }
-
-  void _toggleList(Attribute listAttr) {
-    final currentListValue = _quillController.getSelectionStyle().attributes[Attribute.list.key]?.value;
-    if (currentListValue == listAttr.value) {
-      _quillController.formatSelection(Attribute.clone(Attribute.list, null));
-    } else {
-      _quillController.formatSelection(listAttr);
-    }
-  }
-
-  void _toggleInline(Attribute inlineAttr) {
-    final isApplied = _quillController.getSelectionStyle().containsKey(inlineAttr.key);
-    _quillController.formatSelection(
-      isApplied ? Attribute.clone(inlineAttr, null) : inlineAttr,
-    );
-  }
-
-  void _clearInlineStyles() {
-    final attrs = [Attribute.bold, Attribute.italic, Attribute.underline, Attribute.strikeThrough];
-    for (final a in attrs) {
-      if (_quillController.getSelectionStyle().containsKey(a.key)) {
-        _quillController.formatSelection(Attribute.clone(a, null));
-      }
-    }
-  }
-
-  Widget _formattingButton({
-    String? text,
-    IconData? icon,
-    required bool isActive,
-    required VoidCallback onTap,
-    bool disabled = false,
-  }) {
-    final isTextButton = text != null;
-    final activeBgColor = isTextButton
-        ? AppColors.inputBackground(context)
-        : AppColors.primary.withValues(alpha: 0.16);
-    final inactiveBgColor = AppColors.inputBackground(context);
-    final activeColor = isTextButton
-        ? AppColors.textPrimary(context)
-        : AppColors.primaryVariant;
-    final inactiveColor = AppColors.textMetadata(context);
-    final disabledColor = AppColors.textMetadata(context).withValues(alpha: 0.6);
-
-    final bgColor = disabled ? inactiveBgColor : (isActive ? activeBgColor : inactiveBgColor);
-    final contentColor = disabled ? disabledColor : (isActive ? activeColor : inactiveColor);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: disabled ? null : onTap,
-          customBorder: const CircleBorder(),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: bgColor,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: text != null
-                ? Text(
-                    text,
-                    style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w600,
-                      fontSize: text == 'Aa' ? 18 : 16,
-                      color: contentColor,
-                    ),
-                  )
-                : Icon(
-                    icon,
-                    size: 24,
-                    color: contentColor,
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _formattingDivider() {
-    return Container(
-      width: 1,
-      height: 24,
-      color: AppColors.divider(context),
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-    );
-  }
-
-  Widget _closeFormattingButton() {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6, left: 2),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            setState(() {
-              _showFormattingToolbar = false;
-            });
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            child: Icon(
-              Icons.close,
-              size: 20,
-              color: AppColors.textSecondary(context),
-            ),
           ),
         ),
       ),
@@ -2076,41 +1693,17 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   void _showAddOptions() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.divider(context), borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.image_outlined, color: AppColors.textSecondary(context)),
-              title: const Text('Thêm hình ảnh'),
-              onTap: () { Navigator.pop(context); _showImageSourceSheet(); },
-            ),
-            ListTile(
-              leading: Icon(Icons.brush_outlined, color: AppColors.textSecondary(context)),
-              title: const Text('Bản vẽ'),
-              onTap: () {
-                Navigator.pop(context);
-                _openDrawingScreen();
-              },
-            ),
-            ListTile(
-              leading: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic_none_outlined, color: _isRecording ? _recordColor : AppColors.textSecondary(context)),
-              title: Text(_isRecording ? 'Dừng ghi âm' : 'Ghi âm'),
-              onTap: () { Navigator.pop(context); _isRecording ? _stopRecordingAndUpload() : _startRecording(); },
-            ),
-            if (!_isChecklistMode)
-              ListTile(
-                leading: Icon(Icons.check_box_outlined, color: AppColors.textSecondary(context)),
-                title: const Text('Danh sách'),
-                onTap: () { Navigator.pop(context); _switchToChecklistMode(); },
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => EditorAddOptionsSheet(
+        isRecording: _isRecording,
+        isChecklistMode: _isChecklistMode,
+        onAddImage: _showImageSourceSheet,
+        onAddDrawing: _openDrawingScreen,
+        onToggleRecording: () {
+          _isRecording ? _stopRecordingAndUpload() : _startRecording();
+        },
+        onSwitchToChecklistMode: _switchToChecklistMode,
       ),
     );
   }
@@ -2118,43 +1711,14 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
   void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.divider(context), borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 16),
-            if (_hasBeenSavedInDb)
-              ListTile(
-                leading: Icon(Icons.delete_outline, color: AppColors.textSecondary(context)),
-                title: const Text('Xóa ghi chú'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _delete();
-                },
-              ),
-            ListTile(
-              leading: Icon(Icons.label_outline, color: AppColors.textSecondary(context)),
-              title: const Text('Nhãn'),
-              onTap: () {
-                Navigator.pop(context);
-                _openLabelSelectionPage();
-              },
-            ),
-            if (_hasBeenSavedInDb)
-              ListTile(
-                leading: Icon(_status == 'archived' ? Icons.unarchive_outlined : Icons.archive_outlined, color: AppColors.textSecondary(context)),
-                title: Text(_status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleArchive();
-                },
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => EditorMoreOptionsSheet(
+        hasBeenSavedInDb: _hasBeenSavedInDb,
+        status: _status,
+        onDelete: _delete,
+        onLabelSelection: _openLabelSelectionPage,
+        onToggleArchive: _toggleArchive,
       ),
     );
   }
@@ -2189,7 +1753,9 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
             child: Icon(
               icon,
               size: 22,
-              color: isCustomColor ? const Color(0xFF1E293B) : AppColors.textMetadata(context),
+              color: isCustomColor
+                  ? const Color(0xFF1E293B)
+                  : AppColors.textMetadata(context),
             ),
           ),
         ),
@@ -2197,37 +1763,49 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
     );
   }
 
-  Widget _toolbarButton({required IconData icon, required String tooltip, VoidCallback? onTap, Color? color}) {
+  Widget _toolbarButton(
+      {required IconData icon,
+      required String tooltip,
+      VoidCallback? onTap,
+      Color? color}) {
     final isCustomColor = _noteColor != null;
-    final defaultIconColor = isCustomColor ? const Color(0xFF1E293B) : AppColors.textPrimary(context);
-    final metadataIconColor = isCustomColor ? const Color(0xFF64748B) : AppColors.textMetadata(context);
+    final defaultIconColor = isCustomColor
+        ? const Color(0xFF1E293B)
+        : AppColors.textPrimary(context);
+    final metadataIconColor = isCustomColor
+        ? const Color(0xFF64748B)
+        : AppColors.textMetadata(context);
 
     return Tooltip(
       message: tooltip,
       child: InkWell(
-        onTap: onTap, 
+        onTap: onTap,
         // Đổi bo góc thành hình tròn cho hiệu ứng gợn sóng khi chạm (Ripple Effect)
-        customBorder: const CircleBorder(), 
+        customBorder: const CircleBorder(),
         child: Padding(
           // Tạo khoảng cách (Gap) giữa các vòng tròn icon với nhau
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), 
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
 
           // 📦 ĐÂY CHÍNH LÀ BỌC CONTAINER ĐỂ TẠO VÒNG TRÒN NỀN:
           child: Container(
             width: 40,
             height: 40,
             decoration: const BoxDecoration(
-                color: Colors.transparent,
-                shape: BoxShape.circle,
+              color: Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
+            child: Center(
+              child: Icon(
+                icon,
+                size: 22,
+                color: onTap == null
+                    ? (isCustomColor
+                        ? Colors.black.withValues(alpha: 0.2)
+                        : Colors.grey.withValues(alpha: 0.3))
+                    : (color ?? defaultIconColor),
               ),
-              // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
-              child: Center( 
-                child: Icon(
-                  icon, 
-                  size: 22, 
-                  color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor),
-                ),
-              ),
+            ),
           ),
         ),
       ),
@@ -2251,162 +1829,23 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final palette = AppColors.noteBackgroundPalette(ctx);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Chọn màu ghi chú',
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary(ctx),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 48,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: palette.length + 1,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return _noteColorSwatch(
-                          context: ctx,
-                          tooltip: 'Mặc định',
-                          fillColor: AppColors.notePickerClearSwatch(ctx),
-                          isClear: true,
-                          isSelected: _noteColor == null,
-                          onTap: () {
-                            setState(() => _noteColor = null);
-                            Navigator.pop(ctx);
-                            _saveNote(isAutosave: true);
-                          },
-                        );
-                      }
-                      final entry = palette[index - 1];
-                      final isSelected =
-                          AppColors.isNotePaletteColorSelected(_noteColor, entry);
-                      return _noteColorSwatch(
-                        context: ctx,
-                        tooltip: entry.label,
-                        fillColor: entry.displayColor(ctx),
-                        isClear: false,
-                        isSelected: isSelected,
-                        onTap: () {
-                          setState(() => _noteColor = entry.storageHex);
-                          Navigator.pop(ctx);
-                          _saveNote(isAutosave: true);
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return EditorColorPickerSheet(
+          noteColor: _noteColor,
+          onColorSelected: (newColor) {
+            setState(() => _noteColor = newColor);
+            _saveNote(isAutosave: true);
+          },
         );
       },
     );
   }
-
-  Widget _noteColorSwatch({
-    required BuildContext context,
-    required String tooltip,
-    required Color fillColor,
-    required bool isClear,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final accent = AppColors.notePickerAccent(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Tooltip(
-      message: tooltip,
-      preferBelow: true,
-      child: GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: fillColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? accent : AppColors.divider(context),
-                    width: isSelected ? 2.5 : 1,
-                  ),
-                ),
-                child: isClear
-                    ? (isDark
-                        ? const Icon(Icons.water_drop_outlined, size: 18, color: Colors.white70)
-                        : CustomPaint(
-                            painter: _NoColorSlashPainter(
-                              color: AppColors.textMetadata(context),
-                            ),
-                          ))
-                    : null,
-              ),
-              if (isSelected)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.check, size: 12, color: Colors.white),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NoColorSlashPainter extends CustomPainter {
-  _NoColorSlashPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(
-      Offset(size.width * 0.22, size.height * 0.78),
-      Offset(size.width * 0.78, size.height * 0.22),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _NoColorSlashPainter oldDelegate) => oldDelegate.color != color;
 }
 
 class _LabelSelectionScreen extends StatefulWidget {
   final List<String> initialTags;
   final ValueChanged<List<String>> onTagsChanged;
-  const _LabelSelectionScreen({required this.initialTags, required this.onTagsChanged});
+  const _LabelSelectionScreen(
+      {required this.initialTags, required this.onTagsChanged});
   @override
   State<_LabelSelectionScreen> createState() => _LabelSelectionScreenState();
 }
@@ -2417,30 +1856,54 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
   String _searchQuery = '';
 
   @override
-  void initState() { super.initState(); _selectedTags = List.from(widget.initialTags); }
+  void initState() {
+    super.initState();
+    _selectedTags = List.from(widget.initialTags);
+  }
+
   @override
-  void dispose() { _searchController.dispose(); super.dispose(); }
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<NoteProvider>(context);
     final allLabels = provider.allLabels;
-    final filteredLabels = allLabels.where((l) => l.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-    final showCreate = _searchQuery.trim().isNotEmpty && !allLabels.any((l) => l.toLowerCase() == _searchQuery.trim().toLowerCase());
+    final filteredLabels = allLabels
+        .where((l) => l.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+    final showCreate = _searchQuery.trim().isNotEmpty &&
+        !allLabels
+            .any((l) => l.toLowerCase() == _searchQuery.trim().toLowerCase());
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background(context), elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)), onPressed: () => Navigator.pop(context)),
+        backgroundColor: AppColors.background(context),
+        elevation: 0,
+        leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)),
+            onPressed: () => Navigator.pop(context)),
         titleSpacing: 0,
         title: TextField(
-          controller: _searchController, autofocus: true,
+          controller: _searchController,
+          autofocus: true,
           style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
           decoration: InputDecoration(
-            hintText: 'Nhập tên nhãn', border: InputBorder.none,
+            hintText: 'Nhập tên nhãn',
+            border: InputBorder.none,
             hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
-            suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: Icon(Icons.clear, size: 20, color: AppColors.textSecondary(context)), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) : null,
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear,
+                        size: 20, color: AppColors.textSecondary(context)),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    })
+                : null,
           ),
           onChanged: (val) => setState(() => _searchQuery = val),
         ),
@@ -2454,21 +1917,38 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 if (showCreate)
                   ListTile(
                     leading: const Icon(Icons.add, color: AppColors.primary),
-                    title: Text('Tạo "${_searchQuery.trim()}"', style: GoogleFonts.inter(color: AppColors.textPrimary(context))),
+                    title: Text('Tạo "${_searchQuery.trim()}"',
+                        style: GoogleFonts.inter(
+                            color: AppColors.textPrimary(context))),
                     onTap: () {
                       final newTag = _searchQuery.trim();
                       provider.addLabel(newTag);
-                      setState(() { if (!_selectedTags.contains(newTag)) _selectedTags.add(newTag); _searchQuery = ''; _searchController.clear(); });
+                      setState(() {
+                        if (!_selectedTags.contains(newTag))
+                          _selectedTags.add(newTag);
+                        _searchQuery = '';
+                        _searchController.clear();
+                      });
                       widget.onTagsChanged(_selectedTags);
                     },
                   ),
                 ...filteredLabels.map((label) {
                   final isChecked = _selectedTags.contains(label);
                   return CheckboxListTile(
-                    title: Text(label, style: GoogleFonts.inter(color: AppColors.textPrimary(context))), value: isChecked, activeColor: AppColors.primary,
+                    title: Text(label,
+                        style: GoogleFonts.inter(
+                            color: AppColors.textPrimary(context))),
+                    value: isChecked,
+                    activeColor: AppColors.primary,
                     checkColor: AppColors.onPrimary,
                     onChanged: (val) {
-                      setState(() { if (val == true) { _selectedTags.add(label); } else { _selectedTags.remove(label); } });
+                      setState(() {
+                        if (val == true) {
+                          _selectedTags.add(label);
+                        } else {
+                          _selectedTags.remove(label);
+                        }
+                      });
                       widget.onTagsChanged(_selectedTags);
                     },
                   );
@@ -2526,7 +2006,7 @@ class _ImageViewerState extends State<_ImageViewer> {
       });
       return const Scaffold(backgroundColor: Colors.white);
     }
-    
+
     if (_currentIndex >= widget.imageUrls.length) {
       _currentIndex = widget.imageUrls.length - 1;
     }
@@ -2543,7 +2023,9 @@ class _ImageViewerState extends State<_ImageViewer> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
+        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}',
+            style:
+                GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
         centerTitle: false,
         actions: [
           IconButton(
@@ -2564,7 +2046,9 @@ class _ImageViewerState extends State<_ImageViewer> {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
-              const PopupMenuItem(value: 'delete', child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+              const PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
             ],
           ),
         ],
@@ -2582,12 +2066,15 @@ class _ImageViewerState extends State<_ImageViewer> {
               fit: BoxFit.contain,
               placeholder: (context, url) => const Center(
                 child: SizedBox(
-                  width: 30, height: 30,
-                  child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.primary),
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 3, color: AppColors.primary),
                 ),
               ),
               errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.grey, size: 40),
               ),
             ),
           );

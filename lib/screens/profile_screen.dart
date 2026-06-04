@@ -10,6 +10,11 @@ import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import 'login_screen.dart';
+import '../features/profile/widgets/profile_header.dart';
+import '../features/profile/widgets/profile_menu_tile.dart';
+import '../features/profile/sheets/personal_info_sheet.dart';
+import '../features/profile/sheets/security_sheet.dart';
+import '../features/profile/dialogs/app_info_dialog.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,12 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isSavingProfile = false;
-  bool _isChangingPassword = false;
   bool _isUploadingAvatar = false;
-  bool _obscureOld = true;
-  bool _obscureNew = true;
-  bool _obscureConfirm = true;
   @override
   void initState() {
     super.initState();
@@ -130,9 +130,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
     try {
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('avatars/${auth.user!.uid}.jpg');
+      final ref =
+          FirebaseStorage.instance.ref().child('avatars/${auth.user!.uid}.jpg');
       await ref.putFile(File(picked.path));
       final url = await ref.getDownloadURL();
       await FirebaseFirestore.instance
@@ -174,115 +173,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-                top: 20,
-                left: 20,
-                right: 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Thông tin cá nhân',
-                        style: GoogleFonts.roboto(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary(context),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Tên hiển thị',
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _buildField(
-                    context: context,
-                    controller: _nameController,
-                    hint: 'Tên hiển thị',
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Tiểu sử',
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _buildField(
-                    context: context,
-                    controller: _bioController,
-                    hint: 'Viết gì đó về bản thân...',
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          'Hủy',
-                          style: GoogleFonts.roboto(color: AppColors.textMetadata(context)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: _isSavingProfile
-                            ? null
-                            : () async {
-                                final navigator = Navigator.of(context);
-                                setModalState(() => _isSavingProfile = true);
-                                await _saveName();
-                                await _saveBio();
-                                setModalState(() => _isSavingProfile = false);
-                                navigator.pop();
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.onPrimary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        ),
-                        child: _isSavingProfile
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                    color: AppColors.onPrimary,
-                                ),
-                              )
-                            : Text('Lưu thay đổi',
-                                style: GoogleFonts.roboto(fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
+        return PersonalInfoSheet(
+          nameController: _nameController,
+          bioController: _bioController,
+          onSave: () async {
+            await _saveName();
+            await _saveBio();
           },
         );
       },
@@ -303,114 +199,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-                top: 20,
-                left: 20,
-                right: 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Đổi mật khẩu',
-                        style: GoogleFonts.roboto(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary(context),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildField(
-                    context: context,
-                    controller: _oldPasswordController,
-                    hint: 'Mật khẩu hiện tại',
-                    isPassword: true,
-                    obscure: _obscureOld,
-                    onToggle: () => setModalState(() => _obscureOld = !_obscureOld),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildField(
-                    context: context,
-                    controller: _newPasswordController,
-                    hint: 'Mật khẩu mới (tối thiểu 6 ký tự)',
-                    isPassword: true,
-                    obscure: _obscureNew,
-                    onToggle: () => setModalState(() => _obscureNew = !_obscureNew),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildField(
-                    context: context,
-                    controller: _confirmPasswordController,
-                    hint: 'Xác nhận mật khẩu mới',
-                    isPassword: true,
-                    obscure: _obscureConfirm,
-                    onToggle: () => setModalState(() => _obscureConfirm = !_obscureConfirm),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          'Hủy',
-                          style: GoogleFonts.roboto(color: AppColors.textMetadata(context)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        onPressed: _isChangingPassword
-                            ? null
-                            : () async {
-                                final navigator = Navigator.of(context);
-                                setModalState(() => _isChangingPassword = true);
-                                await _changePassword();
-                                setModalState(() => _isChangingPassword = false);
-                                if (_oldPasswordController.text.isEmpty) {
-                                  // Đổi mật khẩu thành công sẽ tự động xóa text field
-                                  navigator.pop();
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.onPrimary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        ),
-                        child: _isChangingPassword
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                    color: AppColors.onPrimary,
-                                ),
-                              )
-                            : Text('Cập nhật',
-                                style: GoogleFonts.roboto(fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
+        return SecuritySheet(
+          oldPasswordController: _oldPasswordController,
+          newPasswordController: _newPasswordController,
+          confirmPasswordController: _confirmPasswordController,
+          onChangePassword: _changePassword,
         );
       },
     );
@@ -433,33 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showAppInfoDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Về ứng dụng',
-          style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Smart Note Pro',
-                style: GoogleFonts.roboto(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            Text('Phiên bản: 1.0.0', style: GoogleFonts.roboto()),
-            const SizedBox(height: 12),
-            Text(
-                'Ứng dụng ghi chú thông minh cao cấp được phát triển bởi đội ngũ Smart Note. Toàn bộ dữ liệu được bảo mật và đồng bộ hóa đám mây an toàn.',
-                style: GoogleFonts.roboto(color: const Color(0xFF4B5563), fontSize: 14)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Đóng', style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+      builder: (context) => const AppInfoDialog(),
     );
   }
 
@@ -522,7 +289,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: AppColors.background(context),
             elevation: 0,
             leading: IconButton(
-              icon: Icon(Icons.arrow_back, color: AppColors.textSecondary(context)),
+              icon: Icon(Icons.arrow_back,
+                  color: AppColors.textSecondary(context)),
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
@@ -542,141 +310,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             physics: const BouncingScrollPhysics(),
             children: [
               // ── 1. USER PROFILE CARD (GRADIENT) ──
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryVariant],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryVariant.withValues(alpha: 0.25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          children: [
-                            Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                CircleAvatar(
-                                  radius: 32,
-                                  backgroundColor: AppColors.onPrimary.withValues(alpha: 0.2),
-                                  backgroundImage: photoUrl.isNotEmpty
-                                      ? NetworkImage(photoUrl)
-                                      : null,
-                                  child: _isUploadingAvatar
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                            color: AppColors.onPrimary,
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : (photoUrl.isEmpty
-                                          ? Text(
-                                              displayName.isNotEmpty
-                                                  ? displayName[0].toUpperCase()
-                                                  : 'U',
-                                              style: GoogleFonts.roboto(
-                                                fontSize: 24,
-                                                color: AppColors.onPrimary,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            )
-                                          : null),
-                                ),
-                                Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.onPrimary,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.1),
-                                        blurRadius: 4,
-                                      )
-                                    ],
-                                  ),
-                                  child: Icon(Icons.camera_alt,
-                                      size: 11, color: AppColors.textSecondary(context)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    email,
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.onPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Smart Note Pro',
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 13,
-                                      color: AppColors.onPrimary.withValues(alpha: 0.8),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.onPrimary.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: AppColors.onPrimary.withValues(alpha: 0.3),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      '✨ Premium Member',
-                                      style: GoogleFonts.roboto(
-                                        fontSize: 10,
-                                        color: AppColors.onPrimary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              ProfileHeader(
+                photoUrl: photoUrl,
+                displayName: displayName,
+                email: email,
+                isUploadingAvatar: _isUploadingAvatar,
+                onTapAvatar: _pickAndUploadAvatar,
               ),
 
               // ── 2. SECTIONS ──
               _buildSectionTitle(context, 'TÀI KHOẢN'),
               _buildSectionCard(context, [
-                _buildSectionItem(
-                  context,
+                ProfileMenuTile(
                   icon: Icons.person_outline_rounded,
                   iconColor: AppColors.primaryVariant,
                   iconBg: AppColors.primary.withValues(alpha: 0.12),
@@ -685,8 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => _showPersonalInfoBottomSheet(context, auth),
                 ),
                 if (isEmailProvider)
-                  _buildSectionItem(
-                    context,
+                  ProfileMenuTile(
                     icon: Icons.lock_outline_rounded,
                     iconColor: AppColors.success,
                     iconBg: AppColors.success.withValues(alpha: 0.1),
@@ -700,12 +344,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // ── 3. LOGOUT BUTTON ──
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.surface(context),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.25), width: 2),
+                    border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.25),
+                        width: 2),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.02),
@@ -724,7 +371,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.logout_rounded, color: AppColors.error, size: 20),
+                            const Icon(Icons.logout_rounded,
+                                color: AppColors.error, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'Đăng xuất tài khoản',
@@ -796,113 +444,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: dividedChildren,
         ),
-      ),
-    );
-  }
-
-  Widget _buildSectionItem(
-    BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String label,
-    required String description,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label,
-                      style: GoogleFonts.roboto(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary(context),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: GoogleFonts.roboto(
-                        fontSize: 13,
-                        color: AppColors.textMetadata(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: AppColors.textMetadata(context),
-                size: 14,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildField({
-    required BuildContext context,
-    required TextEditingController controller,
-    required String hint,
-    int maxLines = 1,
-    bool isPassword = false,
-    bool obscure = false,
-    VoidCallback? onToggle,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      maxLines: isPassword ? 1 : maxLines,
-      style: GoogleFonts.roboto(fontSize: 14, color: AppColors.textPrimary(context)),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.roboto(color: AppColors.placeholder(context), fontSize: 14),
-        suffixIcon: isPassword
-            ? IconButton(
-                icon: Icon(
-                    obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                    size: 18,
-                    color: AppColors.placeholder(context)),
-                onPressed: onToggle,
-              )
-            : null,
-        filled: true,
-        fillColor: AppColors.inputBackground(context),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: AppColors.divider(context))),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: AppColors.divider(context))),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
