@@ -1888,12 +1888,10 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
             onPressed: () => Navigator.pop(context)),
         titleSpacing: 0,
         title: TextField(
-          controller: _searchController,
-          autofocus: true,
+          controller: _searchController, autofocus: true,
           style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
           decoration: InputDecoration(
-            hintText: 'Nhập tên nhãn',
-            border: InputBorder.none,
+            hintText: 'Nhập tên nhãn', border: InputBorder.none,
             hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
@@ -2046,9 +2044,7 @@ class _ImageViewerState extends State<_ImageViewer> {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
-              const PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+              const PopupMenuItem(value: 'delete', child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
             ],
           ),
         ],
@@ -2066,15 +2062,12 @@ class _ImageViewerState extends State<_ImageViewer> {
               fit: BoxFit.contain,
               placeholder: (context, url) => const Center(
                 child: SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 3, color: AppColors.primary),
+                  width: 30, height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.primary),
                 ),
               ),
               errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.broken_image_outlined,
-                    color: Colors.grey, size: 40),
+                child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
               ),
             ),
           );
