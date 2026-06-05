@@ -32,6 +32,9 @@ import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
 import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
+import '../services/gemini_ai_service.dart';
+
+part 'editor_screen_ai.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -64,6 +67,8 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isLocked = false;
   bool _isUnlocked = true;
   final BiometricService _biometricService = BiometricService();
+  final GeminiAiService _geminiAiService = GeminiAiService();
+  bool _isAiLoading = false;
   List<String> _tags = [];
   List<String> _imageUrls = [];
   List<File> _uploadingFiles = [];
@@ -1034,6 +1039,39 @@ class _EditorScreenState extends State<EditorScreen>
                         child: CircularProgressIndicator(
                             color: _primary, strokeWidth: 2))),
               ),
+            Tooltip(
+              message: 'AI Trợ lý',
+              child: GestureDetector(
+                onTap: _isAiLoading ? null : _showAiOptions,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [
+                          Color(0xFF3B82F6), // Blue
+                          Color(0xFF8B5CF6), // Purple
+                          Color(0xFFEC4899), // Pink
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ).createShader(bounds),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        size: 22,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
             _buildAppBarRoundBtn(
               icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
               tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
@@ -1690,6 +1728,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+
   void _showAddOptions() {
     showModalBottomSheet(
       context: context,
@@ -1888,10 +1927,12 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
             onPressed: () => Navigator.pop(context)),
         titleSpacing: 0,
         title: TextField(
-          controller: _searchController, autofocus: true,
+          controller: _searchController,
+          autofocus: true,
           style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
           decoration: InputDecoration(
-            hintText: 'Nhập tên nhãn', border: InputBorder.none,
+            hintText: 'Nhập tên nhãn',
+            border: InputBorder.none,
             hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
             suffixIcon: _searchQuery.isNotEmpty
                 ? IconButton(
@@ -2044,7 +2085,9 @@ class _ImageViewerState extends State<_ImageViewer> {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
-              const PopupMenuItem(value: 'delete', child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+              const PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
             ],
           ),
         ],
@@ -2062,12 +2105,15 @@ class _ImageViewerState extends State<_ImageViewer> {
               fit: BoxFit.contain,
               placeholder: (context, url) => const Center(
                 child: SizedBox(
-                  width: 30, height: 30,
-                  child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.primary),
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 3, color: AppColors.primary),
                 ),
               ),
               errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40),
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.grey, size: 40),
               ),
             ),
           );
