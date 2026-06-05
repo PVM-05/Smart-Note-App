@@ -11,6 +11,7 @@ import 'repositories/sync_repository.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/ai_test_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -67,6 +68,9 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Smart Note App',
             debugShowCheckedModeBanner: false,
+            routes: {
+              '/ai-test': (_) => const AiTestScreen(),
+            },
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
@@ -79,7 +83,8 @@ class MyApp extends StatelessWidget {
             ],
             theme: themeProvider.themeData,
             darkTheme: themeProvider.themeData,
-            themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             home: StreamBuilder<User?>(
               stream: FirebaseAuth.instance.authStateChanges(),
               builder: (context, snapshot) {
