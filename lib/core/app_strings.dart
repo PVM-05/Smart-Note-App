@@ -31,8 +31,8 @@ class AppStrings {
   static const String alertCancel         = 'Hủy';
 
   // ── Thông báo Toast / SnackBar ──
-  static const String themeDarkSnackbar  = '🌙 Đã chuyển sang giao diện tối';
-  static const String themeLightSnackbar = '☀️ Đã chuyển sang giao diện sáng';
+  static const String themeDarkSnackbar  = 'Đã chuyển sang giao diện tối';
+  static const String themeLightSnackbar = 'Đã chuyển sang giao diện sáng';
 
   // ── Trạng thái rỗng (Empty State) ──
   static const String emptyHomeTitle    = 'Chưa có ghi chú nào';

@@ -86,29 +86,7 @@ class NoteCard extends StatelessWidget {
       ),
       color: cardColor,
       margin: EdgeInsets.zero,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Masonry / OpenContainer đôi khi đo chiều cao tạm quá thấp → tránh overflow (vạch vàng-đen).
-          final tightHeight = constraints.hasBoundedHeight &&
-              constraints.maxHeight < 120 &&
-              constraints.maxHeight != double.infinity;
-
-          if (!tightHeight) return cardBody;
-
-          return SizedBox(
-            width: constraints.maxWidth,
-            height: constraints.maxHeight,
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.topCenter,
-                maxHeight: double.infinity,
-                maxWidth: constraints.maxWidth,
-                child: cardBody,
-              ),
-            ),
-          );
-        },
-      ),
+      child: cardBody,
     );
   }
 
