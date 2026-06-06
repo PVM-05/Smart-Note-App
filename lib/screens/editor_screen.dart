@@ -11,8 +11,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/flutter_quill.dart';
 import '../models/note_model.dart';
 import '../features/editor/widgets/editor_upload_banner.dart';
 import '../features/editor/widgets/editor_image_section.dart';
@@ -71,8 +70,8 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isAiLoading = false;
   List<String> _tags = [];
   List<String> _imageUrls = [];
-  List<File> _uploadingFiles = [];
-  Set<String> _deletingUrls = {};
+  final List<File> _uploadingFiles = [];
+  final Set<String> _deletingUrls = {};
   List<String> _audioUrls = [];
   String? _noteColor;
 
@@ -169,7 +168,6 @@ class _EditorScreenState extends State<EditorScreen>
   final _cloudinary = CloudinaryService();
 
   static const _primary = AppColors.primary;
-  static const _recordColor = Color(0xFFEF4444);
 
   // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
   bool _hasChanges() {
@@ -321,11 +319,12 @@ class _EditorScreenState extends State<EditorScreen>
     });
     _audioPlayer.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _isPlaying = false;
             _playingUrl = null;
           });
+        }
       }
     });
 
@@ -629,7 +628,7 @@ class _EditorScreenState extends State<EditorScreen>
       });
       if (url != null) await _saveNote(isAutosave: true);
 
-      _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) {});
+      _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) => false);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -700,8 +699,9 @@ class _EditorScreenState extends State<EditorScreen>
 
     _recordDuration = Duration.zero;
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _recordDuration += const Duration(seconds: 1));
+      }
     });
     setState(() => _isRecording = true);
   }
@@ -1811,9 +1811,6 @@ class _EditorScreenState extends State<EditorScreen>
     final defaultIconColor = isCustomColor
         ? const Color(0xFF1E293B)
         : AppColors.textPrimary(context);
-    final metadataIconColor = isCustomColor
-        ? const Color(0xFF64748B)
-        : AppColors.textMetadata(context);
 
     return Tooltip(
       message: tooltip,
@@ -1963,8 +1960,9 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                       final newTag = _searchQuery.trim();
                       provider.addLabel(newTag);
                       setState(() {
-                        if (!_selectedTags.contains(newTag))
+                        if (!_selectedTags.contains(newTag)) {
                           _selectedTags.add(newTag);
+                        }
                         _searchQuery = '';
                         _searchController.clear();
                       });

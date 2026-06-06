@@ -155,7 +155,7 @@ class _SearchScreenState extends State<SearchScreen> {
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: _activeFilters.isEmpty ? 'Tìm kiếm ghi chú của bạn' : '',
-                hintStyle: GoogleFonts.outfit(color: AppColors.textMetadata(context).withOpacity(0.6), fontSize: 15, fontWeight: FontWeight.w300,),
+                hintStyle: GoogleFonts.outfit(color: AppColors.textMetadata(context).withValues(alpha: 0.6), fontSize: 15, fontWeight: FontWeight.w300,),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),

@@ -11,7 +11,7 @@ class EditorChecklistSection extends StatelessWidget {
   final ValueChanged<int> onRemoveChecklistItem;
   final Function(int, String) onItemTextChanged;
   final Function(int, bool) onItemChecked;
-  final Function(int, int) onReorder;
+  final void Function(int, int) onReorder;
   final VoidCallback onExitChecklistMode;
 
   const EditorChecklistSection({
@@ -152,7 +152,7 @@ class EditorChecklistSection extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           buildDefaultDragHandles: false,
           itemCount: checklistItems.length + 1, // +1 cho nút "+ Mục danh sách"
-          onReorder: onReorder,
+          onReorderItem: (oldIndex, newIndex) => onReorder(oldIndex, newIndex),
           proxyDecorator: (child, index, animation) {
             return AnimatedBuilder(
               animation: animation,

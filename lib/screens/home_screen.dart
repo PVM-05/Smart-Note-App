@@ -10,7 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/sync_provider.dart';
 import '../models/note_model.dart';
-import '../models/sync_status.dart';
+
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
@@ -34,9 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   SortType _sortType = SortType.updatedNewest;
   StreamSubscription<void>? _syncNewDataSub; // Lắng nghe dữ liệu mới từ sync
 
-  bool _hideSyncBanner = false;
   Timer? _syncBannerTimer;
-  String? _lastStatusMessage;
 
   static const _primary = AppColors.primary;
 
@@ -114,29 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showFeatureUnderDevelopmentDialog(
-      BuildContext context, String featureName) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Tính năng đang phát triển',
-            style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
-        content: Text(
-          'Tính năng "$featureName" đang được xây dựng và sẽ có trong phiên bản tiếp theo.',
-          style: GoogleFonts.roboto(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Đồng ý',
-                style: GoogleFonts.roboto(
-                    fontWeight: FontWeight.bold, color: _primary)),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Giải pháp tối ưu cho hàm xóa tại home_screen.dart
   Future<void> _moveToTrashSelected(NoteProvider provider) async {
