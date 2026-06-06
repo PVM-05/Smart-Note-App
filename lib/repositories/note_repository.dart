@@ -8,6 +8,7 @@ import '../services/pending_delete_service.dart';
 
 abstract class NoteRepository {
   Future<List<Note>> getNotes(String userId, {int limit, int offset});
+  Future<List<Note>> getPinnedNotes(String userId);
   Future<void> saveNote(Note note);
   Future<void> deleteNote(String id);
   Future<List<Note>> getUnsyncedNotes(String userId);
@@ -51,6 +52,11 @@ class NoteRepositoryImpl implements NoteRepository {
     }
 
     return localNotes;
+  }
+
+  @override
+  Future<List<Note>> getPinnedNotes(String userId) async {
+    return await _localService.getPinnedNotes(userId: userId);
   }
 
   // ── Lưu note — đánh dấu dirty rồi push ngay ──
