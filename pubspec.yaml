@@ -63,6 +63,9 @@ dependencies:
     sdk: flutter
   flutter_drawing_board: ^1.0.1+2
   firebase_ai: ^3.12.2
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+  flutter_timezone: 5.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -62,7 +62,7 @@ class MainDrawer extends StatelessWidget {
               context,
               icon: Icons.lightbulb_outline,
               label: 'Ghi chú',
-              isSelected: currentRoute == '/home' && activeLabel == null,
+              isSelected: currentRoute == '/home' && activeLabel == null && !noteProvider.showOnlyReminders,
               onTap: () async {
                 noteProvider.selectLabel(null);
                 Navigator.pop(context);
@@ -79,7 +79,27 @@ class MainDrawer extends StatelessWidget {
               },
             ),
 
-            const SizedBox(height: 16),
+            _buildKeepDrawerItem(
+              context,
+              icon: Icons.notifications_none_outlined,
+              label: 'Nhắc nhở',
+              isSelected: currentRoute == '/home' && noteProvider.showOnlyReminders,
+              onTap: () async {
+                noteProvider.setShowOnlyReminders(true);
+                Navigator.pop(context);
+
+                if (currentRoute != '/home') {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                  );
+                } else {
+                  onLabelSelected?.call();
+                }
+              },
+            ),
+
+            const SizedBox(height: 8),
 
             _sectionDivider(context),
 

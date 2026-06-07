@@ -10,7 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/sync_provider.dart';
 import '../models/note_model.dart';
-import '../models/sync_status.dart';
+
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
 import '../widgets/main_drawer.dart';
@@ -20,6 +20,7 @@ import '../widgets/empty_state.dart';
 import 'search_screen.dart';
 import '../features/home/sheets/sort_options_sheet.dart';
 import '../features/home/widgets/home_quick_menu.dart';
+import '../services/reminder_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -34,9 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   SortType _sortType = SortType.updatedNewest;
   StreamSubscription<void>? _syncNewDataSub; // Lắng nghe dữ liệu mới từ sync
 
-  bool _hideSyncBanner = false;
   Timer? _syncBannerTimer;
-  String? _lastStatusMessage;
 
   static const _primary = AppColors.primary;
 
@@ -56,6 +55,12 @@ class _HomeScreenState extends State<HomeScreen> {
         // 1. Tải cực nhanh dữ liệu từ SQLite local lên UI trước để người dùng không phải chờ
         await noteProvider.fetchNotes(auth.userId!);
         await noteProvider.fetchTrashNotes(auth.userId!);
+
+        // 3. Kiểm tra xem app được mở qua Click thông báo (Cold Start) không
+        final launchPayload = ReminderService().consumeColdStartPayload();
+        if (launchPayload != null && launchPayload.isNotEmpty) {
+          ReminderService.navigateToNote(launchPayload);
+        }
       }
 
       // 2. Lắng nghe tín hiệu từ SyncProvider khi có dữ liệu mới từ cloud
@@ -76,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _syncNewDataSub?.cancel(); // Hủy subscription để tránh memory leak
+    _syncNewDataSub?.cancel();
     _syncBannerTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
@@ -86,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      // Khi cuộn cách đáy màn hình 200px, tự động trigger tải dữ liệu trang tiếp theo
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final noteProvider = Provider.of<NoteProvider>(context, listen: false);
       if (auth.isAuthenticated && !noteProvider.isSearching) {
@@ -114,29 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showFeatureUnderDevelopmentDialog(
-      BuildContext context, String featureName) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Tính năng đang phát triển',
-            style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
-        content: Text(
-          'Tính năng "$featureName" đang được xây dựng và sẽ có trong phiên bản tiếp theo.',
-          style: GoogleFonts.roboto(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Đồng ý',
-                style: GoogleFonts.roboto(
-                    fontWeight: FontWeight.bold, color: _primary)),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Giải pháp tối ưu cho hàm xóa tại home_screen.dart
   Future<void> _moveToTrashSelected(NoteProvider provider) async {
@@ -328,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
           endDrawer: const ProfileDrawer(),
           appBar: isSelectionMode
               ? _selectionAppBar(noteProvider)
-              : _normalAppBar(),
+              : _normalAppBar(noteProvider),
           body: Column(
             children: [
               _buildSyncStatusBanner(syncProvider, noteProvider),
@@ -428,20 +409,30 @@ class _HomeScreenState extends State<HomeScreen> {
             );
     }
 
-    if (noteProvider.notes.isEmpty) {
-      return EmptyStateWidget(
-        icon: Icons.note_add_outlined,
-        title: noteProvider.selectedLabel != null
-            ? 'Trống'
-            : 'Chưa có ghi chú nào',
-        subtitle: noteProvider.selectedLabel != null
-            ? 'Không có ghi chú nào thuộc nhãn này'
-            : 'Hãy nhấn + ở góc dưới để thêm ghi chú mới!',
-      );
-    }
-
     final List<Note> pinnedNotes = List<Note>.from(noteProvider.pinnedNotes);
     final List<Note> normalNotes = List<Note>.from(noteProvider.normalNotes);
+
+    if (pinnedNotes.isEmpty && normalNotes.isEmpty) {
+      IconData emptyIcon = Icons.note_add_outlined;
+      String emptyTitle = 'Chưa có ghi chú nào';
+      String emptySubtitle = 'Hãy nhấn + ở góc dưới để thêm ghi chú mới!';
+
+      if (noteProvider.showOnlyReminders) {
+        emptyIcon = Icons.notifications_none_outlined;
+        emptyTitle = 'Không có nhắc nhở';
+        emptySubtitle = 'Ghi chú có nhắc nhở sẽ xuất hiện ở đây';
+      } else if (noteProvider.selectedLabel != null) {
+        emptyIcon = Icons.label_outline;
+        emptyTitle = 'Trống';
+        emptySubtitle = 'Không có ghi chú nào thuộc nhãn này';
+      }
+
+      return EmptyStateWidget(
+        icon: emptyIcon,
+        title: emptyTitle,
+        subtitle: emptySubtitle,
+      );
+    }
 
     int sortCompare(Note a, Note b) {
       switch (_sortType) {
@@ -630,7 +621,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  AppBar _normalAppBar() {
+  AppBar _normalAppBar(NoteProvider noteProvider) {
+    String searchPlaceholder = 'Tìm kiếm';
+    if (noteProvider.showOnlyReminders) {
+      searchPlaceholder = 'Tìm kiếm nhắc nhở';
+    } else if (noteProvider.selectedLabel != null) {
+      searchPlaceholder = 'Tìm kiếm trong ${noteProvider.selectedLabel}';
+    }
+
     return AppBar(
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -686,7 +684,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: double.infinity,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Tìm kiếm',
+                      searchPlaceholder,
                       style: GoogleFonts.roboto(
                         color: AppColors.placeholder(context),
                         fontSize: 15,

@@ -29,6 +29,42 @@ class Note {
     }
   }
 
+  /// Đếm số lượng công việc chưa hoàn thành trong checklist
+  int get pendingChecklistCount {
+    if (!isChecklist) return 0;
+    try {
+      final decoded = jsonDecode(content);
+      final items = decoded['items'] as List? ?? [];
+      return items.where((i) => i['checked'] != true).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Lấy văn bản thuần (plain text) từ nội dung Quill Delta JSON
+  String get plainTextContent {
+    if (content.isEmpty) return '';
+    if (isChecklist) {
+      return checklistPlainText;
+    }
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is List) {
+        final buffer = StringBuffer();
+        for (final item in decoded) {
+          if (item is Map && item.containsKey('insert')) {
+            final val = item['insert'];
+            if (val is String) {
+              buffer.write(val);
+            }
+          }
+        }
+        return buffer.toString().trim();
+      }
+    } catch (_) {}
+    return content.trim();
+  }
+
   final String id;
   final String userId;
   final String title;
@@ -42,6 +78,7 @@ class Note {
   final List<String> tags;
   final List<String> imageUrls;  // ← MỚI: URL ảnh Cloudinary
   final List<String> audioUrls;  // ← MỚI: URL audio Cloudinary
+  final DateTime? reminder;      // ← MỚI: Ngày giờ nhắc nhở
 
   Note({
     required this.id,
@@ -55,6 +92,7 @@ class Note {
     this.tags = const [],
     this.imageUrls = const [],   // ← MỚI
     this.audioUrls = const [],   // ← MỚI
+    this.reminder,               // ← MỚI
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -75,6 +113,7 @@ class Note {
     'audio_urls': jsonEncode(audioUrls), // JSON-safe
     'created_at': createdAt.millisecondsSinceEpoch,
     'updated_at': updatedAt.millisecondsSinceEpoch,
+    'reminder': reminder?.millisecondsSinceEpoch, // ← MỚI
   };
 
   /// Helper an toàn: decode JSON list, fallback về [] nếu dữ liệu cũ (CSV hoặc null)
@@ -110,6 +149,9 @@ class Note {
     updatedAt: DateTime.fromMillisecondsSinceEpoch(
       m['updated_at'] ?? DateTime.now().millisecondsSinceEpoch,
     ),
+    reminder: m['reminder'] != null
+        ? DateTime.fromMillisecondsSinceEpoch(m['reminder'])
+        : null, // ← MỚI
   );
 
   // ── Firestore ──
@@ -126,6 +168,7 @@ class Note {
     'audio_urls': audioUrls,  // ← MỚI
     'created_at': Timestamp.fromDate(createdAt),
     'updated_at': Timestamp.fromDate(updatedAt),
+    'reminder': reminder != null ? Timestamp.fromDate(reminder!) : null, // ← MỚI
   };
 
   factory Note.fromFirestoreMap(Map<String, dynamic> m) => Note(
@@ -146,6 +189,9 @@ class Note {
     updatedAt: m['updated_at'] != null
         ? (m['updated_at'] as Timestamp).toDate()
         : DateTime.now(),
+    reminder: m['reminder'] != null
+        ? (m['reminder'] as Timestamp).toDate()
+        : null, // ← MỚI
   );
 
   Note copyWith({
@@ -158,6 +204,8 @@ class Note {
     List<String>? audioUrls,  // ← MỚI
     String? noteColor,
     bool? isLocked,
+    DateTime? reminder,       // ← MỚI
+    bool clearReminder = false, // ← MỚI
     DateTime? updatedAt,
   }) =>
       Note(
@@ -174,5 +222,6 @@ class Note {
         audioUrls: audioUrls ?? this.audioUrls,  // ← MỚI
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now(),
+        reminder: clearReminder ? null : (reminder ?? this.reminder), // ← MỚI
       );
 }

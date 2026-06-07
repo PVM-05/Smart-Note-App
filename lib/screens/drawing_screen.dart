@@ -111,9 +111,13 @@ class _DrawingScreenState extends State<DrawingScreen> {
                     activeColor: _currentColor,
                     onChanged: (val) {
                       setSheetState(() {
-                        if (tool == DrawingTool.pen) _penStrokeWidth = val;
-                        else if (tool == DrawingTool.marker) _markerStrokeWidth = val;
-                        else if (tool == DrawingTool.highlighter) _highlighterStrokeWidth = val;
+                        if (tool == DrawingTool.pen) {
+                          _penStrokeWidth = val;
+                        } else if (tool == DrawingTool.marker) {
+                          _markerStrokeWidth = val;
+                        } else if (tool == DrawingTool.highlighter) {
+                          _highlighterStrokeWidth = val;
+                        }
                       });
                       setState(() {
                         _updateDrawingController();
@@ -129,7 +133,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: colors.map((c) {
-                      final isSelected = _currentColor.value == c.value;
+                      final isSelected = _currentColor.toARGB32() == c.toARGB32();
                       return GestureDetector(
                         onTap: () {
                           setSheetState(() => _currentColor = c);
@@ -204,18 +208,16 @@ class _DrawingScreenState extends State<DrawingScreen> {
   Widget build(BuildContext context) {
     final backgroundColor = AppColors.resolveNoteBackground(context, widget.noteColor) ?? AppColors.background(context);
     final appBarColor = AppColors.resolveNoteBackground(context, widget.noteColor) ?? AppColors.surface(context);
-    final isCustomColor = widget.noteColor != null && widget.noteColor!.isNotEmpty;
 
     return PopScope(
       canPop: _isPopping,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        
         final file = await _saveDrawing();
-        if (mounted) {
-          setState(() => _isPopping = true);
-          Navigator.pop(context, file);
-        }
+        if (!mounted) return;
+        setState(() => _isPopping = true);
+        // ignore: use_build_context_synchronously
+        Navigator.pop(context, file);
       },
       child: Scaffold(
         backgroundColor: backgroundColor,
@@ -228,10 +230,10 @@ class _DrawingScreenState extends State<DrawingScreen> {
             onPressed: () async {
               if (_isPopping) return;
               final file = await _saveDrawing();
-              if (mounted) {
-                setState(() => _isPopping = true);
-                Navigator.pop(context, file);
-              }
+              if (!mounted) return;
+              setState(() => _isPopping = true);
+              // ignore: use_build_context_synchronously
+              Navigator.pop(context, file);
             },
           ),
           title: const SizedBox.shrink(), // No title

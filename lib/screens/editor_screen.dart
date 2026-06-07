@@ -11,8 +11,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/flutter_quill.dart';
 import '../models/note_model.dart';
 import '../features/editor/widgets/editor_upload_banner.dart';
 import '../features/editor/widgets/editor_image_section.dart';
@@ -33,6 +32,7 @@ import '../core/app_strings.dart';
 import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
 import '../services/gemini_ai_service.dart';
+import '../services/reminder_service.dart';
 
 part 'editor_screen_ai.dart';
 
@@ -73,10 +73,11 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isAiLoading = false;
   List<String> _tags = [];
   List<String> _imageUrls = [];
-  List<File> _uploadingFiles = [];
-  Set<String> _deletingUrls = {};
+  final List<File> _uploadingFiles = [];
+  final Set<String> _deletingUrls = {};
   List<String> _audioUrls = [];
   String? _noteColor;
+  DateTime? _reminder;
 
   // Checklist mode
   bool _isChecklistMode = false;
@@ -171,7 +172,6 @@ class _EditorScreenState extends State<EditorScreen>
   final _cloudinary = CloudinaryService();
 
   static const _primary = AppColors.primary;
-  static const _recordColor = Color(0xFFEF4444);
 
   // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
   bool _hasChanges() {
@@ -180,6 +180,7 @@ class _EditorScreenState extends State<EditorScreen>
     final originalImages = widget.note?.imageUrls ?? const [];
     final originalAudios = widget.note?.audioUrls ?? const [];
     final originalColor = widget.note?.noteColor;
+    final originalReminder = widget.note?.reminder;
 
     final currentTitle = _titleController.text.trim();
 
@@ -188,6 +189,7 @@ class _EditorScreenState extends State<EditorScreen>
     final imagesChanged = !listEquals(originalImages, _imageUrls);
     final audiosChanged = !listEquals(originalAudios, _audioUrls);
     final colorChanged = originalColor != _noteColor;
+    final reminderChanged = originalReminder != _reminder;
 
     // Checklist mode: so sánh items
     if (_isChecklistMode) {
@@ -197,7 +199,8 @@ class _EditorScreenState extends State<EditorScreen>
           tagsChanged ||
           imagesChanged ||
           audiosChanged ||
-          colorChanged;
+          colorChanged ||
+          reminderChanged;
     }
 
     final contentChanged = _isDirty;
@@ -206,7 +209,8 @@ class _EditorScreenState extends State<EditorScreen>
         tagsChanged ||
         imagesChanged ||
         audiosChanged ||
-        colorChanged;
+        colorChanged ||
+        reminderChanged;
   }
 
   bool _hasChecklistChanged() {
@@ -289,6 +293,7 @@ class _EditorScreenState extends State<EditorScreen>
     _imageUrls = List.from(widget.note?.imageUrls ?? []);
     _audioUrls = List.from(widget.note?.audioUrls ?? []);
     _noteColor = widget.note?.noteColor;
+    _reminder = widget.note?.reminder;
 
     _titleController.addListener(_onTextChanged);
     _titleFocusNode.addListener(() {
@@ -331,11 +336,12 @@ class _EditorScreenState extends State<EditorScreen>
     });
     _audioPlayer.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _isPlaying = false;
             _playingUrl = null;
           });
+        }
       }
     });
 
@@ -528,6 +534,7 @@ class _EditorScreenState extends State<EditorScreen>
       isSynced: false,
       createdAt: _createdAt,
       updatedAt: DateTime.now(),
+      reminder: _reminder,
     );
 
     if (_hasBeenSavedInDb) {
@@ -639,7 +646,7 @@ class _EditorScreenState extends State<EditorScreen>
       });
       if (url != null) await _saveNote(isAutosave: true);
 
-      _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) {});
+      _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) => false);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -710,8 +717,9 @@ class _EditorScreenState extends State<EditorScreen>
 
     _recordDuration = Duration.zero;
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _recordDuration += const Duration(seconds: 1));
+      }
     });
     setState(() => _isRecording = true);
   }
@@ -896,6 +904,275 @@ class _EditorScreenState extends State<EditorScreen>
         ),
       ),
     );
+  }
+
+  String _formatReminderTime(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final dtDay = DateTime(dt.year, dt.month, dt.day);
+
+    String timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (dtDay == today) {
+      return 'Hôm nay, $timeStr';
+    } else if (dtDay == tomorrow) {
+      return 'Ngày mai, $timeStr';
+    } else {
+      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
+    }
+  }
+
+  void _showReminderSettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (BuildContext context) {
+        final now = DateTime.now();
+        final today18 = DateTime(now.year, now.month, now.day, 18, 0);
+        final tomorrow8 = DateTime(now.year, now.month, now.day).add(const Duration(days: 1)).add(const Duration(hours: 8));
+        
+        int daysUntilMonday = ((7 - now.weekday) % 7) + 1;
+        final nextMonday8 = DateTime(now.year, now.month, now.day).add(Duration(days: daysUntilMonday)).add(const Duration(hours: 8));
+
+        return Container(
+          padding: const EdgeInsets.only(top: 8, bottom: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Nhắc nhở',
+                style: GoogleFonts.outfit(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_reminder != null) ...[
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(Icons.alarm, color: Theme.of(context).colorScheme.primary),
+                  ),
+                  title: Text(
+                    'Thời gian đã hẹn',
+                    style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w400),
+                  ),
+                  subtitle: Text(
+                    _formatReminderTime(_reminder!),
+                    style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600),
+                  ),
+                  trailing: TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _cancelReminder();
+                    },
+                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    label: Text(
+                      'Hủy',
+                      style: GoogleFonts.outfit(color: Colors.red),
+                    ),
+                  ),
+                ),
+                const Divider(),
+              ],
+              if (now.isBefore(today18))
+                ListTile(
+                  leading: const Icon(Icons.wb_twighlight),
+                  title: Text('Hôm nay lúc 18:00', style: GoogleFonts.outfit(fontSize: 15)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _setReminder(today18);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.wb_sunny_outlined),
+                title: Text('Ngày mai lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setReminder(tomorrow8);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.next_week_outlined),
+                title: Text('Thứ Hai tuần sau lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setReminder(nextMonday8);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.date_range_outlined),
+                title: Text('Chọn ngày & giờ...', style: GoogleFonts.outfit(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _selectCustomDateTime();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showNotificationPermissionDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28),
+            const SizedBox(width: 12),
+            const Text('Quyền thông báo bị tắt'),
+          ],
+        ),
+        content: const Text(
+          'Để không bỏ lỡ các nhắc nhở quan trọng của ghi chú, bạn cần cấp quyền thông báo trong cài đặt điện thoại.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Để sau',
+              style: GoogleFonts.outfit(color: Colors.grey.shade600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              AppSettings.openAppSettings(type: AppSettingsType.notification);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'Mở cài đặt',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setReminder(DateTime dt) async {
+    final granted = await ReminderService().requestPermissions();
+    if (!granted) {
+      if (mounted) {
+        _showNotificationPermissionDialog();
+      }
+      return;
+    }
+
+    setState(() {
+      _reminder = dt;
+    });
+
+    await _saveNote(isAutosave: false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⏰ Đã hẹn nhắc nhở lúc ${_formatReminderTime(dt)}'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _cancelReminder() async {
+    setState(() {
+      _reminder = null;
+    });
+    
+    await _saveNote(isAutosave: false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🚫 Đã hủy nhắc nhở ghi chú'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _selectCustomDateTime() async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('vi', 'VN'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: _primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate == null) return;
+    if (!mounted) return;
+
+    final TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: _primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedTime == null) return;
+
+    final selectedDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    if (selectedDateTime.isBefore(DateTime.now())) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Thời gian nhắc nhở không được ở quá khứ!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    _setReminder(selectedDateTime);
   }
 
   @override
@@ -1143,13 +1420,14 @@ class _EditorScreenState extends State<EditorScreen>
               },
             ),
             _buildAppBarRoundBtn(
-              icon: Icons.notification_add_outlined,
+              icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined,
               tooltip: 'Nhắc nhở',
               onTap: () {
                 if (!_hasBeenSavedInDb) {
                   _showRequiresSaveMessage('nhắc nhở');
                   return;
                 }
+                _showReminderSettingsSheet();
               },
             ),
             const SizedBox(width: 8),
@@ -1214,6 +1492,62 @@ class _EditorScreenState extends State<EditorScreen>
                           ),
                         ),
                         const SizedBox(height: 8),
+                        if (_reminder != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Material(
+                                color: isCustomColor
+                                    ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05))
+                                    : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(20),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(20),
+                                  onTap: _showReminderSettingsSheet,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.alarm,
+                                          size: 16,
+                                          color: isCustomColor
+                                              ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
+                                              : Theme.of(context).colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Nhắc nhở: ${_formatReminderTime(_reminder!)}',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w400,
+                                            color: isCustomColor
+                                                ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
+                                                : Theme.of(context).colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: () {
+                                            _cancelReminder();
+                                          },
+                                          child: Icon(
+                                            Icons.close,
+                                            size: 14,
+                                            color: isCustomColor
+                                                ? (onDarkNoteBg ? Colors.white60 : Colors.black54)
+                                                : Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         if (_isChecklistMode)
                           _buildChecklistEditor()
                         else
@@ -1821,9 +2155,6 @@ class _EditorScreenState extends State<EditorScreen>
     final defaultIconColor = isCustomColor
         ? const Color(0xFF1E293B)
         : AppColors.textPrimary(context);
-    final metadataIconColor = isCustomColor
-        ? const Color(0xFF64748B)
-        : AppColors.textMetadata(context);
 
     return Tooltip(
       message: tooltip,
@@ -1973,8 +2304,9 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                       final newTag = _searchQuery.trim();
                       provider.addLabel(newTag);
                       setState(() {
-                        if (!_selectedTags.contains(newTag))
+                        if (!_selectedTags.contains(newTag)) {
                           _selectedTags.add(newTag);
+                        }
                         _searchQuery = '';
                         _searchController.clear();
                       });

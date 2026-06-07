@@ -8,6 +8,7 @@ import '../services/firestore_note_service.dart';
 import '../models/sync_status.dart';
 import '../models/note_model.dart';
 import '../services/pending_delete_service.dart';
+import '../services/reminder_service.dart';
 
 // lib/repositories/sync_repository.dart
 abstract class SyncRepository {
@@ -130,6 +131,9 @@ class SyncRepositoryImpl implements SyncRepository {
         });
       }
 
+      // Đồng bộ lại lịch nhắc nhở từ ghi chú trên Cloud
+      await ReminderService().syncReminders(cloudNotes);
+
       _statusController.add(SyncStatus.success);
       return hasNewChanges;
     } catch (e) {
@@ -175,6 +179,9 @@ class SyncRepositoryImpl implements SyncRepository {
         }
       }
     });
+
+    // Đồng bộ lại lịch nhắc nhở từ các ghi chú kéo từ Cloud
+    await ReminderService().syncReminders(cloudNotes);
 
     return hasNewChanges; // Trả về true nếu thực sự có ghi chú mới được ghi xuống máy
   }
