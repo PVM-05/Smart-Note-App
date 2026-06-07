@@ -11,8 +11,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/flutter_quill.dart';
+import '../utils/math_parser.dart';
 import '../models/note_model.dart';
 import '../features/editor/widgets/editor_upload_banner.dart';
 import '../features/editor/widgets/editor_image_section.dart';
@@ -634,7 +634,11 @@ class _EditorScreenState extends State<EditorScreen>
         _deletingUrls.remove(oldUrl);
         if (url != null) {
           final index = _imageUrls.indexOf(oldUrl);
-          if (index != -1) _imageUrls[index] = url; else _imageUrls.add(url);
+          if (index != -1) {
+            _imageUrls[index] = url;
+          } else {
+            _imageUrls.add(url);
+          }
         }
       });
       if (url != null) await _saveNote(isAutosave: true);
@@ -1213,8 +1217,6 @@ class _EditorScreenState extends State<EditorScreen>
                 _showReminderSettingsSheet();
               },
             ),
-            _buildAppBarRoundBtn(icon: _status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('ghim'); return; } _togglePin(); }),
-            _buildAppBarRoundBtn(icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined, tooltip: 'Nhắc nhở', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('nhắc nhở'); return; } _showReminderSettingsSheet(); }),
             const SizedBox(width: 8),
           ],
         ),
@@ -1402,12 +1404,6 @@ class _EditorScreenState extends State<EditorScreen>
                                   ],
                                   const SizedBox(height: 20),
                                 ],
-                                if (_tags.isNotEmpty) ...[
-                                  const SizedBox(height: 24),
-                                  Wrap(spacing: 8, runSpacing: 6, children: _tags.map((tag) => Chip(label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: _noteColor != null ? const Color(0xFF1E293B) : AppColors.textSecondary(context))), backgroundColor: _noteColor != null ? Colors.black.withValues(alpha: 0.05) : AppColors.inputBackground(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), side: BorderSide(color: _noteColor != null ? Colors.black.withValues(alpha: 0.08) : AppColors.divider(context)))).toList()),
-                                ],
-                                const SizedBox(height: 20),
-                              ],
                             ),
                           ),
                         ),
@@ -1880,7 +1876,7 @@ class _EditorScreenState extends State<EditorScreen>
         customBorder: const CircleBorder(),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Container(
+          child: SizedBox(
             width: 40, height: 40,
             child: Center(child: Icon(icon, size: 22, color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor))),
           ),
@@ -1993,7 +1989,13 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                     activeColor: AppColors.primary,
                     checkColor: AppColors.onPrimary,
                     onChanged: (val) {
-                      setState(() { if (val == true) _selectedTags.add(label); else _selectedTags.remove(label); });
+                      setState(() {
+                        if (val == true) {
+                          _selectedTags.add(label);
+                        } else {
+                          _selectedTags.remove(label);
+                        }
+                      });
                       widget.onTagsChanged(_selectedTags);
                     },
                   );
