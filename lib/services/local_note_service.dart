@@ -17,7 +17,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -33,7 +33,8 @@ class LocalNoteService {
             image_urls TEXT,
             audio_urls TEXT,          
             created_at INTEGER,
-            updated_at INTEGER
+            updated_at INTEGER,
+            reminder INTEGER
           )
         ''');
       },
@@ -57,6 +58,9 @@ class LocalNoteService {
         if (oldVersion < 6) {
           await db.execute("ALTER TABLE notes ADD COLUMN is_locked INTEGER DEFAULT 0");
           await db.execute("ALTER TABLE notes ADD COLUMN note_color TEXT");
+        }
+        if (oldVersion < 7) {
+          await db.execute("ALTER TABLE notes ADD COLUMN reminder INTEGER");
         }
       },
     );
@@ -202,6 +206,24 @@ class LocalNoteService {
 
       return true;
     }).toList();
+  }
+
+  Future<Note?> getNoteById(String id) async {
+    if (kIsWeb) {
+      try {
+        return _webNotes.firstWhere((n) => n.id == id);
+      } catch (_) {
+        return null;
+      }
+    }
+    final database = await db;
+    final maps = await database.query(
+      'notes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isEmpty) return null;
+    return Note.fromMap(maps.first);
   }
 
   Future<void> updateNote(Note note) async {

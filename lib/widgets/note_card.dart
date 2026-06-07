@@ -31,6 +31,7 @@ class NoteCard extends StatelessWidget {
     final hasImages = !isLocked && note.imageUrls.isNotEmpty;
     final hasAudio = !isLocked && note.audioUrls.isNotEmpty;
     final hasTags = !isLocked && note.tags.isNotEmpty;
+    final hasReminder = !isLocked && note.reminder != null;
 
     BorderSide borderSide = BorderSide.none;
 
@@ -75,6 +76,7 @@ class NoteCard extends StatelessWidget {
       hasImages: hasImages,
       hasAudio: hasAudio,
       hasTags: hasTags,
+      hasReminder: hasReminder,
     );
 
     return Card(
@@ -123,6 +125,7 @@ class NoteCard extends StatelessWidget {
     required bool hasImages,
     required bool hasAudio,
     required bool hasTags,
+    required bool hasReminder,
   }) {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,6 +218,12 @@ class NoteCard extends StatelessWidget {
                 if (hasAudio) ...[
                   const SizedBox(height: 10),
                   _buildAudioFileAttachment(context, note.audioUrls.first),
+                ],
+
+                // ── 4b. HIỂN THỊ NHẮC NHỞ GHI CHÚ ──
+                if (hasReminder) ...[
+                  const SizedBox(height: 10),
+                  _buildReminderBadge(context),
                 ],
 
                 // ── 5. FOOTER: DANH SÁCH THẺ (TAGS) ──
@@ -445,5 +454,77 @@ class NoteCard extends StatelessWidget {
       }
     } catch (_) {}
     return content.trim();
+  }
+
+  Widget _buildReminderBadge(BuildContext context) {
+    final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
+    final bool onDarkNoteBg = hasCustomColor &&
+        (_resolveCardColor(context).computeLuminance() < 0.45);
+        
+    final DateTime dt = note.reminder!;
+    final now = DateTime.now();
+    final isExpired = dt.isBefore(now);
+    
+    String reminderText = '';
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final dtDay = DateTime(dt.year, dt.month, dt.day);
+    String timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    
+    if (dtDay == today) {
+      reminderText = 'Hôm nay, $timeStr';
+    } else if (dtDay == tomorrow) {
+      reminderText = 'Ngày mai, $timeStr';
+    } else {
+      reminderText = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: hasCustomColor
+            ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05))
+            : AppColors.surface(context),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isExpired 
+              ? Colors.red.withValues(alpha: 0.3) 
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.alarm,
+            size: 13,
+            color: isExpired 
+                ? Colors.red 
+                : (hasCustomColor
+                    ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
+                    : AppColors.textSecondary(context)),
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              reminderText,
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                color: isExpired 
+                    ? Colors.red 
+                    : (hasCustomColor
+                        ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
+                        : AppColors.textSecondary(context)),
+                fontWeight: FontWeight.w400,
+                decoration: isExpired ? TextDecoration.lineThrough : TextDecoration.none,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
