@@ -11,8 +11,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/flutter_quill.dart';
+import '../utils/math_parser.dart';
 import '../models/note_model.dart';
 import '../features/editor/widgets/editor_upload_banner.dart';
 import '../features/editor/widgets/editor_image_section.dart';
@@ -1402,12 +1402,6 @@ class _EditorScreenState extends State<EditorScreen>
                                   ],
                                   const SizedBox(height: 20),
                                 ],
-                                if (_tags.isNotEmpty) ...[
-                                  const SizedBox(height: 24),
-                                  Wrap(spacing: 8, runSpacing: 6, children: _tags.map((tag) => Chip(label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: _noteColor != null ? const Color(0xFF1E293B) : AppColors.textSecondary(context))), backgroundColor: _noteColor != null ? Colors.black.withValues(alpha: 0.05) : AppColors.inputBackground(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), side: BorderSide(color: _noteColor != null ? Colors.black.withValues(alpha: 0.08) : AppColors.divider(context)))).toList()),
-                                ],
-                                const SizedBox(height: 20),
-                              ],
                             ),
                           ),
                         ),
