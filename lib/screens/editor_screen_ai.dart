@@ -41,7 +41,7 @@ extension _EditorScreenAi on _EditorScreenState {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'AI Trợ lý ghi chú',
+                    AppLocalizations.translate(context, 'aiAssistantTitle'),
                     style: GoogleFonts.outfit(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -57,8 +57,8 @@ extension _EditorScreenAi on _EditorScreenState {
                 backgroundColor: Color(0xFFEFF6FF),
                 child: Icon(Icons.title, color: AppColors.primary),
               ),
-              title: const Text('Tạo tiêu đề'),
-              subtitle: const Text('Tự động gợi ý tiêu đề từ nội dung ghi chú'),
+              title: Text(AppLocalizations.translate(context, 'aiGenerateTitle')),
+              subtitle: Text(AppLocalizations.translate(context, 'aiGenerateTitleSub')),
               onTap: () {
                 Navigator.pop(context);
                 _generateTitleFromContent();
@@ -69,9 +69,8 @@ extension _EditorScreenAi on _EditorScreenState {
                 backgroundColor: Color(0xFFEFF6FF),
                 child: Icon(Icons.summarize_outlined, color: AppColors.primary),
               ),
-              title: const Text('Tóm tắt ghi chú'),
-              subtitle:
-                  const Text('Tạo bản tóm tắt ngắn gọn từ nội dung hiện tại'),
+              title: Text(AppLocalizations.translate(context, 'aiSummarize')),
+              subtitle: Text(AppLocalizations.translate(context, 'aiSummarizeSub')),
               onTap: () {
                 Navigator.pop(context);
                 _summarizeCurrentNote();
@@ -82,9 +81,8 @@ extension _EditorScreenAi on _EditorScreenState {
                 backgroundColor: Color(0xFFEFF6FF),
                 child: Icon(Icons.checklist_rounded, color: AppColors.primary),
               ),
-              title: const Text('Chuyển thành checklist'),
-              subtitle:
-                  const Text('Tạo danh sách việc cần làm từ nội dung hiện tại'),
+              title: Text(AppLocalizations.translate(context, 'aiMakeChecklist')),
+              subtitle: Text(AppLocalizations.translate(context, 'aiMakeChecklistSub')),
               onTap: () {
                 Navigator.pop(context);
                 _makeChecklistFromCurrentNote();
@@ -95,8 +93,8 @@ extension _EditorScreenAi on _EditorScreenState {
                 backgroundColor: Color(0xFFEFF6FF),
                 child: Icon(Icons.label_outline, color: AppColors.primary),
               ),
-              title: const Text('Gợi ý nhãn'),
-              subtitle: const Text('Gợi ý các nhãn phù hợp cho ghi chú'),
+              title: Text(AppLocalizations.translate(context, 'aiSuggestLabels')),
+              subtitle: Text(AppLocalizations.translate(context, 'aiSuggestLabelsSub')),
               onTap: () {
                 Navigator.pop(context);
                 _suggestTagsForCurrentNote();
@@ -196,7 +194,7 @@ extension _EditorScreenAi on _EditorScreenState {
             ),
             const SizedBox(width: 8),
             Text(
-              'Tóm tắt ghi chú',
+              AppLocalizations.translate(context, 'aiSummaryTitle'),
               style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
             ),
           ],
@@ -214,7 +212,7 @@ extension _EditorScreenAi on _EditorScreenState {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Đóng',
+              AppLocalizations.translate(context, 'close'),
               style: GoogleFonts.inter(color: AppColors.textSecondary(context)),
             ),
           ),
@@ -230,7 +228,7 @@ extension _EditorScreenAi on _EditorScreenState {
               ),
             ),
             child: Text(
-              'Chèn vào ghi chú',
+              AppLocalizations.translate(context, 'aiSummaryInsert'),
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -246,10 +244,10 @@ extension _EditorScreenAi on _EditorScreenState {
   void _insertAiSummary(String summary) {
     if (_isChecklistMode) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không thể chèn tóm tắt khi đang ở checklist'),
+        SnackBar(
+          content: Text(AppLocalizations.translate(context, 'aiCannotInsertInChecklist')),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
+          shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
@@ -257,7 +255,7 @@ extension _EditorScreenAi on _EditorScreenState {
       return;
     }
 
-    final insertText = '\n\nTóm tắt:\n$summary';
+    final insertText = AppLocalizations.translate(context, 'aiSummaryInsertText') + summary;
     final documentLength = _quillController.document.length;
     final insertIndex = documentLength > 0 ? documentLength - 1 : 0;
 
@@ -275,7 +273,7 @@ extension _EditorScreenAi on _EditorScreenState {
     if (_isChecklistMode) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Ghi chú đã ở dạng checklist'),
+          content: Text(AppLocalizations.translate(context, 'aiAlreadyChecklist')),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -289,7 +287,7 @@ extension _EditorScreenAi on _EditorScreenState {
     if (contentText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Hãy nhập nội dung trước khi dùng AI'),
+          content: Text(AppLocalizations.translate(context, 'aiNeedContent')),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -349,7 +347,7 @@ extension _EditorScreenAi on _EditorScreenState {
             const Icon(Icons.checklist_rounded, color: AppColors.primary),
             const SizedBox(width: 8),
             Text(
-              'Checklist từ AI',
+              AppLocalizations.translate(context, 'aiChecklistTitle'),
               style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
             ),
           ],
@@ -398,7 +396,7 @@ extension _EditorScreenAi on _EditorScreenState {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Đóng',
+              AppLocalizations.translate(context, 'close'),
               style: GoogleFonts.inter(color: AppColors.textSecondary(context)),
             ),
           ),
@@ -414,7 +412,7 @@ extension _EditorScreenAi on _EditorScreenState {
               ),
             ),
             child: Text(
-              'Dùng checklist này',
+              AppLocalizations.translate(context, 'aiUseChecklist'),
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -453,7 +451,7 @@ extension _EditorScreenAi on _EditorScreenState {
     if (items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('AI chưa tạo được checklist hợp lệ'),
+          content: Text(AppLocalizations.translate(context, 'aiNoChecklist')),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -508,7 +506,7 @@ extension _EditorScreenAi on _EditorScreenState {
               const CircularProgressIndicator(color: AppColors.primary),
               const SizedBox(width: 20),
               Text(
-                'AI đang xử lý...',
+                AppLocalizations.translate(context, 'aiProcessing'),
                 style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
               ),
             ],
@@ -566,7 +564,7 @@ extension _EditorScreenAi on _EditorScreenState {
             ),
             const SizedBox(width: 8),
             Text(
-              'Gợi ý tiêu đề từ AI',
+              AppLocalizations.translate(context, 'aiTitleSuggestTitle'),
               style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
             ),
           ],
@@ -576,7 +574,7 @@ extension _EditorScreenAi on _EditorScreenState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tiêu đề đề xuất:',
+              AppLocalizations.translate(context, 'aiTitleProposed'),
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: AppColors.textSecondary(context),
@@ -606,7 +604,7 @@ extension _EditorScreenAi on _EditorScreenState {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Hủy',
+              AppLocalizations.translate(context, 'cancel'),
               style: GoogleFonts.inter(color: AppColors.textSecondary(context)),
             ),
           ),
@@ -623,7 +621,7 @@ extension _EditorScreenAi on _EditorScreenState {
               ),
             ),
             child: Text(
-              'Dùng tiêu đề này',
+              AppLocalizations.translate(context, 'aiUseTitle'),
               style: GoogleFonts.inter(
                   color: Colors.white, fontWeight: FontWeight.w600),
             ),
@@ -651,7 +649,7 @@ extension _EditorScreenAi on _EditorScreenState {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content:
-              const Text('Hãy nhập tiêu đề hoặc nội dung trước khi dùng AI'),
+              Text(AppLocalizations.translate(context, 'aiNeedTitleOrContent')),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -751,7 +749,7 @@ extension _EditorScreenAi on _EditorScreenState {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Gợi ý nhãn từ AI',
+                    AppLocalizations.translate(context, 'aiTagsTitle'),
                     style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -762,7 +760,7 @@ extension _EditorScreenAi on _EditorScreenState {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'AI gợi ý các nhãn sau. Vui lòng chọn nhãn muốn sử dụng:',
+                      AppLocalizations.translate(context, 'aiTagsDesc'),
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: AppColors.textSecondary(context),
@@ -822,7 +820,7 @@ extension _EditorScreenAi on _EditorScreenState {
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: Text(
-                    'Hủy',
+                    AppLocalizations.translate(context, 'cancel'),
                     style: GoogleFonts.inter(
                         color: AppColors.textSecondary(context)),
                   ),
@@ -841,7 +839,7 @@ extension _EditorScreenAi on _EditorScreenState {
                     ),
                   ),
                   child: Text(
-                    'Thêm nhãn',
+                    AppLocalizations.translate(context, 'aiAddLabels'),
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
@@ -878,22 +876,22 @@ extension _EditorScreenAi on _EditorScreenState {
         message.contains('network') ||
         message.contains('connection') ||
         message.contains('no address associated with hostname')) {
-      return 'AI cần kết nối mạng. Vui lòng kiểm tra internet và thử lại.';
+      return AppLocalizations.translate(context, 'aiNetworkError');
     }
 
     if (message.contains('high demand') ||
         message.contains('try again later') ||
         message.contains('server error') ||
         message.contains('500')) {
-      return 'AI đang quá tải. Vui lòng thử lại sau.';
+      return AppLocalizations.translate(context, 'aiOverloadError');
     }
 
     if (message.contains('permission') ||
         message.contains('unauthorized') ||
         message.contains('403')) {
-      return 'AI chưa được cấp quyền. Vui lòng kiểm tra cấu hình Firebase.';
+      return AppLocalizations.translate(context, 'aiPermissionError');
     }
 
-    return 'AI chưa xử lý được yêu cầu này. Vui lòng thử lại.';
+    return AppLocalizations.translate(context, 'aiGenericError');
   }
 }

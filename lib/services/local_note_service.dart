@@ -230,7 +230,7 @@ class LocalNoteService {
       if (isPinnedToken && note.status != 'pinned') return false;
       if (isArchivedToken && note.status != 'archived') return false;
       if (!isArchivedToken && note.status == 'archived') return false;
-      if (targetLabel != null && !note.tags.map((t) => t.toLowerCase()).contains(targetLabel!.toLowerCase())) {
+      if (targetLabel != null && !note.tags.map((t) => t.toLowerCase()).contains(targetLabel.toLowerCase())) {
         return false;
       }
       return true;

@@ -4,8 +4,9 @@ import 'package:app_settings/app_settings.dart';
 import 'package:provider/provider.dart';
 import '../services/biometric_service.dart';
 import '../core/design/app_colors.dart';
-import '../core/app_strings.dart';
+import '../core/app_localizations.dart';
 import '../providers/theme_provider.dart';
+import '../providers/language_provider.dart';
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
@@ -15,8 +16,6 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  // Trạng thái local cho các cấu hình cài đặt
-  String _selectedLanguage = 'Tiếng Việt';
   bool _biometricEnabled = false;
   final BiometricService _biometricService = BiometricService();
 
@@ -37,9 +36,9 @@ class _SettingScreenState extends State<SettingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Cài đặt',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        title: Text(
+          AppLocalizations.translate(context, 'settingsTitle'),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         centerTitle: true,
         backgroundColor: AppColors.background(context),
@@ -59,26 +58,24 @@ class _SettingScreenState extends State<SettingScreen> {
                   themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
                   color: AppColors.primary,
                 ),
-                title: const Text(
-                  'Giao diện',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                title: Text(
+                  AppLocalizations.translate(context, 'darkModeTitle'),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 ),
-                subtitle: const Text('Thay đổi giao diện sáng hoặc tối cho ứng dụng'),
+                subtitle: Text(AppLocalizations.translate(context, 'darkModeSubtitle')),
                 value: themeProvider.isDarkMode,
                 activeThumbColor: AppColors.primary,
                 onChanged: (bool value) async {
                   final localContext = context;
                   final messenger = ScaffoldMessenger.of(localContext);
+                  final darkText = AppLocalizations.translate(localContext, 'toastThemeDark');
+                  final lightText = AppLocalizations.translate(localContext, 'toastThemeLight');
                   await themeProvider.toggleDarkMode();
                   if (mounted) {
                     messenger.clearSnackBars();
                     messenger.showSnackBar(
                       SnackBar(
-                        content: Text(
-                          themeProvider.isDarkMode 
-                            ? 'Đã chuyển sang giao diện tối'
-                            : 'Đã chuyển sang giao diện sáng'
-                        ),
+                        content: Text(themeProvider.isDarkMode ? darkText : lightText),
                         duration: const Duration(seconds: 1),
                       ),
                     );
@@ -92,18 +89,23 @@ class _SettingScreenState extends State<SettingScreen> {
           // ================= CHỨC NĂNG 2: ĐỔI NGÔN NGỮ =================
           ListTile(
             leading: const Icon(Icons.language, color: AppColors.primary),
-            title: const Text(
-              'Ngôn ngữ',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            title: Text(
+              AppLocalizations.translate(context, 'languageTitle'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            subtitle: const Text('Lựa chọn ngôn ngữ hiển thị hệ thống'),
+            subtitle: Text(AppLocalizations.translate(context, 'languageSubtitle')),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _selectedLanguage,
-                  style: TextStyle(color: AppColors.textMetadata(context), fontSize: 14),
+                Consumer<LanguageProvider>(
+                  builder: (context, langProvider, _) {
+                    return Text(
+                      langProvider.currentLanguageLabel,
+                      style: TextStyle(color: AppColors.textMetadata(context), fontSize: 14),
+                    );
+                  },
                 ),
+                const SizedBox(width: 4),
                 Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textMetadata(context)),
               ],
             ),
@@ -117,11 +119,11 @@ class _SettingScreenState extends State<SettingScreen> {
               Icons.fingerprint,
               color: AppColors.primary,
             ),
-            title: const Text(
-              AppStrings.biometricLockTitle,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            title: Text(
+              AppLocalizations.translate(context, 'settingsBiometricLockTitle'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            subtitle: const Text(AppStrings.biometricLockSubtitle),
+            subtitle: Text(AppLocalizations.translate(context, 'biometricLockSubtitle')),
             value: _biometricEnabled,
             activeThumbColor: AppColors.primary,
             onChanged: (bool value) async {
@@ -132,8 +134,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 if (!available) {
                   if (localContext.mounted) {
                     messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(AppStrings.biometricNotAvailable),
+                      SnackBar(
+                        content: Text(AppLocalizations.translate(localContext, 'biometricNotAvailable')),
                         backgroundColor: AppColors.error,
                       ),
                     );
@@ -150,14 +152,14 @@ class _SettingScreenState extends State<SettingScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        title: const Text('Chưa thiết lập sinh trắc học'),
-                        content: const Text(
-                          'Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.',
+                        title: Text(AppLocalizations.translate(localContext, 'notSetBiometricTitle')),
+                        content: Text(
+                          AppLocalizations.translate(localContext, 'notSetBiometricDesc'),
                         ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.of(ctx).pop(),
-                            child: const Text('Để sau'),
+                            child: Text(AppLocalizations.translate(localContext, 'notSetBiometricBtnLater')),
                           ),
                           TextButton(
                             onPressed: () {
@@ -166,7 +168,7 @@ class _SettingScreenState extends State<SettingScreen> {
                                 type: AppSettingsType.security,
                               );
                             },
-                            child: const Text('Mở cài đặt'),
+                            child: Text(AppLocalizations.translate(localContext, 'notSetBiometricBtnOpen')),
                           ),
                         ],
                       ),
@@ -182,6 +184,17 @@ class _SettingScreenState extends State<SettingScreen> {
                 setState(() {
                   _biometricEnabled = value;
                 });
+                messenger.clearSnackBars();
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      value 
+                        ? AppLocalizations.translate(localContext, 'toastBiometricEnabled')
+                        : AppLocalizations.translate(localContext, 'toastBiometricDisabled')
+                    ),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
               }
             },
           ),
@@ -190,14 +203,14 @@ class _SettingScreenState extends State<SettingScreen> {
           // ================= CHỨC NĂNG 4: THÔNG BÁO =================
           ListTile(
             leading: const Icon(Icons.notifications_none_rounded, color: AppColors.primary),
-            title: const Text(
-              'Thông báo',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            title: Text(
+              AppLocalizations.translate(context, 'notificationsTitle'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            subtitle: const Text('Quản lý thông báo và nhắc nhở'),
+            subtitle: Text(AppLocalizations.translate(context, 'notificationsSubtitle')),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng Thông báo đang được phát triển!')),
+                SnackBar(content: Text(AppLocalizations.translate(context, 'featureInDevelopment'))),
               );
             },
           ),
@@ -206,14 +219,14 @@ class _SettingScreenState extends State<SettingScreen> {
           // ================= CHỨC NĂNG 5: TRỢ GIÚP =================
           ListTile(
             leading: const Icon(Icons.help_outline_rounded, color: AppColors.primary),
-            title: const Text(
-              'Trợ giúp',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            title: Text(
+              AppLocalizations.translate(context, 'helpTitle'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            subtitle: const Text('Hướng dẫn sử dụng và FAQ'),
+            subtitle: Text(AppLocalizations.translate(context, 'helpSubtitle')),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng Trợ giúp đang được phát triển!')),
+                SnackBar(content: Text(AppLocalizations.translate(context, 'featureInDevelopment'))),
               );
             },
           ),
@@ -222,11 +235,11 @@ class _SettingScreenState extends State<SettingScreen> {
           // ================= CHỨC NĂNG 6: VỀ ỨNG DỤNG =================
           ListTile(
             leading: const Icon(Icons.info_outline_rounded, color: AppColors.primary),
-            title: const Text(
-              'Về ứng dụng',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            title: Text(
+              AppLocalizations.translate(context, 'aboutTitle'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
-            subtitle: const Text('Phiên bản 1.0.0'),
+            subtitle: Text(AppLocalizations.translate(context, 'aboutSubtitle')),
             onTap: () => _showAppInfoDialog(),
           ),
           _buildDivider(),
@@ -235,12 +248,11 @@ class _SettingScreenState extends State<SettingScreen> {
     );
   }
 
-  // Đường gạch chia dòng tinh giản
   Widget _buildDivider() {
     return Divider(
       height: 1,
       thickness: 1,
-      indent: 64, // Lùi đầu dòng để thẳng hàng với text bên cạnh icon
+      indent: 64, 
       color: AppColors.divider(context),
     );
   }
@@ -250,63 +262,80 @@ class _SettingScreenState extends State<SettingScreen> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Về ứng dụng',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          AppLocalizations.translate(context, 'aboutTitle'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Smart Note Pro',
+            const Text('Smart Note Pro',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            SizedBox(height: 4),
-            Text('Phiên bản: 1.0.0'),
-            SizedBox(height: 12),
+            const SizedBox(height: 4),
+            Text(AppLocalizations.translate(context, 'aboutSubtitle')),
+            const SizedBox(height: 12),
             Text(
-                'Ứng dụng ghi chú thông minh cao cấp được phát triển bởi đội ngũ Smart Note. Toàn bộ dữ liệu được bảo mật và đồng bộ hóa đám mây an toàn.',
-                style: TextStyle(color: Color(0xFF4B5563), fontSize: 14)),
+                AppLocalizations.translate(context, 'aboutDesc'),
+                style: const TextStyle(color: Color(0xFF4B5563), fontSize: 14)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(AppLocalizations.translate(context, 'close'), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  // Hộp thoại lựa chọn ngôn ngữ hiển thị nhanh
   void _showLanguageDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Chọn ngôn ngữ', style: TextStyle(fontWeight: FontWeight.bold)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Tiếng Việt'),
-              trailing: _selectedLanguage == 'Tiếng Việt' ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
-              onTap: () {
-                setState(() => _selectedLanguage = 'Tiếng Việt');
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              title: const Text('Tiếng Anh'),
-              trailing: _selectedLanguage == 'English' ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
-              onTap: () {
-                setState(() => _selectedLanguage = 'English');
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
+      builder: (dialogContext) {
+        return Consumer<LanguageProvider>(
+          builder: (context, langProvider, _) {
+            final isVi = langProvider.languageCode == 'vi';
+            return AlertDialog(
+              title: Text(
+                AppLocalizations.translate(context, 'languageSelectTitle'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    title: const Text('Tiếng Việt'),
+                    trailing: isVi
+                        ? const Icon(Icons.check_circle, color: AppColors.primary)
+                        : null,
+                    onTap: () async {
+                      await langProvider.setLanguage('vi');
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('English'),
+                    trailing: !isVi
+                        ? const Icon(Icons.check_circle, color: AppColors.primary)
+                        : null,
+                    onTap: () async {
+                      await langProvider.setLanguage('en');
+                      if (dialogContext.mounted) {
+                        Navigator.pop(dialogContext);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

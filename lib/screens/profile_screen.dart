@@ -7,7 +7,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:firebase_storage/firebase_storage.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
 import '../providers/note_provider.dart';
 import 'login_screen.dart';
 import '../features/profile/widgets/profile_header.dart';
@@ -51,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveName() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      _showSnack('Tên không được để trống', isError: true);
+      _showSnack(AppLocalizations.translate(context, 'nameEmptyError'), isError: true);
       return;
     }
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -62,7 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update({'displayName': name});
       await auth.user!.updateDisplayName(name);
       await auth.reloadUserData();
-      _showSnack('Đã cập nhật tên ✓');
+      _showSnack(AppLocalizations.translate(context, 'updateNameSuccess'));
     } catch (e) {
       _showSnack('Lỗi: $e', isError: true);
     }
@@ -76,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(auth.user!.uid)
           .update({'bio': _bioController.text.trim()});
       await auth.reloadUserData();
-      _showSnack('Đã cập nhật tiểu sử ✓');
+      _showSnack(AppLocalizations.translate(context, 'updateBioSuccess'));
     } catch (e) {
       _showSnack('Lỗi: $e', isError: true);
     }
@@ -87,15 +89,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final newPw = _newPasswordController.text;
     final confirmPw = _confirmPasswordController.text;
     if (oldPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
-      _showSnack('Điền đầy đủ thông tin', isError: true);
+      _showSnack(AppLocalizations.translate(context, 'fillAllFieldsError'), isError: true);
       return;
     }
     if (newPw.length < 6) {
-      _showSnack('Mật khẩu mới phải có ít nhất 6 ký tự', isError: true);
+      _showSnack(AppLocalizations.translate(context, 'passwordLengthError'), isError: true);
       return;
     }
     if (newPw != confirmPw) {
-      _showSnack('Mật khẩu xác nhận không khớp', isError: true);
+      _showSnack(AppLocalizations.translate(context, 'passwordMismatchError'), isError: true);
       return;
     }
     final user = FirebaseAuth.instance.currentUser!;
@@ -107,11 +109,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _oldPasswordController.clear();
       _newPasswordController.clear();
       _confirmPasswordController.clear();
-      _showSnack('Đổi mật khẩu thành công ✓');
+      _showSnack(AppLocalizations.translate(context, 'passwordChangeSuccess'));
     } on FirebaseAuthException catch (e) {
       _showSnack(
           e.code == 'wrong-password'
-              ? 'Mật khẩu cũ không đúng'
+              ? AppLocalizations.translate(context, 'oldPasswordIncorrectError')
               : 'Lỗi: ${e.message}',
           isError: true);
     }
@@ -139,9 +141,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update({'photoUrl': url});
       await auth.user!.updatePhotoURL(url);
       await auth.reloadUserData();
-      _showSnack('Đã cập nhật ảnh ✓');
+      _showSnack(AppLocalizations.translate(context, 'avatarUpdateSuccess'));
     } catch (e) {
-      _showSnack('Lỗi upload: $e', isError: true);
+      _showSnack(AppLocalizations.translate(context, 'uploadError').replaceAll('{error}', '$e'), isError: true);
     } finally {
       setState(() => _isUploadingAvatar = false);
     }
@@ -218,17 +220,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Đăng xuất?',
+        title: Text(AppLocalizations.translate(context, 'logoutConfirmTitle'),
             style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
-        content: Text('Bạn có chắc muốn đăng xuất không?',
+        content: Text(AppLocalizations.translate(context, 'logoutConfirmDesc'),
             style: GoogleFonts.roboto()),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Hủy', style: GoogleFonts.roboto())),
+              child: Text(AppLocalizations.translate(context, 'cancel'), style: GoogleFonts.roboto())),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Đăng xuất',
+            child: Text(AppLocalizations.translate(context, 'logout'),
                 style: GoogleFonts.roboto(
                     color: Colors.red, fontWeight: FontWeight.bold)),
           ),
@@ -253,10 +255,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<LanguageProvider>(context); // Listen to LanguageProvider for real-time rebuilds
     return Consumer<AuthProvider>(
       builder: (context, auth, _) {
         final photoUrl = auth.userData?['photoUrl'] ?? '';
-        final displayName = auth.userData?['displayName'] ?? 'Người dùng';
+        final displayName = auth.userData?['displayName'] ?? AppLocalizations.translate(context, 'userName');
         final email = auth.email ?? '';
         final isEmailProvider =
             auth.user?.providerData.any((p) => p.providerId == 'password') ??
@@ -273,7 +276,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
-              'Cài đặt',
+              AppLocalizations.translate(context, 'profileTitle'),
               style: GoogleFonts.roboto(
                 color: AppColors.textPrimary(context),
                 fontWeight: FontWeight.w600,
@@ -298,14 +301,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
 
               // ── 2. SECTIONS ──
-              _buildSectionTitle(context, 'TÀI KHOẢN'),
+              _buildSectionTitle(context, AppLocalizations.translate(context, 'accountTitle')),
               _buildSectionCard(context, [
                 ProfileMenuTile(
                   icon: Icons.person_outline_rounded,
                   iconColor: AppColors.primaryVariant,
                   iconBg: AppColors.primary.withValues(alpha: 0.12),
-                  label: 'Thông tin cá nhân',
-                  description: 'Quản lý thông tin tài khoản',
+                  label: AppLocalizations.translate(context, 'personalInfo'),
+                  description: AppLocalizations.translate(context, 'manageAccountInfo'),
                   onTap: () => _showPersonalInfoBottomSheet(context, auth),
                 ),
                 if (isEmailProvider)
@@ -313,8 +316,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.lock_outline_rounded,
                     iconColor: AppColors.success,
                     iconBg: AppColors.success.withValues(alpha: 0.1),
-                    label: 'Bảo mật',
-                    description: 'Mật khẩu và xác thực',
+                    label: AppLocalizations.translate(context, 'securityTitle'),
+                    description: AppLocalizations.translate(context, 'passwordAndAuth'),
                     onTap: () => _showSecurityBottomSheet(context),
                   ),
               ]),
@@ -354,7 +357,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: AppColors.error, size: 20),
                             const SizedBox(width: 8),
                             Text(
-                              'Đăng xuất tài khoản',
+                              AppLocalizations.translate(context, 'logout'),
                               style: GoogleFonts.roboto(
                                 color: AppColors.error,
                                 fontSize: 16,

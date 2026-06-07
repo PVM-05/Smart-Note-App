@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/design/app_colors.dart';
+import '../../../core/app_localizations.dart';
 import '../../../screens/editor_screen.dart';
 
 class HomeQuickMenu extends StatelessWidget {
@@ -18,7 +19,7 @@ class HomeQuickMenu extends StatelessWidget {
     final List<Map<String, dynamic>> menuItems = [
       {
         'icon': Icons.mic_none_outlined,
-        'title': 'Âm thanh',
+        'title': AppLocalizations.translate(context, 'quickAudio'),
         'action': () {
           // Mở EditorScreen với auto-start recording
           Navigator.push(
@@ -31,7 +32,7 @@ class HomeQuickMenu extends StatelessWidget {
       },
       {
         'icon': Icons.image_outlined,
-        'title': 'Hình ảnh',
+        'title': AppLocalizations.translate(context, 'quickImage'),
         'action': () {
           // Mở EditorScreen với auto-pick image
           Navigator.push(
@@ -44,7 +45,7 @@ class HomeQuickMenu extends StatelessWidget {
       },
       {
         'icon': Icons.brush_outlined,
-        'title': 'Bản vẽ',
+        'title': AppLocalizations.translate(context, 'quickDrawing'),
         'action': () {
           Navigator.push(
               context,
@@ -56,7 +57,7 @@ class HomeQuickMenu extends StatelessWidget {
       },
       {
         'icon': Icons.check_box_outlined,
-        'title': 'Danh sách',
+        'title': AppLocalizations.translate(context, 'quickList'),
         'action': () {
           Navigator.push(
               context,
@@ -68,7 +69,7 @@ class HomeQuickMenu extends StatelessWidget {
       },
       {
         'icon': Icons.text_fields_outlined,
-        'title': 'Văn bản',
+        'title': AppLocalizations.translate(context, 'quickText'),
         'action': onTextNoteTap,
       },
     ];

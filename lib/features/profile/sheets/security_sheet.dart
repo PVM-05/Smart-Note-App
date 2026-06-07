@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/design/app_colors.dart';
+import '../../../core/app_localizations.dart';
 
 class SecuritySheet extends StatefulWidget {
   final TextEditingController oldPasswordController;
@@ -86,7 +87,7 @@ class _SecuritySheetState extends State<SecuritySheet> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Đổi mật khẩu',
+                AppLocalizations.translate(context, 'changePassword'),
                 style: GoogleFonts.roboto(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -103,7 +104,7 @@ class _SecuritySheetState extends State<SecuritySheet> {
           _buildField(
             context: context,
             controller: widget.oldPasswordController,
-            hint: 'Mật khẩu hiện tại',
+            hint: AppLocalizations.translate(context, 'currentPassword'),
             obscure: _obscureOld,
             onToggle: () => setState(() => _obscureOld = !_obscureOld),
           ),
@@ -111,7 +112,7 @@ class _SecuritySheetState extends State<SecuritySheet> {
           _buildField(
             context: context,
             controller: widget.newPasswordController,
-            hint: 'Mật khẩu mới (tối thiểu 6 ký tự)',
+            hint: AppLocalizations.translate(context, 'newPasswordHint'),
             obscure: _obscureNew,
             onToggle: () => setState(() => _obscureNew = !_obscureNew),
           ),
@@ -119,7 +120,7 @@ class _SecuritySheetState extends State<SecuritySheet> {
           _buildField(
             context: context,
             controller: widget.confirmPasswordController,
-            hint: 'Xác nhận mật khẩu mới',
+            hint: AppLocalizations.translate(context, 'confirmNewPasswordHint'),
             obscure: _obscureConfirm,
             onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
           ),
@@ -130,7 +131,7 @@ class _SecuritySheetState extends State<SecuritySheet> {
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text(
-                  'Hủy',
+                  AppLocalizations.translate(context, 'cancel'),
                   style: GoogleFonts.roboto(
                       color: AppColors.textMetadata(context)),
                 ),
@@ -169,7 +170,7 @@ class _SecuritySheetState extends State<SecuritySheet> {
                           color: AppColors.onPrimary,
                         ),
                       )
-                    : Text('Cập nhật',
+                    : Text(AppLocalizations.translate(context, 'update'),
                         style: GoogleFonts.roboto(fontWeight: FontWeight.w600)),
               ),
             ],

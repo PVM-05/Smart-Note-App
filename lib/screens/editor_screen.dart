@@ -29,10 +29,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'drawing_screen.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
+import '../core/app_localizations.dart';
 import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
 import '../services/gemini_ai_service.dart';
 import '../services/reminder_service.dart';
+import '../services/pdf_export_service.dart';
 
 part 'editor_screen_ai.dart';
 
@@ -133,22 +135,22 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<bool?> _showUploadExitConfirmation() async {
+    final l = AppLocalizations.translate;
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Đang tải lên tệp tin'),
-        content: const Text(
-            'Có tệp tin đang được tải lên. Nếu bạn thoát bây giờ, quá trình tải lên sẽ bị hủy và tệp tin sẽ không được lưu. Bạn có chắc chắn muốn thoát?'),
+        title: Text(l(context, 'uploadingFilesTitle')),
+        content: Text(l(context, 'uploadingFilesConfirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Ở lại'),
+            child: Text(l(context, 'stay')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Thoát'),
+            child: Text(l(context, 'exit')),
           ),
         ],
       ),
@@ -424,7 +426,7 @@ class _EditorScreenState extends State<EditorScreen>
         content: Text(message ?? AppStrings.biometricAuthFailed),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
-          label: 'Thử lại',
+          label: AppLocalizations.translate(context, 'biometricRetry'),
           textColor: Colors.white,
           onPressed: _authenticateNote,
         ),
@@ -436,25 +438,24 @@ class _EditorScreenState extends State<EditorScreen>
   // Hiện dialog hướng dẫn user mở Cài đặt để đăng ký sinh trắc học
   void _showEnrollBiometricDialog() {
     if (!context.mounted) return;
+    final l = AppLocalizations.translate;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Chưa thiết lập sinh trắc học'),
-        content: const Text(
-          'Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.',
-        ),
+        title: Text(l(context, 'notSetBiometricTitle')),
+        content: Text(l(context, 'notSetBiometricDesc')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Để sau'),
+            child: Text(l(context, 'notSetBiometricBtnLater')),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               AppSettings.openAppSettings(type: AppSettingsType.security);
             },
-            child: const Text('Mở cài đặt'),
+            child: Text(l(context, 'notSetBiometricBtnOpen')),
           ),
         ],
       ),
@@ -568,7 +569,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
+            SnackBar(content: Text(AppLocalizations.translate(context, 'uploadImageError'))));
       }
     }
   }
@@ -591,7 +592,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
+            .showSnackBar(SnackBar(content: Text(AppLocalizations.translate(context, 'uploadDrawingError'))));
       }
     }
   }
@@ -654,11 +655,12 @@ class _EditorScreenState extends State<EditorScreen>
         _deletingUrls.remove(oldUrl);
       });
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
+          .showSnackBar(SnackBar(content: Text(AppLocalizations.translate(context, 'updateDrawingError'))));
     }
   }
 
   void _showImageSourceSheet() {
+    final l = AppLocalizations.translate;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -679,7 +681,7 @@ class _EditorScreenState extends State<EditorScreen>
               leading: const CircleAvatar(
                   backgroundColor: Color(0xFFEFF6FF),
                   child: Icon(Icons.photo_library_outlined, color: _primary)),
-              title: const Text('Chọn từ thư viện'),
+              title: Text(l(context, 'pickFromGallery')),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);
@@ -689,7 +691,7 @@ class _EditorScreenState extends State<EditorScreen>
               leading: const CircleAvatar(
                   backgroundColor: Color(0xFFEFF6FF),
                   child: Icon(Icons.camera_alt_outlined, color: _primary)),
-              title: const Text('Chụp ảnh'),
+              title: Text(l(context, 'takePhoto')),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
@@ -734,7 +736,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         _setUploadState(
           isUploading: false,
-          message: 'Ghi âm thất bại: Không lấy được file audio.',
+          message: AppLocalizations.translate(context, 'recordFailed'),
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
           statusIcon:
@@ -747,9 +749,13 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    final msgUploading = AppLocalizations.translate(context, 'uploadingAudio');
+    final msgSuccess = AppLocalizations.translate(context, 'uploadAudioSuccess');
+    final msgFail = AppLocalizations.translate(context, 'uploadAudioFail');
+    final msgError = AppLocalizations.translate(context, 'uploadAudioError');
     _setUploadState(
       isUploading: true,
-      message: 'Đang tải lên âm thanh...',
+      message: msgUploading,
       bannerColor: const Color(0xFFEFF6FF),
       bannerTextColor: const Color(0xFF1E40AF),
       statusIcon: const SizedBox(
@@ -769,7 +775,7 @@ class _EditorScreenState extends State<EditorScreen>
         await _saveNote(isAutosave: true);
         _setUploadState(
           isUploading: false,
-          message: 'Tải lên âm thanh thành công!',
+          message: msgSuccess,
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
           statusIcon: const Icon(Icons.check_circle,
@@ -779,7 +785,7 @@ class _EditorScreenState extends State<EditorScreen>
       } else {
         _setUploadState(
           isUploading: false,
-          message: 'Tải lên âm thanh thất bại.',
+          message: msgFail,
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
           statusIcon:
@@ -791,7 +797,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _setUploadState(
         isUploading: false,
-        message: 'Lỗi: Tải lên âm thanh thất bại.',
+        message: msgError,
         bannerColor: const Color(0xFFFEF2F2),
         bannerTextColor: const Color(0xFF991B1B),
         statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -818,20 +824,20 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _delete() async {
+    final l = AppLocalizations.translate;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa ghi chú?'),
-        content: const Text(
-            'Ghi chú sẽ được chuyển vào Thùng rác và tự động xóa sau 7 ngày.'),
+        title: Text(l(context, 'deleteNoteTitle')),
+        content: Text(l(context, 'deleteNoteConfirm')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy')),
+              child: Text(l(context, 'cancel'))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(l(context, 'delete')),
           ),
         ],
       ),
@@ -877,11 +883,12 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (mounted) {
+      final l = AppLocalizations.translate;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_status == 'archived'
-              ? 'Đã chuyển vào kho lưu trữ'
-              : 'Đã hủy lưu trữ ghi chú'),
+              ? l(context, 'archivedNote')
+              : l(context, 'unarchivedNoteMsg')),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -912,11 +919,12 @@ class _EditorScreenState extends State<EditorScreen>
     final tomorrow = today.add(const Duration(days: 1));
     final dtDay = DateTime(dt.year, dt.month, dt.day);
 
+    final l = AppLocalizations.translate;
     String timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     if (dtDay == today) {
-      return 'Hôm nay, $timeStr';
+      return l(context, 'reminderToday').replaceAll('{time}', timeStr);
     } else if (dtDay == tomorrow) {
-      return 'Ngày mai, $timeStr';
+      return l(context, 'reminderTomorrow').replaceAll('{time}', timeStr);
     } else {
       return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
     }
@@ -952,7 +960,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               const SizedBox(height: 16),
               Text(
-                'Nhắc nhở',
+                AppLocalizations.translate(context, 'reminderSheetTitle'),
                 style: GoogleFonts.outfit(
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
@@ -967,7 +975,7 @@ class _EditorScreenState extends State<EditorScreen>
                     child: Icon(Icons.alarm, color: Theme.of(context).colorScheme.primary),
                   ),
                   title: Text(
-                    'Thời gian đã hẹn',
+                    AppLocalizations.translate(context, 'scheduledTime'),
                     style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w400),
                   ),
                   subtitle: Text(
@@ -981,7 +989,7 @@ class _EditorScreenState extends State<EditorScreen>
                     },
                     icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
                     label: Text(
-                      'Hủy',
+                      AppLocalizations.translate(context, 'cancel'),
                       style: GoogleFonts.outfit(color: Colors.red),
                     ),
                   ),
@@ -991,7 +999,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (now.isBefore(today18))
                 ListTile(
                   leading: const Icon(Icons.wb_twighlight),
-                  title: Text('Hôm nay lúc 18:00', style: GoogleFonts.outfit(fontSize: 15)),
+                  title: Text(AppLocalizations.translate(context, 'todayAt18'), style: GoogleFonts.outfit(fontSize: 15)),
                   onTap: () {
                     Navigator.pop(context);
                     _setReminder(today18);
@@ -999,7 +1007,7 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
               ListTile(
                 leading: const Icon(Icons.wb_sunny_outlined),
-                title: Text('Ngày mai lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)),
+                title: Text(AppLocalizations.translate(context, 'tomorrowAt8'), style: GoogleFonts.outfit(fontSize: 15)),
                 onTap: () {
                   Navigator.pop(context);
                   _setReminder(tomorrow8);
@@ -1007,7 +1015,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               ListTile(
                 leading: const Icon(Icons.next_week_outlined),
-                title: Text('Thứ Hai tuần sau lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)),
+                title: Text(AppLocalizations.translate(context, 'nextMondayAt8'), style: GoogleFonts.outfit(fontSize: 15)),
                 onTap: () {
                   Navigator.pop(context);
                   _setReminder(nextMonday8);
@@ -1015,7 +1023,7 @@ class _EditorScreenState extends State<EditorScreen>
               ),
               ListTile(
                 leading: const Icon(Icons.date_range_outlined),
-                title: Text('Chọn ngày & giờ...', style: GoogleFonts.outfit(fontSize: 15)),
+                title: Text(AppLocalizations.translate(context, 'pickDateTime'), style: GoogleFonts.outfit(fontSize: 15)),
                 onTap: () {
                   Navigator.pop(context);
                   _selectCustomDateTime();
@@ -1029,6 +1037,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _showNotificationPermissionDialog() {
+    final l = AppLocalizations.translate;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1037,17 +1046,15 @@ class _EditorScreenState extends State<EditorScreen>
           children: [
             Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28),
             const SizedBox(width: 12),
-            const Text('Quyền thông báo bị tắt'),
+            Text(l(context, 'notifPermissionTitle')),
           ],
         ),
-        content: const Text(
-          'Để không bỏ lỡ các nhắc nhở quan trọng của ghi chú, bạn cần cấp quyền thông báo trong cài đặt điện thoại.',
-        ),
+        content: Text(l(context, 'notifPermissionDesc')),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
-              'Để sau',
+              l(context, 'notifPermissionLater'),
               style: GoogleFonts.outfit(color: Colors.grey.shade600),
             ),
           ),
@@ -1062,7 +1069,7 @@ class _EditorScreenState extends State<EditorScreen>
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text(
-              'Mở cài đặt',
+              l(context, 'notifPermissionOpen'),
               style: GoogleFonts.outfit(fontWeight: FontWeight.w500),
             ),
           ),
@@ -1089,7 +1096,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('⏰ Đã hẹn nhắc nhở lúc ${_formatReminderTime(dt)}'),
+          content: Text(AppLocalizations.translate(context, 'reminderSet').replaceAll('{time}', _formatReminderTime(dt))),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1105,8 +1112,8 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🚫 Đã hủy nhắc nhở ghi chú'),
+        SnackBar(
+          content: Text(AppLocalizations.translate(context, 'reminderCancelled')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -1163,8 +1170,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (selectedDateTime.isBefore(DateTime.now())) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ Thời gian nhắc nhở không được ở quá khứ!'),
+          SnackBar(
+            content: Text(AppLocalizations.translate(context, 'reminderPastError')),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -1327,7 +1334,7 @@ class _EditorScreenState extends State<EditorScreen>
                             color: _primary, strokeWidth: 2))),
               ),
             Tooltip(
-              message: 'AI Trợ lý',
+              message: AppLocalizations.translate(context, 'aiTooltip'),
               child: GestureDetector(
                 onTap: _isAiLoading ? null : _showAiOptions,
                 child: Container(
@@ -1361,15 +1368,17 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             _buildAppBarRoundBtn(
               icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
-              tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
+              tooltip: _isLocked ? AppLocalizations.translate(context, 'unlockNoteTooltip') : AppLocalizations.translate(context, 'lockNoteTooltip'),
               onTap: () async {
                 if (!_hasBeenSavedInDb) {
-                  _showRequiresSaveMessage('khóa');
+                  _showRequiresSaveMessage(AppLocalizations.translate(context, 'lockNoteTooltip').toLowerCase());
                   return;
                 }
                 final messenger = ScaffoldMessenger.of(context);
                 final provider =
                     Provider.of<NoteProvider>(context, listen: false);
+                final msgLocked = AppLocalizations.translate(context, 'lockedNote');
+                final msgUnlocked = AppLocalizations.translate(context, 'unlockedNote');
                 try {
                   final success = await provider.toggleLock(_noteId);
                   if (success) {
@@ -1379,9 +1388,7 @@ class _EditorScreenState extends State<EditorScreen>
                     });
                     messenger.showSnackBar(
                       SnackBar(
-                        content: Text(_isLocked
-                            ? '🔒 Đã khóa ghi chú'
-                            : '🔓 Đã mở khóa ghi chú'),
+                        content: Text(_isLocked ? msgLocked : msgUnlocked),
                         behavior: SnackBarBehavior.floating,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
@@ -1410,10 +1417,10 @@ class _EditorScreenState extends State<EditorScreen>
               icon: _status == 'pinned'
                   ? Icons.push_pin
                   : Icons.push_pin_outlined,
-              tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim',
+              tooltip: _status == 'pinned' ? AppLocalizations.translate(context, 'unpinTooltip') : AppLocalizations.translate(context, 'pinTooltip'),
               onTap: () {
                 if (!_hasBeenSavedInDb) {
-                  _showRequiresSaveMessage('ghim');
+                  _showRequiresSaveMessage(AppLocalizations.translate(context, 'pinTooltip').toLowerCase());
                   return;
                 }
                 _togglePin();
@@ -1421,10 +1428,10 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             _buildAppBarRoundBtn(
               icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined,
-              tooltip: 'Nhắc nhở',
+              tooltip: AppLocalizations.translate(context, 'reminderTooltip'),
               onTap: () {
                 if (!_hasBeenSavedInDb) {
-                  _showRequiresSaveMessage('nhắc nhở');
+                  _showRequiresSaveMessage(AppLocalizations.translate(context, 'reminderTooltip').toLowerCase());
                   return;
                 }
                 _showReminderSettingsSheet();
@@ -1477,7 +1484,7 @@ class _EditorScreenState extends State<EditorScreen>
                                   : AppColors.textSecondary(context),
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Tiêu đề',
+                              hintText: AppLocalizations.translate(context, 'titleHint'),
                               border: InputBorder.none,
                               hintStyle: TextStyle(
                                 color: isCustomColor
@@ -1519,7 +1526,7 @@ class _EditorScreenState extends State<EditorScreen>
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Nhắc nhở: ${_formatReminderTime(_reminder!)}',
+                                          AppLocalizations.translate(context, 'reminderPrefix').replaceAll('{time}', _formatReminderTime(_reminder!)),
                                           style: GoogleFonts.outfit(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w400,
@@ -1570,7 +1577,7 @@ class _EditorScreenState extends State<EditorScreen>
                                       expands: false,
                                       autoFocus: false,
                                       padding: EdgeInsets.zero,
-                                      placeholder: 'Ghi chú',
+                                      placeholder: AppLocalizations.translate(context, 'notePlaceholder'),
                                       customStyles: quillCustomStyles,
                                     ),
                                   ),
@@ -1676,7 +1683,7 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          'Ghi chú đã được khóa',
+                          AppLocalizations.translate(context, 'noteLockedTitle'),
                           style: GoogleFonts.spaceGrotesk(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -1685,7 +1692,7 @@ class _EditorScreenState extends State<EditorScreen>
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Chạm để mở khóa bằng sinh trắc học',
+                          AppLocalizations.translate(context, 'noteLockedSubtitle'),
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             color: AppColors.textMetadata(context),
@@ -1697,7 +1704,7 @@ class _EditorScreenState extends State<EditorScreen>
                           icon: const Icon(Icons.fingerprint,
                               color: Colors.white),
                           label: Text(
-                            'Xác thực ngay',
+                            AppLocalizations.translate(context, 'authenticateNow'),
                             style: GoogleFonts.inter(
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white),
@@ -1723,6 +1730,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _deleteAudio(String url, int index) async {
+    final msgDeleting = AppLocalizations.translate(context, 'deletingAudio');
+    final msgSuccess = AppLocalizations.translate(context, 'deleteAudioSuccess');
+    final msgFail = AppLocalizations.translate(context, 'deleteAudioFail');
     if (_playingUrl == url) {
       await _audioPlayer.stop();
       setState(() {
@@ -1732,7 +1742,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _setUploadState(
       isUploading: true,
-      message: 'Đang xóa âm thanh khỏi đám mây...',
+      message: msgDeleting,
       bannerColor: const Color(0xFFEFF6FF),
       bannerTextColor: const Color(0xFF1E40AF),
       statusIcon: const SizedBox(
@@ -1751,7 +1761,7 @@ class _EditorScreenState extends State<EditorScreen>
         await _saveNote(isAutosave: true);
         _setUploadState(
           isUploading: false,
-          message: 'Đã xóa âm thanh thành công.',
+          message: msgSuccess,
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
           statusIcon: const Icon(Icons.check_circle,
@@ -1763,7 +1773,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         _setUploadState(
           isUploading: false,
-          message: 'Xóa âm thanh thất bại.',
+          message: msgFail,
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
           statusIcon:
@@ -1793,7 +1803,7 @@ class _EditorScreenState extends State<EditorScreen>
             Navigator.pop(context);
             _setUploadState(
               isUploading: true,
-              message: 'Đang xóa hình ảnh khỏi đám mây...',
+              message: AppLocalizations.translate(context, 'deletingImage'),
               bannerColor: const Color(0xFFEFF6FF),
               bannerTextColor: const Color(0xFF1E40AF),
               statusIcon: const SizedBox(
@@ -1809,7 +1819,7 @@ class _EditorScreenState extends State<EditorScreen>
                 _saveNote(isAutosave: true);
                 _setUploadState(
                   isUploading: false,
-                  message: 'Đã xóa hình ảnh thành công.',
+                  message: AppLocalizations.translate(context, 'deleteImageSuccess'),
                   bannerColor: const Color(0xFFECFDF5),
                   bannerTextColor: const Color(0xFF065F46),
                   statusIcon: const Icon(Icons.check_circle,
@@ -1821,7 +1831,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (mounted) {
                 _setUploadState(
                   isUploading: false,
-                  message: 'Xóa hình ảnh thất bại.',
+                  message: AppLocalizations.translate(context, 'deleteImageFail'),
                   bannerColor: const Color(0xFFFEF2F2),
                   bannerTextColor: const Color(0xFF991B1B),
                   statusIcon: const Icon(Icons.error,
@@ -2012,17 +2022,17 @@ class _EditorScreenState extends State<EditorScreen>
                 children: [
                   _toolbarButton(
                       icon: Icons.add_box_outlined,
-                      tooltip: 'Thêm',
+                      tooltip: AppLocalizations.translate(context, 'toolbarAdd'),
                       onTap: _isUploading ? null : _showAddOptions),
                   _toolbarButton(
                     icon: Icons.palette_outlined,
-                    tooltip: 'Màu sắc',
+                    tooltip: AppLocalizations.translate(context, 'toolbarColor'),
                     onTap: _showColorPicker,
                   ),
                   if (!_isChecklistMode)
                     _toolbarButton(
                       icon: Icons.format_color_text,
-                      tooltip: 'Định dạng',
+                      tooltip: AppLocalizations.translate(context, 'toolbarFormat'),
                       color: _showFormattingToolbar ? _primary : null,
                       onTap: () {
                         setState(() {
@@ -2043,14 +2053,14 @@ class _EditorScreenState extends State<EditorScreen>
                       children: [
                         _toolbarButton(
                           icon: Icons.undo,
-                          tooltip: 'Hoàn tác',
+                          tooltip: AppLocalizations.translate(context, 'toolbarUndo'),
                           onTap: _quillController.hasUndo
                               ? () => _quillController.undo()
                               : null,
                         ),
                         _toolbarButton(
                           icon: Icons.redo,
-                          tooltip: 'Làm lại',
+                          tooltip: AppLocalizations.translate(context, 'toolbarRedo'),
                           onTap: _quillController.hasRedo
                               ? () => _quillController.redo()
                               : null,
@@ -2063,7 +2073,7 @@ class _EditorScreenState extends State<EditorScreen>
               // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
               _toolbarButton(
                   icon: Icons.more_vert,
-                  tooltip: 'Thêm nữa',
+                  tooltip: AppLocalizations.translate(context, 'toolbarMore'),
                   onTap: _showMoreOptions),
             ],
           ),
@@ -2091,6 +2101,38 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  Note _getCurrentNoteObject() {
+    String finalContent = '';
+    if (_isChecklistMode) {
+      finalContent = jsonEncode({
+        'type': 'checklist',
+        'items': _checklistItems.map((item) => item.toJson()).toList(),
+      });
+    } else {
+      finalContent = jsonEncode(_quillController.document.toDelta().toJson());
+    }
+
+    return Note(
+      id: _noteId,
+      userId: widget.note?.userId ?? '',
+      title: _titleController.text.trim(),
+      content: finalContent,
+      status: _status,
+      noteColor: _noteColor,
+      tags: _tags,
+      imageUrls: _imageUrls,
+      audioUrls: _audioUrls,
+      createdAt: _createdAt,
+      updatedAt: DateTime.now(),
+      reminder: _reminder,
+    );
+  }
+
+  void _exportToPdf() {
+    final currentNote = _getCurrentNoteObject();
+    PdfExportService.exportNoteToPdf(context, currentNote);
+  }
+
   void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
@@ -2102,13 +2144,14 @@ class _EditorScreenState extends State<EditorScreen>
         onDelete: _delete,
         onLabelSelection: _openLabelSelectionPage,
         onToggleArchive: _toggleArchive,
+        onExportPdf: _exportToPdf,
       ),
     );
   }
 
   void _showRequiresSaveMessage(String action) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Vui lòng nhập nội dung để có thể $action ghi chú này'),
+      content: Text(AppLocalizations.translate(context, 'requiresSaveMsg').replaceAll('{action}', action)),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
@@ -2272,7 +2315,7 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
           autofocus: true,
           style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
           decoration: InputDecoration(
-            hintText: 'Nhập tên nhãn',
+            hintText: AppLocalizations.translate(context, 'labelSearchHint'),
             border: InputBorder.none,
             hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
             suffixIcon: _searchQuery.isNotEmpty
@@ -2297,7 +2340,8 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 if (showCreate)
                   ListTile(
                     leading: const Icon(Icons.add, color: AppColors.primary),
-                    title: Text('Tạo "${_searchQuery.trim()}"',
+                    title: Text(
+                        AppLocalizations.translate(context, 'createLabelOption').replaceAll('{name}', _searchQuery.trim()),
                         style: GoogleFonts.inter(
                             color: AppColors.textPrimary(context))),
                     onTap: () {
@@ -2404,18 +2448,21 @@ class _ImageViewerState extends State<_ImageViewer> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}',
+        title: Text(
+            AppLocalizations.translate(context, 'imageCountTitle')
+                .replaceAll('{current}', '${_currentIndex + 1}')
+                .replaceAll('{total}', '${widget.imageUrls.length}'),
             style:
                 GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
         centerTitle: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.brush),
-            tooltip: 'Vẽ đè lên ảnh',
+            tooltip: AppLocalizations.translate(context, 'drawOnImageTooltip'),
             onPressed: () => widget.onEditDrawing(currentUrl),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Tùy chọn ảnh',
+            tooltip: AppLocalizations.translate(context, 'imageOptionsTooltip'),
             onSelected: (value) {
               if (value == 'duplicate') {
                 widget.onDuplicate(currentUrl);
@@ -2426,10 +2473,10 @@ class _ImageViewerState extends State<_ImageViewer> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
-              const PopupMenuItem(
+              PopupMenuItem(value: 'duplicate', child: Text(AppLocalizations.translate(context, 'duplicateImage'))),
+              PopupMenuItem(
                   value: 'delete',
-                  child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+                  child: Text(AppLocalizations.translate(context, 'deleteImage'), style: const TextStyle(color: Colors.red))),
             ],
           ),
         ],
