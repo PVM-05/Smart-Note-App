@@ -6,6 +6,7 @@ import '../repositories/note_repository.dart';
 import '../services/cloudinary_service.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
+import '../services/reminder_service.dart';
 
 class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
@@ -32,25 +33,42 @@ class NoteProvider extends ChangeNotifier {
   // Quản lý nhãn toàn cục và bộ lọc
   List<String> _customLabels = [];
   String? _selectedLabel;
+  bool _showOnlyReminders = false;
+
+  bool get showOnlyReminders => _showOnlyReminders;
+
+  void setShowOnlyReminders(bool val) {
+    _showOnlyReminders = val;
+    if (val) {
+      _selectedLabel = null; // Tắt lọc theo nhãn khi bật lọc nhắc nhở
+    }
+    notifyListeners();
+  }
 
   List<Note> get _activeList => _isSearching ? _filtered : _notes;
 
-  // Lọc chính xác cho danh sách Note thường dựa theo Label (nếu có)
+  // Lọc chính xác cho danh sách Note thường dựa theo Label và Nhắc nhở (nếu có)
   List<Note> get normalNotes {
-    final list = _activeList.where((n) => n.status == 'normal').toList();
+    var list = _activeList.where((n) => n.status == 'normal').toList();
     if (_selectedLabel != null) {
-      return list.where((n) => n.tags.contains(_selectedLabel)).toList();
+      list = list.where((n) => n.tags.contains(_selectedLabel)).toList();
+    }
+    if (_showOnlyReminders) {
+      list = list.where((n) => n.reminder != null).toList();
     }
     return list;
   }
 
-  // Lọc Note ghim riêng để không bị ảnh hưởng bởi phân trang của Note thường
+  // Lọc Note ghim riêng dựa theo Label và Nhắc nhở (nếu có)
   List<Note> get pinnedNotes {
-    final list = _isSearching
+    var list = _isSearching
         ? _filtered.where((n) => n.status == 'pinned').toList()
         : _pinnedNotesList;
     if (_selectedLabel != null) {
-      return list.where((n) => n.tags.contains(_selectedLabel)).toList();
+      list = list.where((n) => n.tags.contains(_selectedLabel)).toList();
+    }
+    if (_showOnlyReminders) {
+      list = list.where((n) => n.reminder != null).toList();
     }
     return list;
   }
@@ -113,6 +131,7 @@ class NoteProvider extends ChangeNotifier {
 
   void selectLabel(String? label) {
     _selectedLabel = label;
+    _showOnlyReminders = false;
     notifyListeners();
   }
 
@@ -343,6 +362,8 @@ class NoteProvider extends ChangeNotifier {
       _notes.insert(0, note);
     }
     notifyListeners();
+    // Lên lịch thông báo cục bộ trước để hoạt động offline tức thì
+    await _scheduleReminderIfNeeded(note);
     await _repository.saveNote(note);
   }
 
@@ -356,6 +377,8 @@ class NoteProvider extends ChangeNotifier {
         _notes[index] = note;
       }
       notifyListeners();
+      // Lên lịch thông báo cục bộ trước để hoạt động offline tức thì
+      await _scheduleReminderIfNeeded(note);
       await _repository.saveNote(note);
       return;
     }
@@ -369,11 +392,54 @@ class NoteProvider extends ChangeNotifier {
         _pinnedNotesList[index] = note;
       }
       notifyListeners();
+      // Lên lịch thông báo cục bộ trước để hoạt động offline tức thì
+      await _scheduleReminderIfNeeded(note);
       await _repository.saveNote(note);
     }
   }
 
+  Future<void> _scheduleReminderIfNeeded(Note note) async {
+    if (note.status == 'trash') {
+      await ReminderService().cancelReminder(note.id);
+      return;
+    }
+    if (note.reminder != null) {
+      if (note.reminder!.isAfter(DateTime.now())) {
+        String body;
+        String? bigText;
+        if (note.isChecklist) {
+          final pendingCount = note.pendingChecklistCount;
+          body = "Bạn có $pendingCount công việc chưa hoàn thành.";
+          bigText = "$body\n${note.checklistPlainText}";
+        } else {
+          // Giải mã văn bản thuần sạch sẽ từ Quill Delta JSON để tránh lỗi định dạng
+          final plainText = note.plainTextContent;
+          body = plainText.length > 100
+              ? '${plainText.substring(0, 97)}...'
+              : plainText;
+          if (body.isEmpty) {
+            body = 'Bạn có một nhắc nhở ghi chú!';
+          }
+        }
+        await ReminderService().scheduleReminder(
+          id: note.id,
+          title: note.title.isNotEmpty ? note.title : 'Nhắc nhở ghi chú',
+          body: body,
+          bigText: bigText,
+          scheduledDate: note.reminder!,
+        );
+      } else {
+        // Đã trôi qua, không làm gì
+      }
+    } else {
+      await ReminderService().cancelReminder(note.id);
+    }
+  }
+
   Future<void> deleteNote(String id) async {
+    // Hủy nhắc nhở khi đưa ghi chú vào thùng rác
+    await ReminderService().cancelReminder(id);
+
     int index = _notes.indexWhere((note) => note.id == id);
     if (index != -1) {
       final trashedNote = _notes[index].copyWith(status: 'trash', isSynced: false, updatedAt: DateTime.now());
@@ -413,6 +479,9 @@ class NoteProvider extends ChangeNotifier {
 
 
   Future<void> deleteNoteForever(String id) async {
+    // Hủy nhắc nhở khi xóa vĩnh viễn ghi chú
+    await ReminderService().cancelReminder(id);
+
     try {
       // 1. Tìm note trong tất cả các list — không throw nếu không tìm thấy
       Note? noteToDelete =
@@ -699,5 +768,93 @@ class NoteProvider extends ChangeNotifier {
 
   Future<void> clearLocalData(String userId) async {
     await _repository.clearLocalData(userId);
+  }
+
+  // ── REMINDER METHODS ──
+
+  // Thiết lập nhắc nhở cho ghi chú
+  Future<void> setNoteReminder(Note note, DateTime scheduledTime) async {
+    // 1. Cập nhật Note model
+    final updatedNote = note.copyWith(
+      reminder: scheduledTime,
+      isSynced: false,
+      updatedAt: DateTime.now(),
+    );
+
+    // 2. Cập nhật danh sách trong Provider
+    _updateNoteInMemory(updatedNote);
+
+    // 3. Lên lịch notification trước để hoạt động offline tức thì
+    String body;
+    String? bigText;
+    if (updatedNote.isChecklist) {
+      final pendingCount = updatedNote.pendingChecklistCount;
+      body = "Bạn có $pendingCount công việc chưa hoàn thành.";
+      bigText = "$body\n${updatedNote.checklistPlainText}";
+    } else {
+      // Giải mã văn bản thuần sạch sẽ từ Quill Delta JSON để tránh lỗi định dạng
+      final plainText = updatedNote.plainTextContent;
+      body = plainText.length > 100
+          ? '${plainText.substring(0, 97)}...'
+          : plainText;
+      if (body.isEmpty) {
+        body = 'Bạn có một nhắc nhở ghi chú!';
+      }
+    }
+
+    await ReminderService().scheduleReminder(
+      id: updatedNote.id,
+      title: updatedNote.title.isNotEmpty ? updatedNote.title : 'Nhắc nhở ghi chú',
+      body: body,
+      bigText: bigText,
+      scheduledDate: scheduledTime,
+    );
+
+    notifyListeners();
+
+    // 4. Lưu xuống Database & Cloud sau (bất kể mạng chặn)
+    await _repository.saveNote(updatedNote);
+  }
+
+  // Hủy nhắc nhở ghi chú
+  Future<void> cancelNoteReminder(Note note) async {
+    // 1. Cập nhật Note model
+    final updatedNote = note.copyWith(
+      clearReminder: true,
+      isSynced: false,
+      updatedAt: DateTime.now(),
+    );
+
+    // 2. Cập nhật danh sách trong Provider
+    _updateNoteInMemory(updatedNote);
+
+    // 3. Hủy lịch notification trước để hoạt động offline tức thì
+    await ReminderService().cancelReminder(updatedNote.id);
+
+    notifyListeners();
+
+    // 4. Lưu xuống Database & Cloud sau (bất kể mạng chặn)
+    await _repository.saveNote(updatedNote);
+  }
+
+  // Helper cập nhật ghi chú trong in-memory lists
+  void _updateNoteInMemory(Note updatedNote) {
+    int index = _notes.indexWhere((n) => n.id == updatedNote.id);
+    if (index != -1) {
+      _notes[index] = updatedNote;
+      return;
+    }
+
+    index = _pinnedNotesList.indexWhere((n) => n.id == updatedNote.id);
+    if (index != -1) {
+      _pinnedNotesList[index] = updatedNote;
+      return;
+    }
+
+    index = _archivedNotes.indexWhere((n) => n.id == updatedNote.id);
+    if (index != -1) {
+      _archivedNotes[index] = updatedNote;
+      return;
+    }
   }
 }

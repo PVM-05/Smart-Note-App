@@ -112,7 +112,7 @@ class NoteImageGrid extends StatelessWidget {
         if (extraCount > 0)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               child: Center(
                 child: Text(
                   '+$extraCount',
@@ -128,7 +128,7 @@ class NoteImageGrid extends StatelessWidget {
         if (deletingIndices.contains(index))
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.5),
+              color: Colors.black.withValues(alpha: 0.5),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

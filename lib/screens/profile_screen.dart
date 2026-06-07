@@ -14,7 +14,6 @@ import '../features/profile/widgets/profile_header.dart';
 import '../features/profile/widgets/profile_menu_tile.dart';
 import '../features/profile/sheets/personal_info_sheet.dart';
 import '../features/profile/sheets/security_sheet.dart';
-import '../features/profile/dialogs/app_info_dialog.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -209,26 +208,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showComingSoonToast(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Tính năng $feature đang được phát triển!',
-          style: GoogleFonts.roboto(),
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  void _showAppInfoDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const AppInfoDialog(),
-    );
-  }
 
   Future<void> _signOut(BuildContext context, AuthProvider auth) async {
     final navigator = Navigator.of(context);

@@ -11,10 +11,10 @@ import 'repositories/sync_repository.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/ai_test_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'services/reminder_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +33,10 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Khởi tạo dịch vụ nhắc nhở (local notifications + timezone)
+  await ReminderService().init();
+
   runApp(const MyApp());
 }
 
@@ -67,10 +71,8 @@ class MyApp extends StatelessWidget {
         builder: (context, themeProvider, _) {
           return MaterialApp(
             title: 'Smart Note App',
+            navigatorKey: ReminderService.navigatorKey,
             debugShowCheckedModeBanner: false,
-            routes: {
-              '/ai-test': (_) => const AiTestScreen(),
-            },
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,

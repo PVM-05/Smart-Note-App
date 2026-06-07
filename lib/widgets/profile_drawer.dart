@@ -3,9 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
-import '../providers/note_provider.dart';
 import '../screens/profile_screen.dart';
-import '../screens/login_screen.dart';
 
 class ProfileDrawer extends StatelessWidget {
   const ProfileDrawer({super.key});
@@ -108,54 +106,4 @@ class ProfileDrawer extends StatelessWidget {
     );
   }
 
-  Future<void> _signOut(BuildContext context, AuthProvider auth) async {
-    // 1. Lưu lại NavigatorState và Provider TRƯỚC KHI đóng Drawer
-    final navigator = Navigator.of(context);
-    final noteProvider = Provider.of<NoteProvider>(context, listen: false);
-    final userId = auth.userId;
-
-    // 2. Đóng Drawer
-    navigator.pop();
-
-    // 3. Hiển thị Dialog (dùng navigator.context để đảm bảo context còn sống)
-    final confirm = await showDialog<bool>(
-      context: navigator.context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Đăng xuất?',
-            style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
-        content: Text('Bạn có chắc muốn đăng xuất không?',
-            style: GoogleFonts.roboto()),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Hủy', style: GoogleFonts.roboto())),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Đăng xuất',
-                style: GoogleFonts.roboto(
-                    color: AppColors.error, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    // Nếu người dùng hủy thì dừng lại
-    if (confirm != true) return;
-
-    // 4. Thực hiện đăng xuất ở Firebase/Google
-    await auth.signOut();
-
-    // 5. Xóa dữ liệu local và điều hướng về LoginScreen
-    if (userId != null) {
-      noteProvider.clearLocalData(userId);
-      noteProvider.clearNotes();
-    }
-
-    // pushAndRemoveUntil sẽ xóa toàn bộ lịch sử trang (kể cả HomeScreen)
-    navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (_) => false,
-    );
-  }
 }
