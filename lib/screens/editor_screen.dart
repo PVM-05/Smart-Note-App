@@ -11,7 +11,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart' hide Text;
 import '../models/note_model.dart';
 import '../features/editor/widgets/editor_upload_banner.dart';
 import '../features/editor/widgets/editor_image_section.dart';
@@ -33,6 +34,7 @@ import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
 import '../services/gemini_ai_service.dart';
 import '../services/reminder_service.dart';
+import '../utils/math_parser.dart'; // [MERGE từ Bản 1] Tích hợp bộ phân tích toán học
 
 part 'editor_screen_ai.dart';
 
@@ -77,12 +79,17 @@ class _EditorScreenState extends State<EditorScreen>
   final Set<String> _deletingUrls = {};
   List<String> _audioUrls = [];
   String? _noteColor;
-  DateTime? _reminder;
+  DateTime? _reminder; // [Hạ tầng Bản 2]
 
   // Checklist mode
   bool _isChecklistMode = false;
   List<ChecklistItem> _checklistItems = [];
   List<ChecklistItem>? _originalChecklistItems;
+
+  // Math Suggestion State [MERGE từ Bản 1]
+  String? _mathSuggestionResult;
+  int _mathSuggestionOffset = -1;
+  int? _mathSuggestionChecklistIndex;
 
   late String _noteId;
   late DateTime _createdAt;
@@ -93,8 +100,8 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isUploading = false;
   String? _uploadMessage;
   bool _showUploadBanner = false;
-  Color _bannerColor = const Color(0xFFEFF6FF); // Light blue for progress
-  Color _bannerTextColor = const Color(0xFF1E40AF); // Dark blue text
+  Color _bannerColor = const Color(0xFFEFF6FF);
+  Color _bannerTextColor = const Color(0xFF1E40AF);
   Widget _statusIcon = const SizedBox(
     width: 14,
     height: 14,
@@ -155,7 +162,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  // Audio Recorder
+  // Audio Configuration
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isRecording = false;
@@ -163,17 +170,15 @@ class _EditorScreenState extends State<EditorScreen>
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
 
-  // Audio Playback
   String? _playingUrl;
   bool _isPlaying = false;
   Duration _playPosition = Duration.zero;
   Duration _playTotal = Duration.zero;
 
   final _cloudinary = CloudinaryService();
-
   static const _primary = AppColors.primary;
 
-  // ⚡ HÀM KIỂM TRA THAY ĐỔI: So sánh dữ liệu trên UI hiện tại với dữ liệu gốc của Note
+  // Hàm kiểm tra thay đổi thực tế trên UI (Gộp cả kiểm tra Reminder)
   bool _hasChanges() {
     final originalTitle = widget.note?.title ?? '';
     final originalTags = widget.note?.tags ?? const [];
@@ -191,31 +196,17 @@ class _EditorScreenState extends State<EditorScreen>
     final colorChanged = originalColor != _noteColor;
     final reminderChanged = originalReminder != _reminder;
 
-    // Checklist mode: so sánh items
     if (_isChecklistMode) {
       final checklistChanged = _hasChecklistChanged();
-      return titleChanged ||
-          checklistChanged ||
-          tagsChanged ||
-          imagesChanged ||
-          audiosChanged ||
-          colorChanged ||
-          reminderChanged;
+      return titleChanged || checklistChanged || tagsChanged || imagesChanged || audiosChanged || colorChanged || reminderChanged;
     }
 
     final contentChanged = _isDirty;
-    return titleChanged ||
-        contentChanged ||
-        tagsChanged ||
-        imagesChanged ||
-        audiosChanged ||
-        colorChanged ||
-        reminderChanged;
+    return titleChanged || contentChanged || tagsChanged || imagesChanged || audiosChanged || colorChanged || reminderChanged;
   }
 
   bool _hasChecklistChanged() {
     if (_originalChecklistItems == null) {
-      // Note mới: có items nghĩa là đã thay đổi
       return _checklistItems.any((item) => item.text.trim().isNotEmpty);
     }
     if (_originalChecklistItems!.length != _checklistItems.length) return true;
@@ -240,29 +231,22 @@ class _EditorScreenState extends State<EditorScreen>
     _hasBeenSavedInDb = widget.note != null;
 
     _titleController = TextEditingController(text: widget.note?.title ?? '');
-
     final initialContent = widget.note?.content ?? '';
 
-    // Phát hiện checklist mode từ content hoặc constructor
     final isChecklistContent = widget.note?.isChecklist ?? false;
     _isChecklistMode = widget.isChecklistMode || isChecklistContent;
 
     if (_isChecklistMode && isChecklistContent) {
-      // Parse existing checklist
       try {
         final decoded = jsonDecode(initialContent);
         final items = decoded['items'] as List? ?? [];
-        _checklistItems = items
-            .map((i) => ChecklistItem.fromJson(i as Map<String, dynamic>))
-            .toList();
+        _checklistItems = items.map((i) => ChecklistItem.fromJson(i as Map<String, dynamic>)).toList();
       } catch (_) {
         _checklistItems = [];
       }
-      _originalChecklistItems =
-          _checklistItems.map((i) => i.copyWith()).toList();
+      _originalChecklistItems = _checklistItems.map((i) => i.copyWith()).toList();
       _quillController = QuillController.basic();
     } else if (_isChecklistMode) {
-      // New checklist note
       _checklistItems = [ChecklistItem()];
       _originalChecklistItems = null;
       _quillController = QuillController.basic();
@@ -284,7 +268,6 @@ class _EditorScreenState extends State<EditorScreen>
       }
     }
 
-    // Thêm item đầu tiên nếu checklist rỗng
     if (_isChecklistMode && _checklistItems.isEmpty) {
       _checklistItems.add(ChecklistItem());
     }
@@ -311,19 +294,13 @@ class _EditorScreenState extends State<EditorScreen>
       _onTextChanged();
     });
 
-    // Tự động hiện thanh công cụ khi bôi đen chữ
     _quillController.addListener(() {
       final hasSelection = !_quillController.selection.isCollapsed;
       if (hasSelection && !_showFormattingToolbar) {
-        setState(() {
-          _showFormattingToolbar = true;
-        });
+        setState(() => _showFormattingToolbar = true);
       } else if (!hasSelection && _showFormattingToolbar) {
-        setState(() {
-          _showFormattingToolbar = false;
-        });
+        setState(() => _showFormattingToolbar = false);
       }
-      // Không gọi setState() vô điều kiện nữa — tránh rebuild toàn bộ màn hình mỗi keystroke
     });
 
     _audioPlayer.positionStream.listen((pos) {
@@ -335,40 +312,97 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) setState(() => _playTotal = dur ?? Duration.zero);
     });
     _audioPlayer.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        if (mounted) {
-          setState(() {
-            _isPlaying = false;
-            _playingUrl = null;
-          });
-        }
+      if (state.processingState == ProcessingState.completed && mounted) {
+        setState(() {
+          _isPlaying = false;
+          _playingUrl = null;
+        });
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (widget.autoRecord) {
-        _startRecording();
-      } else if (widget.autoPickImage) {
-        _pickImage(ImageSource.gallery);
-      } else if (widget.autoOpenDrawing) {
-        _openDrawingScreen();
-      }
-      if (_isLocked) {
-        _authenticateNote();
-      }
+      if (widget.autoRecord) _startRecording();
+      if (widget.autoPickImage) _pickImage(ImageSource.gallery);
+      if (widget.autoOpenDrawing) _openDrawingScreen();
+      if (_isLocked) _authenticateNote();
     });
   }
 
   void _onTextChanged() {
     if (_isLocked && !_isUnlocked) return;
-    // Chỉ kích hoạt hẹn giờ tự động lưu nếu phát hiện thực sự có sự thay đổi nội dung văn bản
+
+    // [MERGE từ Bản 1] Quét kiểm tra phép tính toán học thời gian thực
+    _checkMathSuggestion();
+
     if (!_hasChanges()) return;
 
     _autoSaveTimer?.cancel();
     _autoSaveTimer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) _saveNote(isAutosave: true);
     });
+  }
+
+  // [MERGE từ Bản 1] Xử lý thuật toán gợi ý toán học cục bộ
+  void _checkMathSuggestion() {
+    if (!_isChecklistMode) {
+      int cursor = _quillController.selection.baseOffset;
+      if (cursor > 0) {
+        String fullText = _quillController.document.toPlainText();
+        if (cursor <= fullText.length) {
+          String textBeforeCursor = fullText.substring(0, cursor);
+          String? result = MathParser.evaluate(textBeforeCursor);
+          if (_mathSuggestionResult != result) {
+            setState(() {
+              _mathSuggestionResult = result;
+              _mathSuggestionOffset = cursor;
+              _mathSuggestionChecklistIndex = null;
+            });
+          }
+        }
+      } else if (_mathSuggestionResult != null) {
+        setState(() => _mathSuggestionResult = null);
+      }
+    } else {
+      bool found = false;
+      for (int i = 0; i < _checklistItems.length; i++) {
+        String text = _checklistItems[i].text;
+        String? result = MathParser.evaluate(text);
+        if (result != null) {
+          if (_mathSuggestionResult != result || _mathSuggestionChecklistIndex != i) {
+            setState(() {
+              _mathSuggestionResult = result;
+              _mathSuggestionChecklistIndex = i;
+            });
+          }
+          found = true;
+          break;
+        }
+      }
+      if (!found && _mathSuggestionResult != null) {
+        setState(() => _mathSuggestionResult = null);
+      }
+    }
+  }
+
+  // [MERGE từ Bản 1] Chèn kết quả phép tính tự động vào vị trí con trỏ
+  void _insertMathSuggestion() {
+    if (_mathSuggestionResult == null) return;
+    final resultText = ' $_mathSuggestionResult';
+    if (!_isChecklistMode && _mathSuggestionOffset >= 0) {
+      _quillController.document.insert(_mathSuggestionOffset, resultText);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: _mathSuggestionOffset + resultText.length),
+        ChangeSource.local,
+      );
+    } else if (_isChecklistMode && _mathSuggestionChecklistIndex != null) {
+      int index = _mathSuggestionChecklistIndex!;
+      setState(() {
+        _checklistItems[index].text += resultText;
+      });
+    }
+    setState(() => _mathSuggestionResult = null);
+    _onTextChanged();
   }
 
   @override
@@ -387,12 +421,9 @@ class _EditorScreenState extends State<EditorScreen>
     super.dispose();
   }
 
-  // Tự động khóa lại khi app vào background — KHÔNG gọi authenticate() tự động
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
       if (_isLocked && _isUnlocked) {
         setState(() => _isUnlocked = false);
       }
@@ -401,19 +432,14 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _authenticateNote() async {
     try {
-      final authenticated = await _biometricService.authenticate(
-        reason: AppStrings.biometricPromptReason,
-      );
+      final authenticated = await _biometricService.authenticate(reason: AppStrings.biometricPromptReason);
       if (authenticated) {
-        setState(() {
-          _isUnlocked = true;
-        });
+        setState(() => _isUnlocked = true);
       } else {
         _showAuthFailedSnackBar();
       }
     } catch (e) {
-      _showAuthFailedSnackBar(
-          message: e.toString().replaceAll('Exception: ', ''));
+      _showAuthFailedSnackBar(message: e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -423,17 +449,12 @@ class _EditorScreenState extends State<EditorScreen>
       SnackBar(
         content: Text(message ?? AppStrings.biometricAuthFailed),
         behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'Thử lại',
-          textColor: Colors.white,
-          onPressed: _authenticateNote,
-        ),
+        action: SnackBarAction(label: 'Thử lại', textColor: Colors.white, onPressed: _authenticateNote),
         backgroundColor: AppColors.error,
       ),
     );
   }
 
-  // Hiện dialog hướng dẫn user mở Cài đặt để đăng ký sinh trắc học
   void _showEnrollBiometricDialog() {
     if (!context.mounted) return;
     showDialog<void>(
@@ -441,14 +462,9 @@ class _EditorScreenState extends State<EditorScreen>
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Chưa thiết lập sinh trắc học'),
-        content: const Text(
-          'Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.',
-        ),
+        content: const Text('Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Để sau'),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Để sau')),
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
@@ -464,7 +480,6 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _saveNote({required bool isAutosave}) async {
     if (!mounted) return;
     if (_isLocked && !_isUnlocked) return;
-    // ⚡ CHẶN LƯU THỪA: Nếu không có bất kỳ thay đổi nào, bỏ qua không gọi Database / Cloud Provider
     if (!_hasChanges()) return;
 
     final title = _titleController.text.trim();
@@ -472,16 +487,12 @@ class _EditorScreenState extends State<EditorScreen>
     final String plainText;
 
     if (_isChecklistMode) {
-      // Serialize checklist items thành JSON
       final checklistJson = {
         'type': 'checklist',
         'items': _checklistItems.map((item) => item.toJson()).toList(),
       };
       content = jsonEncode(checklistJson);
-      plainText = _checklistItems
-          .map((i) => i.text)
-          .where((t) => t.trim().isNotEmpty)
-          .join(' ');
+      plainText = _checklistItems.map((i) => i.text).where((t) => t.trim().isNotEmpty).join(' ');
     } else {
       content = jsonEncode(_quillController.document.toDelta().toJson());
       plainText = _quillController.document.toPlainText().trim();
@@ -493,25 +504,12 @@ class _EditorScreenState extends State<EditorScreen>
     final provider = Provider.of<NoteProvider>(context, listen: false);
     final bool isEmpty;
     if (_isChecklistMode) {
-      isEmpty = title.isEmpty &&
-          _checklistItems.every((i) => i.text.trim().isEmpty) &&
-          _tags.isEmpty &&
-          _imageUrls.isEmpty &&
-          _audioUrls.isEmpty &&
-          _noteColor == null &&
-          !_isRecording;
+      isEmpty = title.isEmpty && _checklistItems.every((i) => i.text.trim().isEmpty) && _tags.isEmpty && _imageUrls.isEmpty && _audioUrls.isEmpty && _noteColor == null && !_isRecording;
     } else {
-      isEmpty = title.isEmpty &&
-          plainText.isEmpty &&
-          _tags.isEmpty &&
-          _imageUrls.isEmpty &&
-          _audioUrls.isEmpty &&
-          _noteColor == null &&
-          !_isRecording;
+      isEmpty = title.isEmpty && plainText.isEmpty && _tags.isEmpty && _imageUrls.isEmpty && _audioUrls.isEmpty && _noteColor == null && !_isRecording;
     }
 
     if (isEmpty && !_hasBeenSavedInDb) return;
-
     if (isEmpty && _hasBeenSavedInDb) {
       if (!isAutosave) {
         _autoSaveTimer?.cancel();
@@ -534,7 +532,7 @@ class _EditorScreenState extends State<EditorScreen>
       isSynced: false,
       createdAt: _createdAt,
       updatedAt: DateTime.now(),
-      reminder: _reminder,
+      reminder: _reminder, // Lưu thông tin nhắc nhở đám mây
     );
 
     if (_hasBeenSavedInDb) {
@@ -558,7 +556,6 @@ class _EditorScreenState extends State<EditorScreen>
     try {
       final url = await _cloudinary.uploadImage(file, auth.userId!);
       if (!mounted) return;
-
       setState(() {
         _uploadingFiles.remove(file);
         if (url != null) _imageUrls.add(url);
@@ -567,8 +564,7 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
       }
     }
   }
@@ -578,10 +574,8 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() => _uploadingFiles.add(file));
 
     try {
-      final url =
-          await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
+      final url = await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
       if (!mounted) return;
-
       setState(() {
         _uploadingFiles.remove(file);
         if (url != null) _imageUrls.add(url);
@@ -590,8 +584,7 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
       }
     }
   }
@@ -601,21 +594,15 @@ class _EditorScreenState extends State<EditorScreen>
       context,
       MaterialPageRoute(builder: (_) => DrawingScreen(noteColor: _noteColor)),
     );
-    if (drawingFile != null) {
-      _uploadDrawing(drawingFile);
-    }
+    if (drawingFile != null) _uploadDrawing(drawingFile);
   }
 
   Future<void> _editDrawingScreen(String oldUrl) async {
     final File? drawingFile = await Navigator.push(
       context,
-      MaterialPageRoute(
-          builder: (_) =>
-              DrawingScreen(noteColor: _noteColor, initialImageUrl: oldUrl)),
+      MaterialPageRoute(builder: (_) => DrawingScreen(noteColor: _noteColor, initialImageUrl: oldUrl)),
     );
-    if (drawingFile != null) {
-      _replaceDrawing(oldUrl, drawingFile);
-    }
+    if (drawingFile != null) _replaceDrawing(oldUrl, drawingFile);
   }
 
   Future<void> _replaceDrawing(String oldUrl, File file) async {
@@ -628,8 +615,7 @@ class _EditorScreenState extends State<EditorScreen>
     });
 
     try {
-      final url =
-          await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
+      final url = await _cloudinary.uploadImage(file, auth.userId!, isDrawing: true);
       if (!mounted) return;
 
       setState(() {
@@ -637,15 +623,10 @@ class _EditorScreenState extends State<EditorScreen>
         _deletingUrls.remove(oldUrl);
         if (url != null) {
           final index = _imageUrls.indexOf(oldUrl);
-          if (index != -1) {
-            _imageUrls[index] = url;
-          } else {
-            _imageUrls.add(url);
-          }
+          if (index != -1) _imageUrls[index] = url; else _imageUrls.add(url);
         }
       });
       if (url != null) await _saveNote(isAutosave: true);
-
       _cloudinary.deleteFile(oldUrl, resourceType: 'image').catchError((_) => false);
     } catch (e) {
       if (!mounted) return;
@@ -653,47 +634,30 @@ class _EditorScreenState extends State<EditorScreen>
         _uploadingFiles.remove(file);
         _deletingUrls.remove(oldUrl);
       });
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
     }
   }
 
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2))),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             ListTile(
-              leading: const CircleAvatar(
-                  backgroundColor: Color(0xFFEFF6FF),
-                  child: Icon(Icons.photo_library_outlined, color: _primary)),
+              leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.photo_library_outlined, color: _primary)),
               title: const Text('Chọn từ thư viện'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
             ),
             ListTile(
-              leading: const CircleAvatar(
-                  backgroundColor: Color(0xFFEFF6FF),
-                  child: Icon(Icons.camera_alt_outlined, color: _primary)),
+              leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.camera_alt_outlined, color: _primary)),
               title: const Text('Chụp ảnh'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
             ),
             const SizedBox(height: 8),
           ],
@@ -707,8 +671,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!hasPermission) return;
 
     final dir = await getTemporaryDirectory();
-    _recordingPath =
-        '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    _recordingPath = '${dir.path}/rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
     await _recorder.start(
       const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000),
@@ -717,9 +680,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     _recordDuration = Duration.zero;
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() => _recordDuration += const Duration(seconds: 1));
-      }
+      if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
     });
     setState(() => _isRecording = true);
   }
@@ -730,15 +691,13 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() => _isRecording = false);
 
     if (path == null) {
-      // Ghi âm thất bại - báo lỗi rõ ràng thay vì silent return
       if (mounted) {
         _setUploadState(
           isUploading: false,
           message: 'Ghi âm thất bại: Không lấy được file audio.',
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
-          statusIcon:
-              const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
           autoHide: true,
         );
       }
@@ -752,18 +711,12 @@ class _EditorScreenState extends State<EditorScreen>
       message: 'Đang tải lên âm thanh...',
       bannerColor: const Color(0xFFEFF6FF),
       bannerTextColor: const Color(0xFF1E40AF),
-      statusIcon: const SizedBox(
-        width: 14,
-        height: 14,
-        child:
-            CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
-      ),
+      statusIcon: const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6))),
     );
 
     try {
       final url = await _cloudinary.uploadAudio(File(path), auth.userId!);
       if (!mounted) return;
-
       if (url != null) {
         setState(() => _audioUrls.add(url));
         await _saveNote(isAutosave: true);
@@ -772,8 +725,7 @@ class _EditorScreenState extends State<EditorScreen>
           message: 'Tải lên âm thanh thành công!',
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle,
-              color: Color(0xFF10B981), size: 16),
+          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
           autoHide: true,
         );
       } else {
@@ -782,8 +734,7 @@ class _EditorScreenState extends State<EditorScreen>
           message: 'Tải lên âm thanh thất bại.',
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
-          statusIcon:
-              const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
           autoHide: true,
         );
       }
@@ -822,12 +773,9 @@ class _EditorScreenState extends State<EditorScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xóa ghi chú?'),
-        content: const Text(
-            'Ghi chú sẽ được chuyển vào Thùng rác và tự động xóa sau 7 ngày.'),
+        content: const Text('Ghi chú sẽ được chuyển vào Thùng rác và tự động xóa sau 7 ngày.'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -839,26 +787,16 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (confirm == true && mounted) {
       _autoSaveTimer?.cancel();
-
-      if (_isPlaying) {
-        await _audioPlayer.stop();
-      }
-
+      if (_isPlaying) await _audioPlayer.stop();
       if (!mounted) return;
-
-      if (_hasBeenSavedInDb) {
-        await Provider.of<NoteProvider>(context, listen: false)
-            .deleteNote(_noteId);
-      }
-
+      if (_hasBeenSavedInDb) await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
       if (mounted) Navigator.of(context).pop();
     }
   }
 
   Future<void> _togglePin() async {
     if (_hasBeenSavedInDb && widget.note != null) {
-      await Provider.of<NoteProvider>(context, listen: false)
-          .togglePin(widget.note!);
+      await Provider.of<NoteProvider>(context, listen: false).togglePin(widget.note!);
       if (mounted) Navigator.of(context).pop();
     }
   }
@@ -877,35 +815,19 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_status == 'archived'
-              ? 'Đã chuyển vào kho lưu trữ'
-              : 'Đã hủy lưu trữ ghi chú'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_status == 'archived' ? 'Đã chuyển vào kho lưu trữ' : 'Đã hủy lưu trữ ghi chú'), duration: const Duration(seconds: 2)));
       Navigator.of(context).pop();
     }
   }
 
   void _openLabelSelectionPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => _LabelSelectionScreen(
-          initialTags: _tags,
-          onTagsChanged: (updatedTags) {
-            setState(() => _tags = updatedTags);
-            _saveNote(
-                isAutosave:
-                    true); // Chuyển thành true để thực hiện lưu thay đổi nhãn ngay lập tức
-          },
-        ),
-      ),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (context) => _LabelSelectionScreen(initialTags: _tags, onTagsChanged: (updatedTags) {
+      setState(() => _tags = updatedTags);
+      _saveNote(isAutosave: true);
+    })));
   }
 
+  // [Hạ tầng Bản 2] Định dạng hiển thị chuỗi thời gian nhắc nhở
   String _formatReminderTime(DateTime dt) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -913,27 +835,21 @@ class _EditorScreenState extends State<EditorScreen>
     final dtDay = DateTime(dt.year, dt.month, dt.day);
 
     String timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    if (dtDay == today) {
-      return 'Hôm nay, $timeStr';
-    } else if (dtDay == tomorrow) {
-      return 'Ngày mai, $timeStr';
-    } else {
-      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
-    }
+    if (dtDay == today) return 'Hôm nay, $timeStr';
+    if (dtDay == tomorrow) return 'Ngày mai, $timeStr';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
   }
 
+  // [Hạ tầng Bản 2] Cấu hình giao diện lựa chọn thời gian nhắc nhở nhanh
   void _showReminderSettingsSheet() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (BuildContext context) {
         final now = DateTime.now();
         final today18 = DateTime(now.year, now.month, now.day, 18, 0);
         final tomorrow8 = DateTime(now.year, now.month, now.day).add(const Duration(days: 1)).add(const Duration(hours: 8));
-        
         int daysUntilMonday = ((7 - now.weekday) % 7) + 1;
         final nextMonday8 = DateTime(now.year, now.month, now.day).add(Duration(days: daysUntilMonday)).add(const Duration(hours: 8));
 
@@ -942,85 +858,28 @@ class _EditorScreenState extends State<EditorScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              Container(width: 42, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
-              Text(
-                'Nhắc nhở',
-                style: GoogleFonts.outfit(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
+              Text('Nhắc nhở', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w500)),
               const SizedBox(height: 12),
               if (_reminder != null) ...[
                 ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.alarm, color: Theme.of(context).colorScheme.primary),
-                  ),
-                  title: Text(
-                    'Thời gian đã hẹn',
-                    style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w400),
-                  ),
-                  subtitle: Text(
-                    _formatReminderTime(_reminder!),
-                    style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600),
-                  ),
+                  leading: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: Icon(Icons.alarm, color: Theme.of(context).colorScheme.primary)),
+                  title: Text('Thời gian đã hẹn', style: GoogleFonts.outfit(fontSize: 15)),
+                  subtitle: Text(_formatReminderTime(_reminder!), style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600)),
                   trailing: TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _cancelReminder();
-                    },
+                    onPressed: () { Navigator.pop(context); _cancelReminder(); },
                     icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                    label: Text(
-                      'Hủy',
-                      style: GoogleFonts.outfit(color: Colors.red),
-                    ),
+                    label: Text('Hủy', style: GoogleFonts.outfit(color: Colors.red)),
                   ),
                 ),
                 const Divider(),
               ],
               if (now.isBefore(today18))
-                ListTile(
-                  leading: const Icon(Icons.wb_twighlight),
-                  title: Text('Hôm nay lúc 18:00', style: GoogleFonts.outfit(fontSize: 15)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _setReminder(today18);
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.wb_sunny_outlined),
-                title: Text('Ngày mai lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _setReminder(tomorrow8);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.next_week_outlined),
-                title: Text('Thứ Hai tuần sau lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _setReminder(nextMonday8);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.date_range_outlined),
-                title: Text('Chọn ngày & giờ...', style: GoogleFonts.outfit(fontSize: 15)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _selectCustomDateTime();
-                },
-              ),
+                ListTile(leading: const Icon(Icons.wb_twighlight), title: Text('Hôm nay lúc 18:00', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _setReminder(today18); }),
+              ListTile(leading: const Icon(Icons.wb_sunny_outlined), title: Text('Ngày mai lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _setReminder(tomorrow8); }),
+              ListTile(leading: const Icon(Icons.next_week_outlined), title: Text('Thứ Hai tuần sau lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _setReminder(nextMonday8); }),
+              ListTile(leading: const Icon(Icons.date_range_outlined), title: Text('Chọn ngày & giờ...', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _selectCustomDateTime(); }),
             ],
           ),
         );
@@ -1033,38 +892,14 @@ class _EditorScreenState extends State<EditorScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28),
-            const SizedBox(width: 12),
-            const Text('Quyền thông báo bị tắt'),
-          ],
-        ),
-        content: const Text(
-          'Để không bỏ lỡ các nhắc nhở quan trọng của ghi chú, bạn cần cấp quyền thông báo trong cài đặt điện thoại.',
-        ),
+        title: Row(children: [Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28), const SizedBox(width: 12), const Text('Quyền thông báo bị tắt')]),
+        content: const Text('Để không bỏ lỡ các nhắc nhở quan trọng của ghi chú, bạn cần cấp quyền thông báo trong cài đặt điện thoại.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Để sau',
-              style: GoogleFonts.outfit(color: Colors.grey.shade600),
-            ),
-          ),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Để sau', style: GoogleFonts.outfit(color: Colors.grey.shade600))),
           ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              AppSettings.openAppSettings(type: AppSettingsType.notification);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: Text(
-              'Mở cài đặt',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.w500),
-            ),
+            onPressed: () { Navigator.of(ctx).pop(); AppSettings.openAppSettings(type: AppSettingsType.notification); },
+            style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
+            child: const Text('Mở cài đặt'),
           ),
         ],
       ),
@@ -1073,44 +908,16 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _setReminder(DateTime dt) async {
     final granted = await ReminderService().requestPermissions();
-    if (!granted) {
-      if (mounted) {
-        _showNotificationPermissionDialog();
-      }
-      return;
-    }
-
-    setState(() {
-      _reminder = dt;
-    });
-
+    if (!granted) { if (mounted) _showNotificationPermissionDialog(); return; }
+    setState(() => _reminder = dt);
     await _saveNote(isAutosave: false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('⏰ Đã hẹn nhắc nhở lúc ${_formatReminderTime(dt)}'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⏰ Đã hẹn nhắc nhở lúc ${_formatReminderTime(dt)}'), behavior: SnackBarBehavior.floating));
   }
 
   Future<void> _cancelReminder() async {
-    setState(() {
-      _reminder = null;
-    });
-    
+    setState(() => _reminder = null);
     await _saveNote(isAutosave: false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('🚫 Đã hủy nhắc nhở ghi chú'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚫 Đã hủy nhắc nhở ghi chú'), behavior: SnackBarBehavior.floating));
   }
 
   Future<void> _selectCustomDateTime() async {
@@ -1120,58 +927,17 @@ class _EditorScreenState extends State<EditorScreen>
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('vi', 'VN'),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: _primary,
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
+    if (pickedDate == null || !mounted) return;
 
-    if (pickedDate == null) return;
-    if (!mounted) return;
-
-    final TimeOfDay? pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: _primary,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
+    final TimeOfDay? pickedTime = await showTimePicker(context: context, initialTime: TimeOfDay.now());
     if (pickedTime == null) return;
 
-    final selectedDateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
+    final selectedDateTime = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, pickedTime.hour, pickedTime.minute);
     if (selectedDateTime.isBefore(DateTime.now())) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⚠️ Thời gian nhắc nhở không được ở quá khứ!'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Thời gian nhắc nhở không được ở quá khứ!'), behavior: SnackBarBehavior.floating));
       return;
     }
-
     _setReminder(selectedDateTime);
   }
 
@@ -1179,181 +945,62 @@ class _EditorScreenState extends State<EditorScreen>
   Widget build(BuildContext context) {
     final isCustomColor = _noteColor != null;
     final onDarkNoteBg = isCustomColor && _isNoteBackgroundDark(context);
-    final textColor = isCustomColor
-        ? (onDarkNoteBg ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B))
-        : null;
-    final placeholderColor = isCustomColor
-        ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
-        : null;
+    final textColor = isCustomColor ? (onDarkNoteBg ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B)) : null;
+    final placeholderColor = isCustomColor ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)) : null;
 
     final quillBaseStyles = DefaultStyles.getInstance(context);
     final quillCustomStyles = DefaultStyles(
-      h1: quillBaseStyles.h1?.copyWith(
-        style: quillBaseStyles.h1!.style.copyWith(
-          fontWeight: FontWeight.w400,
-          color: textColor,
-        ),
-      ),
-      h2: quillBaseStyles.h2?.copyWith(
-        style: quillBaseStyles.h2!.style.copyWith(
-          fontWeight: FontWeight.w400,
-          color: textColor,
-        ),
-      ),
-      h3: quillBaseStyles.h3?.copyWith(
-        style: quillBaseStyles.h3!.style.copyWith(color: textColor),
-      ),
-      h4: quillBaseStyles.h4?.copyWith(
-        style: quillBaseStyles.h4!.style.copyWith(color: textColor),
-      ),
-      h5: quillBaseStyles.h5?.copyWith(
-        style: quillBaseStyles.h5!.style.copyWith(color: textColor),
-      ),
-      h6: quillBaseStyles.h6?.copyWith(
-        style: quillBaseStyles.h6!.style.copyWith(color: textColor),
-      ),
-      paragraph: quillBaseStyles.paragraph?.copyWith(
-        style: quillBaseStyles.paragraph!.style.copyWith(color: textColor),
-      ),
-      lineHeightNormal: quillBaseStyles.lineHeightNormal,
-      lineHeightTight: quillBaseStyles.lineHeightTight,
-      lineHeightOneAndHalf: quillBaseStyles.lineHeightOneAndHalf,
-      lineHeightDouble: quillBaseStyles.lineHeightDouble,
+      h1: quillBaseStyles.h1?.copyWith(style: quillBaseStyles.h1!.style.copyWith(fontWeight: FontWeight.w400, color: textColor)),
+      h2: quillBaseStyles.h2?.copyWith(style: quillBaseStyles.h2!.style.copyWith(fontWeight: FontWeight.w400, color: textColor)),
+      paragraph: quillBaseStyles.paragraph?.copyWith(style: quillBaseStyles.paragraph!.style.copyWith(color: textColor)),
       bold: quillBaseStyles.bold?.copyWith(color: textColor),
-      subscript: quillBaseStyles.subscript,
-      superscript: quillBaseStyles.superscript,
       italic: quillBaseStyles.italic?.copyWith(color: textColor),
-      small: quillBaseStyles.small,
       underline: quillBaseStyles.underline?.copyWith(color: textColor),
-      strikeThrough: quillBaseStyles.strikeThrough?.copyWith(color: textColor),
-      inlineCode: quillBaseStyles.inlineCode,
-      link: quillBaseStyles.link,
-      color: quillBaseStyles.color,
-      placeHolder: quillBaseStyles.placeHolder?.copyWith(
-        style: quillBaseStyles.placeHolder!.style
-            .copyWith(color: placeholderColor),
-      ),
-      lists: quillBaseStyles.lists,
-      quote: quillBaseStyles.quote?.copyWith(
-        style: quillBaseStyles.quote!.style.copyWith(color: textColor),
-      ),
-      code: quillBaseStyles.code,
-      indent: quillBaseStyles.indent,
-      align: quillBaseStyles.align,
-      leading: quillBaseStyles.leading,
-      sizeSmall: quillBaseStyles.sizeSmall,
-      sizeLarge: quillBaseStyles.sizeLarge,
-      sizeHuge: quillBaseStyles.sizeHuge,
-      palette: quillBaseStyles.palette,
+      placeHolder: quillBaseStyles.placeHolder?.copyWith(style: quillBaseStyles.placeHolder!.style.copyWith(color: placeholderColor)),
     );
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (_showFormattingToolbar) {
-          setState(() {
-            _showFormattingToolbar = false;
-          });
-          return;
-        }
-        if (_isLocked && !_isUnlocked) {
-          Navigator.of(context).pop();
-          return;
-        }
-        if (_isUploading) {
-          final confirmExit = await _showUploadExitConfirmation();
-          if (confirmExit != true) return;
-        }
+        if (_showFormattingToolbar) { setState(() => _showFormattingToolbar = false); return; }
+        if (_isLocked && !_isUnlocked) { Navigator.of(context).pop(); return; }
+        if (_isUploading) { final confirmExit = await _showUploadExitConfirmation(); if (confirmExit != true) return; }
         if (_isRecording) await _stopRecordingAndUpload();
         _autoSaveTimer?.cancel();
-
-        // ⚡ CHỈ LƯU KHI POP NẾU CÓ CHỈNH SỬA
-        if (_hasChanges()) {
-          await _saveNote(isAutosave: false);
-        }
-
+        if (_hasChanges()) await _saveNote(isAutosave: false);
         if (context.mounted) Navigator.of(context).pop();
       },
       child: Scaffold(
-        backgroundColor:
-            _noteBackgroundColor(context) ?? AppColors.background(context),
+        backgroundColor: _noteBackgroundColor(context) ?? AppColors.background(context),
         appBar: AppBar(
-          backgroundColor:
-              _noteBackgroundColor(context) ?? AppColors.background(context),
+          backgroundColor: _noteBackgroundColor(context) ?? AppColors.background(context),
           elevation: 0,
           leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back,
-              color: isCustomColor
-                  ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B))
-                  : AppColors.textPrimary(context),
-            ),
+            icon: Icon(Icons.arrow_back, color: isCustomColor ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B)) : AppColors.textPrimary(context)),
             onPressed: () async {
-              if (_showFormattingToolbar) {
-                setState(() {
-                  _showFormattingToolbar = false;
-                });
-                return;
-              }
-              if (_isLocked && !_isUnlocked) {
-                Navigator.of(context).pop();
-                return;
-              }
-              if (_isUploading) {
-                final confirmExit = await _showUploadExitConfirmation();
-                if (confirmExit != true) return;
-              }
+              if (_showFormattingToolbar) { setState(() => _showFormattingToolbar = false); return; }
+              if (_isLocked && !_isUnlocked) { Navigator.of(context).pop(); return; }
+              if (_isUploading) { final confirmExit = await _showUploadExitConfirmation(); if (confirmExit != true) return; }
               if (_isRecording) await _stopRecordingAndUpload();
               _autoSaveTimer?.cancel();
-
-              // ⚡ CHỈ LƯU KHI CLICK BACK NẾU CÓ CHỈNH SỬA
-              if (_hasChanges()) {
-                await _saveNote(isAutosave: false);
-              }
-
+              if (_hasChanges()) await _saveNote(isAutosave: false);
               if (context.mounted) Navigator.of(context).pop();
             },
           ),
           actions: [
-            if (_isUploading)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Center(
-                    child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            color: _primary, strokeWidth: 2))),
-              ),
+            if (_isUploading) const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _primary, strokeWidth: 2)))),
             Tooltip(
               message: 'AI Trợ lý',
               child: GestureDetector(
                 onTap: _isAiLoading ? null : _showAiOptions,
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: 40,
-                  height: 40,
-                  decoration: const BoxDecoration(
-                    color: Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
+                  width: 40, height: 40,
                   child: Center(
                     child: ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [
-                          Color(0xFF3B82F6), // Blue
-                          Color(0xFF8B5CF6), // Purple
-                          Color(0xFFEC4899), // Pink
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ).createShader(bounds),
-                      child: const Icon(
-                        Icons.auto_awesome,
-                        size: 22,
-                        color: Colors.white,
-                      ),
+                      shaderCallback: (bounds) => const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6), Color(0xFFEC4899)]).createShader(bounds),
+                      child: const Icon(Icons.auto_awesome, size: 22, color: Colors.white),
                     ),
                   ),
                 ),
@@ -1363,73 +1010,20 @@ class _EditorScreenState extends State<EditorScreen>
               icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
               tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
               onTap: () async {
-                if (!_hasBeenSavedInDb) {
-                  _showRequiresSaveMessage('khóa');
-                  return;
-                }
+                if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('khóa'); return; }
                 final messenger = ScaffoldMessenger.of(context);
-                final provider =
-                    Provider.of<NoteProvider>(context, listen: false);
+                final provider = Provider.of<NoteProvider>(context, listen: false);
                 try {
                   final success = await provider.toggleLock(_noteId);
-                  if (success) {
-                    setState(() {
-                      _isLocked = !_isLocked;
-                      _isUnlocked = !_isLocked;
-                    });
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(_isLocked
-                            ? '🔒 Đã khóa ghi chú'
-                            : '🔓 Đã mở khóa ghi chú'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    );
-                  }
+                  if (success) { setState(() { _isLocked = !_isLocked; _isUnlocked = !_isLocked; }); messenger.showSnackBar(SnackBar(content: Text(_isLocked ? '🔒 Đã khóa ghi chú' : '🔓 Đã mở khóa ghi chú'), behavior: SnackBarBehavior.floating)); }
                 } catch (e) {
                   final msg = e.toString().replaceAll('Exception: ', '');
-                  if (msg == AppStrings.biometricNotEnrolled) {
-                    _showEnrollBiometricDialog();
-                  } else {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(msg),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        backgroundColor: AppColors.error,
-                      ),
-                    );
-                  }
+                  if (msg == AppStrings.biometricNotEnrolled) _showEnrollBiometricDialog(); else messenger.showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
                 }
               },
             ),
-            _buildAppBarRoundBtn(
-              icon: _status == 'pinned'
-                  ? Icons.push_pin
-                  : Icons.push_pin_outlined,
-              tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim',
-              onTap: () {
-                if (!_hasBeenSavedInDb) {
-                  _showRequiresSaveMessage('ghim');
-                  return;
-                }
-                _togglePin();
-              },
-            ),
-            _buildAppBarRoundBtn(
-              icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined,
-              tooltip: 'Nhắc nhở',
-              onTap: () {
-                if (!_hasBeenSavedInDb) {
-                  _showRequiresSaveMessage('nhắc nhở');
-                  return;
-                }
-                _showReminderSettingsSheet();
-              },
-            ),
+            _buildAppBarRoundBtn(icon: _status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('ghim'); return; } _togglePin(); }),
+            _buildAppBarRoundBtn(icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined, tooltip: 'Nhắc nhở', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('nhắc nhở'); return; } _showReminderSettingsSheet(); }),
             const SizedBox(width: 8),
           ],
         ),
@@ -1437,70 +1031,49 @@ class _EditorScreenState extends State<EditorScreen>
           children: [
             Column(
               children: [
-                EditorUploadBanner(
-                  showBanner: _showUploadBanner,
-                  message: _uploadMessage,
-                  bannerColor: _bannerColor,
-                  bannerTextColor: _bannerTextColor,
-                  statusIcon: _statusIcon,
-                  isUploading: _isUploading,
-                ),
+                EditorUploadBanner(showBanner: _showUploadBanner, message: _uploadMessage, bannerColor: _bannerColor, bannerTextColor: _bannerTextColor, statusIcon: _statusIcon, isUploading: _isUploading),
+
+                // [MERGE UI từ Bản 1] Thanh hiển thị kết quả phân tích toán học thông minh
+                if (_mathSuggestionResult != null)
+                  Container(
+                    color: Colors.amber.shade100,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calculate_outlined, color: Colors.amber, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Gợi ý tính toán: $_mathSuggestionResult', style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87)),
+                        const Spacer(),
+                        TextButton(onPressed: _insertMathSuggestion, child: const Text('Chấp nhận')),
+                      ],
+                    ),
+                  ),
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_imageUrls.isNotEmpty || _uploadingFiles.isNotEmpty)
-                          EditorImageSection(
-                            imageUrls: _imageUrls,
-                            uploadingFiles: _uploadingFiles,
-                            deletingUrls: _deletingUrls,
-                            noteColor: _noteColor,
-                            onOpenImage: _openImageViewer,
-                            onEditDrawing: _editDrawingScreen,
-                          ),
+                        if (_imageUrls.isNotEmpty || _uploadingFiles.isNotEmpty) EditorImageSection(imageUrls: _imageUrls, uploadingFiles: _uploadingFiles, deletingUrls: _deletingUrls, noteColor: _noteColor, onOpenImage: _openImageViewer, onEditDrawing: _editDrawingScreen),
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           child: TextField(
                             controller: _titleController,
                             focusNode: _titleFocusNode,
-                            autofocus: false,
-                            style: GoogleFonts.outfit(
-                              fontSize: 27,
-                              fontWeight: FontWeight.w400,
-                              color: isCustomColor
-                                  ? (onDarkNoteBg
-                                      ? Colors.white
-                                      : const Color(0xFF0F172A))
-                                  : AppColors.textSecondary(context),
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Tiêu đề',
-                              border: InputBorder.none,
-                              hintStyle: TextStyle(
-                                color: isCustomColor
-                                    ? (onDarkNoteBg
-                                        ? const Color(0xFFCBD5E1)
-                                        : const Color(0xFF64748B))
-                                    : AppColors.placeholder(context),
-                              ),
-                            ),
-                            textCapitalization: TextCapitalization.sentences,
+                            style: GoogleFonts.outfit(fontSize: 27, fontWeight: FontWeight.w400, color: isCustomColor ? (onDarkNoteBg ? Colors.white : const Color(0xFF0F172A)) : AppColors.textSecondary(context)),
+                            decoration: InputDecoration(hintText: 'Tiêu đề', border: InputBorder.none, hintStyle: TextStyle(color: isCustomColor ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)) : AppColors.placeholder(context))),
                             maxLines: null,
                           ),
                         ),
-                        const SizedBox(height: 8),
+
+                        // [Hạ tầng Bản 2] Chip Hiển thị thời gian nhắc nhở đã hẹn ngầm
                         if (_reminder != null)
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Material(
-                                color: isCustomColor
-                                    ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05))
-                                    : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
+                                color: isCustomColor ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05)) : Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(20),
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(20),
@@ -1510,37 +1083,11 @@ class _EditorScreenState extends State<EditorScreen>
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(
-                                          Icons.alarm,
-                                          size: 16,
-                                          color: isCustomColor
-                                              ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
-                                              : Theme.of(context).colorScheme.primary,
-                                        ),
+                                        Icon(Icons.alarm, size: 16, color: isCustomColor ? (onDarkNoteBg ? Colors.white70 : Colors.black87) : Theme.of(context).colorScheme.primary),
                                         const SizedBox(width: 6),
-                                        Text(
-                                          'Nhắc nhở: ${_formatReminderTime(_reminder!)}',
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w400,
-                                            color: isCustomColor
-                                                ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
-                                                : Theme.of(context).colorScheme.onPrimaryContainer,
-                                          ),
-                                        ),
+                                        Text('Nhắc nhở: ${_formatReminderTime(_reminder!)}', style: GoogleFonts.outfit(fontSize: 13, color: isCustomColor ? (onDarkNoteBg ? Colors.white70 : Colors.black87) : Theme.of(context).colorScheme.onPrimaryContainer)),
                                         const SizedBox(width: 6),
-                                        GestureDetector(
-                                          onTap: () {
-                                            _cancelReminder();
-                                          },
-                                          child: Icon(
-                                            Icons.close,
-                                            size: 14,
-                                            color: isCustomColor
-                                                ? (onDarkNoteBg ? Colors.white60 : Colors.black54)
-                                                : Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
-                                          ),
-                                        ),
+                                        GestureDetector(onTap: _cancelReminder, child: Icon(Icons.close, size: 14, color: isCustomColor ? (onDarkNoteBg ? Colors.white60 : Colors.black54) : Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7))),
                                       ],
                                     ),
                                   ),
@@ -1548,102 +1095,34 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             ),
                           ),
-                        if (_isChecklistMode)
-                          _buildChecklistEditor()
-                        else
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              _editorFocusNode.requestFocus();
-                            },
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  QuillEditor.basic(
-                                    controller: _quillController,
-                                    focusNode: _editorFocusNode,
-                                    config: QuillEditorConfig(
-                                      scrollable: false,
-                                      expands: false,
-                                      autoFocus: false,
-                                      padding: EdgeInsets.zero,
-                                      placeholder: 'Ghi chú',
-                                      customStyles: quillCustomStyles,
-                                    ),
-                                  ),
-                                  if (_audioUrls.isNotEmpty ||
-                                      _isRecording) ...[
-                                    const SizedBox(height: 16),
-                                    EditorAudioSection(
-                                      audioUrls: _audioUrls,
-                                      isRecording: _isRecording,
-                                      recordDuration: _recordDuration,
-                                      playingUrl: _playingUrl,
-                                      isPlaying: _isPlaying,
-                                      playPosition: _playPosition,
-                                      playTotal: _playTotal,
-                                      noteColor: _noteColor,
-                                      onTogglePlay: _togglePlay,
-                                      onSeek: (val) => _audioPlayer.seek(
-                                          Duration(milliseconds: val.toInt())),
-                                      onDeleteAudio: _deleteAudio,
-                                      onStopRecording: _stopRecordingAndUpload,
-                                    ),
-                                  ],
-                                  if (_tags.isNotEmpty) ...[
-                                    const SizedBox(height: 24),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 6,
-                                      children: _tags
-                                          .map((tag) => Chip(
-                                                label: Text(
-                                                  tag,
-                                                  style: GoogleFonts.outfit(
-                                                    fontSize: 12,
-                                                    color: _noteColor != null
-                                                        ? const Color(
-                                                            0xFF1E293B)
-                                                        : AppColors
-                                                            .textSecondary(
-                                                                context),
-                                                  ),
-                                                ),
-                                                backgroundColor: _noteColor !=
-                                                        null
-                                                    ? Colors.black
-                                                        .withValues(alpha: 0.05)
-                                                    : AppColors.inputBackground(
-                                                        context),
-                                                shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            8)),
-                                                side: BorderSide(
-                                                    color: _noteColor != null
-                                                        ? Colors.black
-                                                            .withValues(
-                                                                alpha: 0.08)
-                                                        : AppColors.divider(
-                                                            context)),
-                                              ))
-                                          .toList(),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 20),
+                        const SizedBox(height: 8),
+                        if (_isChecklistMode) _buildChecklistEditor() else GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _editorFocusNode.requestFocus(),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                QuillEditor.basic(controller: _quillController, focusNode: _editorFocusNode, config: QuillEditorConfig(scrollable: false, expands: false, placeholder: 'Ghi chú', customStyles: quillCustomStyles)),
+                                if (_audioUrls.isNotEmpty || _isRecording) ...[
+                                  const SizedBox(height: 16),
+                                  EditorAudioSection(audioUrls: _audioUrls, isRecording: _isRecording, recordDuration: _recordDuration, playingUrl: _playingUrl, isPlaying: _isPlaying, playPosition: _playPosition, playTotal: _playTotal, noteColor: _noteColor, onTogglePlay: _togglePlay, onSeek: (val) => _audioPlayer.seek(Duration(milliseconds: val.toInt())), onDeleteAudio: _deleteAudio, onStopRecording: _stopRecordingAndUpload),
                                 ],
-                              ),
+                                if (_tags.isNotEmpty) ...[
+                                  const SizedBox(height: 24),
+                                  Wrap(spacing: 8, runSpacing: 6, children: _tags.map((tag) => Chip(label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: _noteColor != null ? const Color(0xFF1E293B) : AppColors.textSecondary(context))), backgroundColor: _noteColor != null ? Colors.black.withValues(alpha: 0.05) : AppColors.inputBackground(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), side: BorderSide(color: _noteColor != null ? Colors.black.withValues(alpha: 0.08) : AppColors.divider(context)))).toList()),
+                                ],
+                                const SizedBox(height: 20),
+                              ],
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ),
                 ),
-                if (!(_isLocked && !_isUnlocked) && !_titleFocusNode.hasFocus)
-                  _buildBottomToolbar(),
+                if (!(_isLocked && !_isUnlocked) && !_titleFocusNode.hasFocus) _buildBottomToolbar(),
               ],
             ),
             if (_isLocked)
@@ -1654,63 +1133,17 @@ class _EditorScreenState extends State<EditorScreen>
                   ignoring: _isUnlocked,
                   child: Container(
                     color: AppColors.background(context),
-                    width: double.infinity,
-                    height: double.infinity,
+                    width: double.infinity, height: double.infinity,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        GestureDetector(
-                          onTap: _authenticateNote,
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.lock_outline,
-                              size: 64,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
+                        GestureDetector(onTap: _authenticateNote, child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.lock_outline, size: 64, color: AppColors.primary))),
                         const SizedBox(height: 24),
-                        Text(
-                          'Ghi chú đã được khóa',
-                          style: GoogleFonts.spaceGrotesk(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary(context),
-                          ),
-                        ),
+                        Text('Ghi chú đã được khóa', style: GoogleFonts.spaceGrotesk(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context))),
                         const SizedBox(height: 8),
-                        Text(
-                          'Chạm để mở khóa bằng sinh trắc học',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: AppColors.textMetadata(context),
-                          ),
-                        ),
+                        Text('Chạm để mở khóa bằng sinh trắc học', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textMetadata(context))),
                         const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: _authenticateNote,
-                          icon: const Icon(Icons.fingerprint,
-                              color: Colors.white),
-                          label: Text(
-                            'Xác thực ngay',
-                            style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
+                        ElevatedButton.icon(onPressed: _authenticateNote, icon: const Icon(Icons.fingerprint, color: Colors.white), label: Text('Xác thực ngay', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
                       ],
                     ),
                   ),
@@ -1738,8 +1171,7 @@ class _EditorScreenState extends State<EditorScreen>
       statusIcon: const SizedBox(
         width: 14,
         height: 14,
-        child:
-            CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
+        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
       ),
     );
     try {
@@ -1754,8 +1186,7 @@ class _EditorScreenState extends State<EditorScreen>
           message: 'Đã xóa âm thanh thành công.',
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle,
-              color: Color(0xFF10B981), size: 16),
+          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
           autoHide: true,
         );
       }
@@ -1766,8 +1197,7 @@ class _EditorScreenState extends State<EditorScreen>
           message: 'Xóa âm thanh thất bại.',
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
-          statusIcon:
-              const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
+          statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
           autoHide: true,
         );
       }
@@ -1799,8 +1229,7 @@ class _EditorScreenState extends State<EditorScreen>
               statusIcon: const SizedBox(
                 width: 14,
                 height: 14,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Color(0xFF2E75B6)),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6)),
               ),
             );
             _cloudinary.deleteFile(url, resourceType: 'image').then((_) {
@@ -1812,8 +1241,7 @@ class _EditorScreenState extends State<EditorScreen>
                   message: 'Đã xóa hình ảnh thành công.',
                   bannerColor: const Color(0xFFECFDF5),
                   bannerTextColor: const Color(0xFF065F46),
-                  statusIcon: const Icon(Icons.check_circle,
-                      color: Color(0xFF10B981), size: 16),
+                  statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
                   autoHide: true,
                 );
               }
@@ -1824,8 +1252,7 @@ class _EditorScreenState extends State<EditorScreen>
                   message: 'Xóa hình ảnh thất bại.',
                   bannerColor: const Color(0xFFFEF2F2),
                   bannerTextColor: const Color(0xFF991B1B),
-                  statusIcon: const Icon(Icons.error,
-                      color: Color(0xFFEF4444), size: 16),
+                  statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
                   autoHide: true,
                 );
               }
@@ -1836,7 +1263,6 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-  // ── CHECKLIST EDITOR ──
   Widget _buildChecklistEditor() {
     return Column(
       children: [
@@ -1867,7 +1293,6 @@ class _EditorScreenState extends State<EditorScreen>
           },
           onExitChecklistMode: _exitChecklistMode,
         ),
-        // Audio + Recording + Tags phía dưới checklist
         if (_audioUrls.isNotEmpty || _isRecording || _tags.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1886,8 +1311,7 @@ class _EditorScreenState extends State<EditorScreen>
                     playTotal: _playTotal,
                     noteColor: _noteColor,
                     onTogglePlay: _togglePlay,
-                    onSeek: (val) =>
-                        _audioPlayer.seek(Duration(milliseconds: val.toInt())),
+                    onSeek: (val) => _audioPlayer.seek(Duration(milliseconds: val.toInt())),
                     onDeleteAudio: _deleteAudio,
                     onStopRecording: _stopRecordingAndUpload,
                   ),
@@ -1899,15 +1323,11 @@ class _EditorScreenState extends State<EditorScreen>
                     runSpacing: 6,
                     children: _tags
                         .map((tag) => Chip(
-                              label: Text(tag,
-                                  style: GoogleFonts.outfit(
-                                      fontSize: 12,
-                                      color: const Color(0xFF475569))),
-                              backgroundColor: const Color(0xFFF1F5F9),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                              side: BorderSide(color: Colors.grey.shade200),
-                            ))
+                      label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ))
                         .toList(),
                   ),
                 ],
@@ -1920,61 +1340,40 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _addChecklistItem() {
-    setState(() {
-      _checklistItems.add(ChecklistItem());
-    });
+    setState(() { _checklistItems.add(ChecklistItem()); });
     _onTextChanged();
   }
 
   void _addChecklistItemAfter(int index) {
-    setState(() {
-      _checklistItems.insert(index + 1, ChecklistItem());
-    });
+    setState(() { _checklistItems.insert(index + 1, ChecklistItem()); });
     _onTextChanged();
   }
 
   void _exitChecklistMode() {
-    // Convert checklist items thành plain text trong Quill editor
-    final text = _checklistItems
-        .map((i) => i.text)
-        .where((t) => t.trim().isNotEmpty)
-        .join('\n');
+    final text = _checklistItems.map((i) => i.text).where((t) => t.trim().isNotEmpty).join('\n');
     setState(() {
       _isChecklistMode = false;
       _checklistItems = [];
       if (text.isNotEmpty) {
         final doc = Document()..insert(0, text);
-        _quillController = QuillController(
-          document: doc,
-          selection: const TextSelection.collapsed(offset: 0),
-        );
+        _quillController = QuillController(document: doc, selection: const TextSelection.collapsed(offset: 0));
       } else {
         _quillController = QuillController.basic();
       }
       _isDirty = true;
     });
-    _quillController.document.changes.listen((_) {
-      _isDirty = true;
-      _onTextChanged();
-    });
+    _quillController.document.changes.listen((_) { _isDirty = true; _onTextChanged(); });
   }
 
   void _switchToChecklistMode() {
-    // Convert current Quill text to checklist items
     final plainText = _quillController.document.toPlainText().trim();
     setState(() {
       _isChecklistMode = true;
       if (plainText.isNotEmpty) {
-        _checklistItems = plainText
-            .split('\n')
-            .where((line) => line.trim().isNotEmpty)
-            .map((line) => ChecklistItem(text: line))
-            .toList();
+        _checklistItems = plainText.split('\n').where((line) => line.trim().isNotEmpty).map((line) => ChecklistItem(text: line)).toList();
       }
-      if (_checklistItems.isEmpty) {
-        _checklistItems = [ChecklistItem()];
-      }
-      _originalChecklistItems = null; // Treat as new for change detection
+      if (_checklistItems.isEmpty) { _checklistItems = [ChecklistItem()]; }
+      _originalChecklistItems = null;
       _isDirty = true;
     });
   }
@@ -1983,57 +1382,36 @@ class _EditorScreenState extends State<EditorScreen>
     if (_showFormattingToolbar && !_isChecklistMode) {
       return EditorFormatToolbar(
         quillController: _quillController,
-        onClose: () {
-          setState(() {
-            _showFormattingToolbar = false;
-          });
-        },
-        isButtonsDisabled: _isChecklistMode ||
-            _titleFocusNode.hasFocus ||
-            !_editorFocusNode.hasFocus,
+        onClose: () { setState(() { _showFormattingToolbar = false; }); },
+        isButtonsDisabled: _isChecklistMode || _titleFocusNode.hasFocus || !_editorFocusNode.hasFocus,
       );
     }
 
     return BottomAppBar(
-      color:
-          _noteBackgroundColor(context) ?? AppColors.toolbarBackground(context),
+      color: _noteBackgroundColor(context) ?? AppColors.toolbarBackground(context),
       elevation: 0,
       padding: EdgeInsets.zero,
       child: SizedBox(
         height: 50,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 4), // Tạo khoảng cách viền nhẹ
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Row(
             children: [
-              // 📦 BỌC CỤM ICON BÊN TRÁI: Thêm, Bảng màu, Định dạng văn bản
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _toolbarButton(
-                      icon: Icons.add_box_outlined,
-                      tooltip: 'Thêm',
-                      onTap: _isUploading ? null : _showAddOptions),
-                  _toolbarButton(
-                    icon: Icons.palette_outlined,
-                    tooltip: 'Màu sắc',
-                    onTap: _showColorPicker,
-                  ),
+                  _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
+                  _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: _showColorPicker),
                   if (!_isChecklistMode)
                     _toolbarButton(
                       icon: Icons.format_color_text,
                       tooltip: 'Định dạng',
                       color: _showFormattingToolbar ? _primary : null,
-                      onTap: () {
-                        setState(() {
-                          _showFormattingToolbar = true;
-                        });
-                      },
+                      onTap: () { setState(() { _showFormattingToolbar = true; }); },
                     ),
                 ],
               ),
               const Spacer(),
-
               if (!_isChecklistMode)
                 ListenableBuilder(
                   listenable: _quillController,
@@ -2041,30 +1419,13 @@ class _EditorScreenState extends State<EditorScreen>
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _toolbarButton(
-                          icon: Icons.undo,
-                          tooltip: 'Hoàn tác',
-                          onTap: _quillController.hasUndo
-                              ? () => _quillController.undo()
-                              : null,
-                        ),
-                        _toolbarButton(
-                          icon: Icons.redo,
-                          tooltip: 'Làm lại',
-                          onTap: _quillController.hasRedo
-                              ? () => _quillController.redo()
-                              : null,
-                        ),
+                        _toolbarButton(icon: Icons.undo, tooltip: 'Hoàn tác', onTap: _quillController.hasUndo ? () => _quillController.undo() : null),
+                        _toolbarButton(icon: Icons.redo, tooltip: 'Làm lại', onTap: _quillController.hasRedo ? () => _quillController.redo() : null),
                       ],
                     );
                   },
                 ),
-
-              // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
-              _toolbarButton(
-                  icon: Icons.more_vert,
-                  tooltip: 'Thêm nữa',
-                  onTap: _showMoreOptions),
+              _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
             ],
           ),
         ),
@@ -2072,20 +1433,16 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
-
   void _showAddOptions() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => EditorAddOptionsSheet(
         isRecording: _isRecording,
         isChecklistMode: _isChecklistMode,
         onAddImage: _showImageSourceSheet,
         onAddDrawing: _openDrawingScreen,
-        onToggleRecording: () {
-          _isRecording ? _stopRecordingAndUpload() : _startRecording();
-        },
+        onToggleRecording: () { _isRecording ? _stopRecordingAndUpload() : _startRecording(); },
         onSwitchToChecklistMode: _switchToChecklistMode,
       ),
     );
@@ -2094,8 +1451,7 @@ class _EditorScreenState extends State<EditorScreen>
   void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => EditorMoreOptionsSheet(
         hasBeenSavedInDb: _hasBeenSavedInDb,
         status: _status,
@@ -2114,11 +1470,7 @@ class _EditorScreenState extends State<EditorScreen>
     ));
   }
 
-  Widget _buildAppBarRoundBtn({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback? onTap,
-  }) {
+  Widget _buildAppBarRoundBtn({required IconData icon, required String tooltip, required VoidCallback? onTap}) {
     final isCustomColor = _noteColor != null;
     return Tooltip(
       message: tooltip,
@@ -2126,74 +1478,34 @@ class _EditorScreenState extends State<EditorScreen>
         onTap: onTap,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: Colors.transparent,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Icon(
-              icon,
-              size: 22,
-              color: isCustomColor
-                  ? const Color(0xFF1E293B)
-                  : AppColors.textMetadata(context),
-            ),
-          ),
+          width: 40, height: 40,
+          child: Center(child: Icon(icon, size: 22, color: isCustomColor ? const Color(0xFF1E293B) : AppColors.textMetadata(context))),
         ),
       ),
     );
   }
 
-  Widget _toolbarButton(
-      {required IconData icon,
-      required String tooltip,
-      VoidCallback? onTap,
-      Color? color}) {
+  Widget _toolbarButton({required IconData icon, required String tooltip, VoidCallback? onTap, Color? color}) {
     final isCustomColor = _noteColor != null;
-    final defaultIconColor = isCustomColor
-        ? const Color(0xFF1E293B)
-        : AppColors.textPrimary(context);
+    final defaultIconColor = isCustomColor ? const Color(0xFF1E293B) : AppColors.textPrimary(context);
 
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        // Đổi bo góc thành hình tròn cho hiệu ứng gợn sóng khi chạm (Ripple Effect)
         customBorder: const CircleBorder(),
         child: Padding(
-          // Tạo khoảng cách (Gap) giữa các vòng tròn icon với nhau
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-
-          // 📦 ĐÂY CHÍNH LÀ BỌC CONTAINER ĐỂ TẠO VÒNG TRÒN NỀN:
           child: Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            // Đặt Icon vào chính giữa vòng tròn nền vừa tạo
-            child: Center(
-              child: Icon(
-                icon,
-                size: 22,
-                color: onTap == null
-                    ? (isCustomColor
-                        ? Colors.black.withValues(alpha: 0.2)
-                        : Colors.grey.withValues(alpha: 0.3))
-                    : (color ?? defaultIconColor),
-              ),
-            ),
+            width: 40, height: 40,
+            child: Center(child: Icon(icon, size: 22, color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor))),
           ),
         ),
       ),
     );
   }
 
-  Color? _noteBackgroundColor(BuildContext context) =>
-      AppColors.resolveNoteBackground(context, _noteColor);
+  Color? _noteBackgroundColor(BuildContext context) => AppColors.resolveNoteBackground(context, _noteColor);
 
   bool _isNoteBackgroundDark(BuildContext context) {
     final bg = _noteBackgroundColor(context);
@@ -2205,9 +1517,7 @@ class _EditorScreenState extends State<EditorScreen>
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return EditorColorPickerSheet(
           noteColor: _noteColor,
@@ -2224,8 +1534,7 @@ class _EditorScreenState extends State<EditorScreen>
 class _LabelSelectionScreen extends StatefulWidget {
   final List<String> initialTags;
   final ValueChanged<List<String>> onTagsChanged;
-  const _LabelSelectionScreen(
-      {required this.initialTags, required this.onTagsChanged});
+  const _LabelSelectionScreen({required this.initialTags, required this.onTagsChanged});
   @override
   State<_LabelSelectionScreen> createState() => _LabelSelectionScreenState();
 }
@@ -2236,36 +1545,24 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
   String _searchQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-    _selectedTags = List.from(widget.initialTags);
-  }
+  void initState() { super.initState(); _selectedTags = List.from(widget.initialTags); }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  void dispose() { _searchController.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<NoteProvider>(context);
     final allLabels = provider.allLabels;
-    final filteredLabels = allLabels
-        .where((l) => l.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
-    final showCreate = _searchQuery.trim().isNotEmpty &&
-        !allLabels
-            .any((l) => l.toLowerCase() == _searchQuery.trim().toLowerCase());
+    final filteredLabels = allLabels.where((l) => l.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+    final showCreate = _searchQuery.trim().isNotEmpty && !allLabels.any((l) => l.toLowerCase() == _searchQuery.trim().toLowerCase());
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
         backgroundColor: AppColors.background(context),
         elevation: 0,
-        leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)),
-            onPressed: () => Navigator.pop(context)),
+        leading: IconButton(icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)), onPressed: () => Navigator.pop(context)),
         titleSpacing: 0,
         title: TextField(
           controller: _searchController,
@@ -2275,15 +1572,7 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
             hintText: 'Nhập tên nhãn',
             border: InputBorder.none,
             hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: Icon(Icons.clear,
-                        size: 20, color: AppColors.textSecondary(context)),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    })
-                : null,
+            suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: Icon(Icons.clear, size: 20, color: AppColors.textSecondary(context)), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) : null,
           ),
           onChanged: (val) => setState(() => _searchQuery = val),
         ),
@@ -2297,16 +1586,12 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 if (showCreate)
                   ListTile(
                     leading: const Icon(Icons.add, color: AppColors.primary),
-                    title: Text('Tạo "${_searchQuery.trim()}"',
-                        style: GoogleFonts.inter(
-                            color: AppColors.textPrimary(context))),
+                    title: Text('Tạo "${_searchQuery.trim()}"', style: GoogleFonts.inter(color: AppColors.textPrimary(context))),
                     onTap: () {
                       final newTag = _searchQuery.trim();
                       provider.addLabel(newTag);
                       setState(() {
-                        if (!_selectedTags.contains(newTag)) {
-                          _selectedTags.add(newTag);
-                        }
+                        if (!_selectedTags.contains(newTag)) _selectedTags.add(newTag);
                         _searchQuery = '';
                         _searchController.clear();
                       });
@@ -2316,20 +1601,12 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 ...filteredLabels.map((label) {
                   final isChecked = _selectedTags.contains(label);
                   return CheckboxListTile(
-                    title: Text(label,
-                        style: GoogleFonts.inter(
-                            color: AppColors.textPrimary(context))),
+                    title: Text(label, style: GoogleFonts.inter(color: AppColors.textPrimary(context))),
                     value: isChecked,
                     activeColor: AppColors.primary,
                     checkColor: AppColors.onPrimary,
                     onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _selectedTags.add(label);
-                        } else {
-                          _selectedTags.remove(label);
-                        }
-                      });
+                      setState(() { if (val == true) _selectedTags.add(label); else _selectedTags.remove(label); });
                       widget.onTagsChanged(_selectedTags);
                     },
                   );
@@ -2350,14 +1627,7 @@ class _ImageViewer extends StatefulWidget {
   final Function(String) onDuplicate;
   final Function(String) onDelete;
 
-  const _ImageViewer({
-    required this.imageUrls,
-    required this.initialIndex,
-    required this.onEditDrawing,
-    required this.onDuplicate,
-    required this.onDelete,
-  });
-
+  const _ImageViewer({required this.imageUrls, required this.initialIndex, required this.onEditDrawing, required this.onDuplicate, required this.onDelete});
   @override
   State<_ImageViewer> createState() => _ImageViewerState();
 }
@@ -2367,31 +1637,18 @@ class _ImageViewerState extends State<_ImageViewer> {
   late int _currentIndex;
 
   @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: _currentIndex);
-  }
+  void initState() { super.initState(); _currentIndex = widget.initialIndex; _pageController = PageController(initialPage: _currentIndex); }
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
+  void dispose() { _pageController.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     if (widget.imageUrls.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) Navigator.pop(context);
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) Navigator.pop(context); });
       return const Scaffold(backgroundColor: Colors.white);
     }
-
-    if (_currentIndex >= widget.imageUrls.length) {
-      _currentIndex = widget.imageUrls.length - 1;
-    }
-
+    if (_currentIndex >= widget.imageUrls.length) { _currentIndex = widget.imageUrls.length - 1; }
     final currentUrl = widget.imageUrls[_currentIndex];
 
     return Scaffold(
@@ -2400,36 +1657,19 @@ class _ImageViewerState extends State<_ImageViewer> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}',
-            style:
-                GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
-        centerTitle: false,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.brush),
-            tooltip: 'Vẽ đè lên ảnh',
-            onPressed: () => widget.onEditDrawing(currentUrl),
-          ),
+          IconButton(icon: const Icon(Icons.brush), tooltip: 'Vẽ đè lên ảnh', onPressed: () => widget.onEditDrawing(currentUrl)),
           PopupMenuButton<String>(
             tooltip: 'Tùy chọn ảnh',
             onSelected: (value) {
-              if (value == 'duplicate') {
-                widget.onDuplicate(currentUrl);
-                setState(() {});
-              } else if (value == 'delete') {
-                widget.onDelete(currentUrl);
-                setState(() {});
-              }
+              if (value == 'duplicate') { widget.onDuplicate(currentUrl); setState(() {}); }
+              else if (value == 'delete') { widget.onDelete(currentUrl); setState(() {}); }
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
-              const PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+              const PopupMenuItem(value: 'delete', child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
             ],
           ),
         ],
@@ -2437,26 +1677,14 @@ class _ImageViewerState extends State<_ImageViewer> {
       body: PageView.builder(
         controller: _pageController,
         itemCount: widget.imageUrls.length,
-        onPageChanged: (index) {
-          setState(() => _currentIndex = index);
-        },
+        onPageChanged: (index) { setState(() => _currentIndex = index); },
         itemBuilder: (context, index) {
           return InteractiveViewer(
             child: CachedNetworkImage(
               imageUrl: widget.imageUrls[index],
               fit: BoxFit.contain,
-              placeholder: (context, url) => const Center(
-                child: SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 3, color: AppColors.primary),
-                ),
-              ),
-              errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.broken_image_outlined,
-                    color: Colors.grey, size: 40),
-              ),
+              placeholder: (context, url) => const Center(child: SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 3, color: AppColors.primary))),
+              errorWidget: (context, url, error) => const Center(child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 40)),
             ),
           );
         },
