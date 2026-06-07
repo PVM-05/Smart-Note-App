@@ -37,6 +37,9 @@ class LocalNoteService {
             reminder INTEGER
           )
         ''');
+        // ── Performance indexes ──
+        await db.execute('CREATE INDEX idx_notes_user_status ON notes(user_id, status)');
+        await db.execute('CREATE INDEX idx_notes_user_synced ON notes(user_id, is_synced)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -61,6 +64,9 @@ class LocalNoteService {
         }
         if (oldVersion < 7) {
           await db.execute("ALTER TABLE notes ADD COLUMN reminder INTEGER");
+          // Thêm index để tăng tốc truy vấn
+          await db.execute('CREATE INDEX IF NOT EXISTS idx_notes_user_status ON notes(user_id, status)');
+          await db.execute('CREATE INDEX IF NOT EXISTS idx_notes_user_synced ON notes(user_id, is_synced)');
         }
       },
     );
@@ -120,6 +126,24 @@ class LocalNoteService {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
+  /// Lấy riêng các note đã ghim — tránh phải tải toàn bộ bảng
+  Future<List<Note>> getPinnedNotes({required String userId}) async {
+    if (kIsWeb) {
+      return _webNotes
+          .where((n) => n.userId == userId && n.status == 'pinned')
+          .toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    }
+    final database = await db;
+    final maps = await database.query(
+      'notes',
+      where: 'user_id = ? AND status = ?',
+      whereArgs: [userId, 'pinned'],
+      orderBy: 'updated_at DESC',
+    );
+    return maps.map((m) => Note.fromMap(m)).toList();
+  }
+
   Future<List<Note>> getAbsoluteAllNotes({required String userId}) async {
     if (kIsWeb) {
       return _webNotes.where((n) => n.userId == userId).toList();
@@ -133,13 +157,11 @@ class LocalNoteService {
     return maps.map((m) => Note.fromMap(m)).toList();
   }
 
-  // ── SỬA LỖI & NÂNG CẤP SEARCH NÂNG CAO CHUẨN GOOGLE KEEP STYLE ──
+  // ── SEARCH NÂNG CAO CHUẨN GOOGLE KEEP STYLE ──
   Future<List<Note>> searchNotes({required String userId, required String query}) async {
-    // 1. Tải toàn bộ dữ liệu hoạt động của User lên bộ nhớ tạm để bóc tách mảng (Client-side filtering)
-    // Thay đổi từ 'getNotes' thành 'getAllNotes' bám sát hàm định nghĩa gốc của bạn
-    final allNotes = await getAllNotes(userId: userId);
-
-    if (query.trim().isEmpty) return allNotes;
+    if (query.trim().isEmpty) {
+      return getAllNotes(userId: userId);
+    }
     final lowerQuery = query.toLowerCase();
 
     // ⚡ BỘ NÃO PHÂN TÍCH TOKEN TỪ SEARCH SCREEN CHIP
@@ -169,41 +191,48 @@ class LocalNoteService {
       }
     }
 
-    // 2. THỰC HIỆN LỌC ĐỒNG THỜI TOÀN BỘ ĐIỀU KIỆN (Khắc phục lỗi không hiển thị kết quả)
-    return allNotes.where((note) {
-      // Điều kiện 1: Nếu chọn nút "Hình ảnh" -> Thẻ note phải chứa ít nhất 1 ảnh
+    // ── Dùng SQL LIKE để lọc text trước, giảm lượng data tải vào RAM ──
+    List<Note> candidates;
+    if (kIsWeb) {
+      candidates = _webNotes.where((n) => n.userId == userId && n.status != 'trash').toList();
+    } else {
+      final database = await db;
+      if (cleanTextQuery.isNotEmpty) {
+        // Tìm bằng SQL LIKE — sử dụng index hiệu quả hơn
+        final sqlQuery = '%$cleanTextQuery%';
+        final maps = await database.query(
+          'notes',
+          where: 'user_id = ? AND status != ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?)',
+          whereArgs: [userId, 'trash', sqlQuery, sqlQuery],
+          orderBy: 'updated_at DESC',
+        );
+        candidates = maps.map((m) => Note.fromMap(m)).toList();
+      } else {
+        // Không có text query, chỉ có token filters → tải tất cả (trừ trash)
+        final maps = await database.query(
+          'notes',
+          where: 'user_id = ? AND status != ?',
+          whereArgs: [userId, 'trash'],
+          orderBy: 'updated_at DESC',
+        );
+        candidates = maps.map((m) => Note.fromMap(m)).toList();
+      }
+    }
+
+    // ── Client-side filtering cho các token đặc biệt ──
+    return candidates.where((note) {
       if (hasImageToken && note.imageUrls.isEmpty) return false;
-
-      // Điều kiện 2: Nếu chọn nút "Âm thanh" -> Thẻ note phải chứa file ghi âm
       if (hasAudioToken && note.audioUrls.isEmpty) return false;
-
-      // Điều kiện 3: Nếu chọn nút "URL" -> Nội dung text của note phải chứa đường link
       if (hasUrlToken) {
         final urlRegex = RegExp(r'(https?:\/\/|www\.)[^\s/$.?#].[^\s]*', caseSensitive: false);
         if (!urlRegex.hasMatch(note.content)) return false;
       }
-
-      // Điều kiện 4: Trạng thái Ghim hệ thống
       if (isPinnedToken && note.status != 'pinned') return false;
-
-      // Điều kiện 5: Trạng thái Lưu trữ (Vì getAllNotes đã chặn 'trash', ta check 'archived')
       if (isArchivedToken && note.status != 'archived') return false;
-
-      // Nếu không chọn chip "Lưu trữ", mặc định kết quả tìm kiếm thông thường chỉ hiển thị note đang active (không hiện note đã lưu trữ)
       if (!isArchivedToken && note.status == 'archived') return false;
-
-      // Điều kiện 6: Nhãn dán (Mảng Tags vỏ bọc văn bản)
-      if (targetLabel != null && !note.tags.map((t) => t.toLowerCase()).contains(targetLabel.toLowerCase())) {
+      if (targetLabel != null && !note.tags.map((t) => t.toLowerCase()).contains(targetLabel!.toLowerCase())) {
         return false;
       }
-
-      // Điều kiện 7: Lọc kết hợp chuỗi văn bản gõ thêm thủ công (Tìm trong cả Tiêu đề và Nội dung)
-      if (cleanTextQuery.isNotEmpty) {
-        final matchTitle = note.title.toLowerCase().contains(cleanTextQuery);
-        final matchContent = note.content.toLowerCase().contains(cleanTextQuery);
-        if (!matchTitle && !matchContent) return false;
-      }
-
       return true;
     }).toList();
   }

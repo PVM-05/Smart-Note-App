@@ -64,6 +64,8 @@ class _EditorScreenState extends State<EditorScreen>
   final FocusNode _editorFocusNode = FocusNode();
   bool _isDirty = false;
   bool _showFormattingToolbar = false;
+  bool _titleHasFocus = false;
+  bool _editorHasFocus = false;
   bool _isLocked = false;
   bool _isUnlocked = true;
   final BiometricService _biometricService = BiometricService();
@@ -295,10 +297,14 @@ class _EditorScreenState extends State<EditorScreen>
 
     _titleController.addListener(_onTextChanged);
     _titleFocusNode.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted && _titleHasFocus != _titleFocusNode.hasFocus) {
+        setState(() => _titleHasFocus = _titleFocusNode.hasFocus);
+      }
     });
     _editorFocusNode.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted && _editorHasFocus != _editorFocusNode.hasFocus) {
+        setState(() => _editorHasFocus = _editorFocusNode.hasFocus);
+      }
     });
     _quillController.document.changes.listen((_) {
       _isDirty = true;
@@ -312,14 +318,18 @@ class _EditorScreenState extends State<EditorScreen>
         setState(() {
           _showFormattingToolbar = true;
         });
-      } else {
-        // Luôn gọi setState để cập nhật trạng thái các nút định dạng khi con trỏ di chuyển/thay đổi style
-        setState(() {});
+      } else if (!hasSelection && _showFormattingToolbar) {
+        setState(() {
+          _showFormattingToolbar = false;
+        });
       }
+      // Không gọi setState() vô điều kiện nữa — tránh rebuild toàn bộ màn hình mỗi keystroke
     });
 
     _audioPlayer.positionStream.listen((pos) {
-      if (mounted) setState(() => _playPosition = pos);
+      if (mounted && (pos - _playPosition).abs() > const Duration(milliseconds: 200)) {
+        setState(() => _playPosition = pos);
+      }
     });
     _audioPlayer.durationStream.listen((dur) {
       if (mounted) setState(() => _playTotal = dur ?? Duration.zero);

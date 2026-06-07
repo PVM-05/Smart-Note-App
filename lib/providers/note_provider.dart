@@ -98,9 +98,16 @@ class NoteProvider extends ChangeNotifier {
 
   NoteProvider(this._repository);
 
+  // Cache labels — chỉ tính lại khi dữ liệu thay đổi
+  List<String>? _cachedLabels;
+
   List<String> get allLabels {
+    if (_cachedLabels != null) return _cachedLabels!;
     final Set<String> labelSet = {};
-    for (var note in [..._notes, ..._pinnedNotesList]) {
+    for (var note in _notes) {
+      labelSet.addAll(note.tags);
+    }
+    for (var note in _pinnedNotesList) {
       labelSet.addAll(note.tags);
     }
     for (var note in _trashNotes) {
@@ -109,7 +116,12 @@ class NoteProvider extends ChangeNotifier {
     labelSet.addAll(_customLabels);
     final list = labelSet.toList();
     list.sort();
+    _cachedLabels = list;
     return list;
+  }
+
+  void _invalidateLabelCache() {
+    _cachedLabels = null;
   }
 
   final CloudinaryService _cloudinaryService = CloudinaryService();
@@ -133,15 +145,8 @@ class NoteProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Tải toàn bộ note ghim (Vì số lượng ghim thường ít, ưu tiên lên đầu)
-      if (kIsWeb) {
-        final all = await _repository.getNotes(userId);
-        _pinnedNotesList = all.where((n) => n.status == 'pinned').toList();
-      } else {
-        // Nếu repo của bạn chưa tách hàm getPinnedNotes, có thể dùng getNotes lọc status ngầm
-        final all = await _repository.getNotes(userId);
-        _pinnedNotesList = all.where((n) => n.status == 'pinned').toList();
-      }
+      // 1. Tải riêng các note ghim bằng query chuyên biệt (không tải toàn bộ bảng)
+      _pinnedNotesList = await _repository.getPinnedNotes(userId);
 
       // 2. Tải trang đầu tiên của các Note thường
       final fetchedNotes = await _repository.getNotes(userId, limit: _pageLimit, offset: _currentOffset);
@@ -152,6 +157,7 @@ class NoteProvider extends ChangeNotifier {
       if (fetchedNotes.length < _pageLimit) {
         _hasMoreNotes = false;
       }
+      _invalidateLabelCache();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -196,6 +202,7 @@ class NoteProvider extends ChangeNotifier {
     final trimmed = labelName.trim();
     if (trimmed.isNotEmpty && !allLabels.contains(trimmed)) {
       _customLabels.add(trimmed);
+      _invalidateLabelCache();
       notifyListeners();
     }
   }
@@ -259,6 +266,7 @@ class NoteProvider extends ChangeNotifier {
     }
 
     if (_selectedLabel == oldName) _selectedLabel = trimmedNew;
+    _invalidateLabelCache();
     notifyListeners();
   }
 
@@ -290,6 +298,7 @@ class NoteProvider extends ChangeNotifier {
     }
 
     if (_selectedLabel == labelName) _selectedLabel = null;
+    _invalidateLabelCache();
     notifyListeners();
   }
 
@@ -309,10 +318,27 @@ class NoteProvider extends ChangeNotifier {
 
   Future<void> deleteSelectedNotes() async {
     final idsToDelete = _selectedNoteIds.toList();
-    clearSelection();
+    _selectedNoteIds.clear();
+    // Gom tất cả thao tác rồi chỉ notifyListeners 1 lần
     for (final id in idsToDelete) {
-      await deleteNote(id);
+      int index = _notes.indexWhere((note) => note.id == id);
+      if (index != -1) {
+        final trashedNote = _notes[index].copyWith(status: 'trash', isSynced: false, updatedAt: DateTime.now());
+        _notes.removeAt(index);
+        _trashNotes.insert(0, trashedNote);
+        await _repository.saveNote(trashedNote);
+        continue;
+      }
+      index = _pinnedNotesList.indexWhere((note) => note.id == id);
+      if (index != -1) {
+        final trashedNote = _pinnedNotesList[index].copyWith(status: 'trash', isSynced: false, updatedAt: DateTime.now());
+        _pinnedNotesList.removeAt(index);
+        _trashNotes.insert(0, trashedNote);
+        await _repository.saveNote(trashedNote);
+      }
     }
+    _invalidateLabelCache();
+    notifyListeners();
   }
 
   Future<void> togglePinSelectedNotes() async {
