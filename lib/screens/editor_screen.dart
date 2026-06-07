@@ -634,7 +634,11 @@ class _EditorScreenState extends State<EditorScreen>
         _deletingUrls.remove(oldUrl);
         if (url != null) {
           final index = _imageUrls.indexOf(oldUrl);
-          if (index != -1) _imageUrls[index] = url; else _imageUrls.add(url);
+          if (index != -1) {
+            _imageUrls[index] = url;
+          } else {
+            _imageUrls.add(url);
+          }
         }
       });
       if (url != null) await _saveNote(isAutosave: true);
@@ -1872,7 +1876,7 @@ class _EditorScreenState extends State<EditorScreen>
         customBorder: const CircleBorder(),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Container(
+          child: SizedBox(
             width: 40, height: 40,
             child: Center(child: Icon(icon, size: 22, color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor))),
           ),
@@ -1985,7 +1989,13 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                     activeColor: AppColors.primary,
                     checkColor: AppColors.onPrimary,
                     onChanged: (val) {
-                      setState(() { if (val == true) _selectedTags.add(label); else _selectedTags.remove(label); });
+                      setState(() {
+                        if (val == true) {
+                          _selectedTags.add(label);
+                        } else {
+                          _selectedTags.remove(label);
+                        }
+                      });
                       widget.onTagsChanged(_selectedTags);
                     },
                   );
