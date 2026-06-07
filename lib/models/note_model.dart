@@ -47,22 +47,25 @@ class Note {
     if (isChecklist) {
       return checklistPlainText;
     }
-    try {
-      final decoded = jsonDecode(content);
-      if (decoded is List) {
-        final buffer = StringBuffer();
-        for (final item in decoded) {
-          if (item is Map && item.containsKey('insert')) {
-            final val = item['insert'];
-            if (val is String) {
-              buffer.write(val);
+    final trimmed = content.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        final decoded = jsonDecode(trimmed);
+        if (decoded is List) {
+          final buffer = StringBuffer();
+          for (final item in decoded) {
+            if (item is Map && item.containsKey('insert')) {
+              final val = item['insert'];
+              if (val is String) {
+                buffer.write(val);
+              }
             }
           }
+          return buffer.toString().trim();
         }
-        return buffer.toString().trim();
-      }
-    } catch (_) {}
-    return content.trim();
+      } catch (_) {}
+    }
+    return trimmed;
   }
 
   final String id;

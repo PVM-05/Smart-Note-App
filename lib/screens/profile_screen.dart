@@ -56,6 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showSnack(AppLocalizations.translate(context, 'nameEmptyError'), isError: true);
       return;
     }
+    final successMsg = AppLocalizations.translate(context, 'updateNameSuccess');
     final auth = Provider.of<AuthProvider>(context, listen: false);
     try {
       await FirebaseFirestore.instance
@@ -64,13 +65,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update({'displayName': name});
       await auth.user!.updateDisplayName(name);
       await auth.reloadUserData();
-      _showSnack(AppLocalizations.translate(context, 'updateNameSuccess'));
+      if (!mounted) return;
+      _showSnack(successMsg);
     } catch (e) {
       _showSnack('Lỗi: $e', isError: true);
     }
   }
 
   Future<void> _saveBio() async {
+    final successMsg = AppLocalizations.translate(context, 'updateBioSuccess');
     final auth = Provider.of<AuthProvider>(context, listen: false);
     try {
       await FirebaseFirestore.instance
@@ -78,7 +81,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(auth.user!.uid)
           .update({'bio': _bioController.text.trim()});
       await auth.reloadUserData();
-      _showSnack(AppLocalizations.translate(context, 'updateBioSuccess'));
+      if (!mounted) return;
+      _showSnack(successMsg);
     } catch (e) {
       _showSnack('Lỗi: $e', isError: true);
     }
@@ -100,6 +104,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showSnack(AppLocalizations.translate(context, 'passwordMismatchError'), isError: true);
       return;
     }
+    final successMsg = AppLocalizations.translate(context, 'passwordChangeSuccess');
+    final oldPasswordIncorrectMsg = AppLocalizations.translate(context, 'oldPasswordIncorrectError');
     final user = FirebaseAuth.instance.currentUser!;
     try {
       final credential =
@@ -109,11 +115,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _oldPasswordController.clear();
       _newPasswordController.clear();
       _confirmPasswordController.clear();
-      _showSnack(AppLocalizations.translate(context, 'passwordChangeSuccess'));
+      if (!mounted) return;
+      _showSnack(successMsg);
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       _showSnack(
           e.code == 'wrong-password'
-              ? AppLocalizations.translate(context, 'oldPasswordIncorrectError')
+              ? oldPasswordIncorrectMsg
               : 'Lỗi: ${e.message}',
           isError: true);
     }
@@ -130,6 +138,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isUploadingAvatar = true);
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    final successMsg = AppLocalizations.translate(context, 'avatarUpdateSuccess');
+    final uploadErrorTemplate = AppLocalizations.translate(context, 'uploadError');
     try {
       final ref =
           FirebaseStorage.instance.ref().child('avatars/${auth.user!.uid}.jpg');
@@ -141,11 +151,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .update({'photoUrl': url});
       await auth.user!.updatePhotoURL(url);
       await auth.reloadUserData();
-      _showSnack(AppLocalizations.translate(context, 'avatarUpdateSuccess'));
+      if (!mounted) return;
+      _showSnack(successMsg);
     } catch (e) {
-      _showSnack(AppLocalizations.translate(context, 'uploadError').replaceAll('{error}', '$e'), isError: true);
+      if (!mounted) return;
+      _showSnack(uploadErrorTemplate.replaceAll('{error}', '$e'), isError: true);
     } finally {
-      setState(() => _isUploadingAvatar = false);
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+      }
     }
   }
 

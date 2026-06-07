@@ -154,31 +154,44 @@ class SyncRepositoryImpl implements SyncRepository {
     final localNotes = await _localService.getAbsoluteAllNotes(userId: userId);
     final localMap = {for (final n in localNotes) n.id: n};
 
-    final db = await _localService.db;
-
-    // Tối ưu hóa: Thực hiện tất cả các tác vụ insert/update trong 1 TRANSACTION duy nhất
-    await db.transaction((txn) async {
+    if (kIsWeb) {
       for (final cloud in cloudNotes) {
         final local = localMap[cloud.id];
-
         if (local == null) {
-          await txn.insert(
-            'notes',
-            cloud.toMap(),
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+          await _localService.insertNote(cloud);
           hasNewChanges = true;
         } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
-          await txn.update(
-            'notes',
-            cloud.toMap(),
-            where: 'id = ?',
-            whereArgs: [cloud.id],
-          );
+          await _localService.updateNote(cloud);
           hasNewChanges = true;
         }
       }
-    });
+    } else {
+      final db = await _localService.db;
+
+      // Tối ưu hóa: Thực hiện tất cả các tác vụ insert/update trong 1 TRANSACTION duy nhất
+      await db.transaction((txn) async {
+        for (final cloud in cloudNotes) {
+          final local = localMap[cloud.id];
+
+          if (local == null) {
+            await txn.insert(
+              'notes',
+              cloud.toMap(),
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+            hasNewChanges = true;
+          } else if (cloud.updatedAt.isAfter(local.updatedAt)) {
+            await txn.update(
+              'notes',
+              cloud.toMap(),
+              where: 'id = ?',
+              whereArgs: [cloud.id],
+            );
+            hasNewChanges = true;
+          }
+        }
+      });
+    }
 
     // Đồng bộ lại lịch nhắc nhở từ các ghi chú kéo từ Cloud
     await ReminderService().syncReminders(cloudNotes);
