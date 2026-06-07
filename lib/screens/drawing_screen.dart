@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../core/drawing/arrow_content.dart';
 
 enum DrawingTool {
@@ -125,7 +126,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi chèn ảnh nền: $e')),
+          SnackBar(content: Text(AppLocalizations.translate(context, 'drawingBackgroundError').replaceAll('{error}', '$e'))),
         );
       }
     }
@@ -138,7 +139,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
         Color tempColor = _currentColor;
         return AlertDialog(
           title: Text(
-            'Chọn màu tự do',
+            AppLocalizations.translate(context, 'selectColorWheel'),
             style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
           ),
           content: SingleChildScrollView(
@@ -154,7 +155,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                'Hủy',
+                AppLocalizations.translate(context, 'cancel'),
                 style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.w500),
               ),
             ),
@@ -167,7 +168,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                 Navigator.pop(context);
               },
               child: Text(
-                'Chọn',
+                AppLocalizations.translate(context, 'select'),
                 style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
             ),
@@ -256,7 +257,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Đo độ dày nét vẽ: ${currentStrokeWidth.round()} px',
+                        AppLocalizations.translate(context, 'thickness').replaceAll('{val}', '${currentStrokeWidth.round()}'),
                         style: GoogleFonts.outfit(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -309,7 +310,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                   if (!isEraser) ...[
                     const SizedBox(height: 16),
                     Text(
-                      'Bảng màu sắc',
+                      AppLocalizations.translate(context, 'colorPalette'),
                       style: GoogleFonts.outfit(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -445,29 +446,29 @@ class _DrawingScreenState extends State<DrawingScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Lưu bản vẽ?',
+          AppLocalizations.translate(context, 'drawingSaveConfirmTitle'),
           style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
         ),
-        content: const Text('Bạn có muốn lưu các thay đổi trên bản vẽ này không?'),
+        content: Text(AppLocalizations.translate(context, 'drawingSaveConfirmDesc')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'cancel'),
             child: Text(
-              'Hủy bỏ và thoát',
+              AppLocalizations.translate(context, 'discardExit'),
               style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.w500),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, 'keep'),
             child: Text(
-              'Tiếp tục vẽ',
+              AppLocalizations.translate(context, 'keepDrawing'),
               style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.w500),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, 'save'),
             child: Text(
-              'Lưu lại',
+              AppLocalizations.translate(context, 'saveDrawing'),
               style: GoogleFonts.outfit(color: AppColors.primary, fontWeight: FontWeight.bold),
             ),
           ),
@@ -520,11 +521,11 @@ class _DrawingScreenState extends State<DrawingScreen> {
             IconButton(
               icon: const Icon(Icons.add_photo_alternate_outlined, color: Color(0xFF64748B)),
               onPressed: _pickBackgroundImage,
-              tooltip: 'Chèn ảnh nền',
+              tooltip: AppLocalizations.translate(context, 'insertBackgroundImage'),
             ),
             PopupMenuButton<PaperStyle>(
               icon: const Icon(Icons.layers_outlined, color: Color(0xFF64748B)),
-              tooltip: 'Kiểu giấy nền',
+              tooltip: AppLocalizations.translate(context, 'paperTemplateStyle'),
               onSelected: (PaperStyle style) {
                 setState(() {
                   _selectedPaperStyle = style;
@@ -532,33 +533,33 @@ class _DrawingScreenState extends State<DrawingScreen> {
               },
               itemBuilder: (BuildContext context) {
                 return [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: PaperStyle.plain,
                     child: Row(
                       children: [
-                        Icon(Icons.crop_free, size: 20),
-                        SizedBox(width: 8),
-                        Text('Giấy trơn'),
+                        const Icon(Icons.crop_free, size: 20),
+                        const SizedBox(width: 8),
+                        Text(AppLocalizations.translate(context, 'paperPlain')),
                       ],
                     ),
                   ),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: PaperStyle.ruled,
                     child: Row(
                       children: [
-                        Icon(Icons.notes, size: 20),
-                        SizedBox(width: 8),
-                        Text('Giấy kẻ ngang'),
+                        const Icon(Icons.notes, size: 20),
+                        const SizedBox(width: 8),
+                        Text(AppLocalizations.translate(context, 'paperRuled')),
                       ],
                     ),
                   ),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: PaperStyle.grid,
                     child: Row(
                       children: [
-                        Icon(Icons.grid_on, size: 20),
-                        SizedBox(width: 8),
-                        Text('Giấy kẻ ô ly'),
+                        const Icon(Icons.grid_on, size: 20),
+                        const SizedBox(width: 8),
+                        Text(AppLocalizations.translate(context, 'paperGrid')),
                       ],
                     ),
                   ),
@@ -588,7 +589,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                           color: _drawingController.canUndo() ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
                         ),
                         onPressed: _drawingController.canUndo() ? () => _drawingController.undo() : null,
-                        tooltip: 'Hoàn tác',
+                        tooltip: AppLocalizations.translate(context, 'undoTooltip'),
                       ),
                       IconButton(
                         icon: Icon(
@@ -596,7 +597,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                           color: _drawingController.canRedo() ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
                         ),
                         onPressed: _drawingController.canRedo() ? () => _drawingController.redo() : null,
-                        tooltip: 'Làm lại',
+                        tooltip: AppLocalizations.translate(context, 'redoTooltip'),
                       ),
                     ],
                   );
@@ -613,7 +614,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                     navigator.pop(file);
                   }
                 },
-                tooltip: 'Lưu bản vẽ',
+                tooltip: AppLocalizations.translate(context, 'saveDrawing'),
               ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: Color(0xFF64748B)),

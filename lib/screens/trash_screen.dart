@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
-import '../core/app_strings.dart';
 import '../widgets/note_card_shimmer.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/main_drawer.dart';
@@ -35,18 +35,18 @@ class _TrashScreenState extends State<TrashScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa vĩnh viễn?'),
+        title: Text(AppLocalizations.translate(context, 'deleteForeverTitle')),
         content: Text(
-            'Hành động này không thể hoàn tác. Bạn có chắc muốn xóa vĩnh viễn ${provider.selectedTrashNoteIds.length} ghi chú đã chọn?'),
+            AppLocalizations.translate(context, 'deleteForeverConfirm').replaceAll('{count}', '${provider.selectedTrashNoteIds.length}')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: Text(AppLocalizations.translate(context, 'cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Xóa'),
+            child: Text(AppLocalizations.translate(context, 'delete')),
           ),
         ],
       ),
@@ -99,7 +99,7 @@ class _TrashScreenState extends State<TrashScreen> {
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
-            'Ghi chú trong Thùng rác sẽ bị xóa tự động sau 7 ngày.',
+            AppLocalizations.translate(context, 'trashWarning'),
             style: TextStyle(fontStyle: FontStyle.italic, color: AppColors.textMetadata(context)),
           ),
         ),
@@ -173,20 +173,19 @@ class _TrashScreenState extends State<TrashScreen> {
         ),
       ),
       title: Text(
-        'Thùng rác',
+        AppLocalizations.translate(context, 'trashTitle'),
         style: TextStyle(color: AppColors.textPrimary(context), fontSize: 18),
       ),
       actions: [
         // Thêm nút Xóa toàn bộ Thùng rác nhanh (Tùy chọn)
         IconButton(
           icon: Icon(Icons.delete_sweep, color: AppColors.textPrimary(context)),
-          tooltip: 'Dọn sạch thùng rác',
+          tooltip: AppLocalizations.translate(context, 'clearTrash'),
           onPressed: () {
             if (Provider.of<NoteProvider>(context, listen: false).trashNotes.isNotEmpty) {
-              // Bạn có thể viết thêm 1 hàm clearTrash() trong Provider nếu muốn
               ScaffoldMessenger.of(context).clearSnackBars();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng dọn sạch đang phát triển')),
+                SnackBar(content: Text(AppLocalizations.translate(context, 'clearTrashInDevelopment'))),
               );
             }
           },
@@ -204,7 +203,7 @@ class _TrashScreenState extends State<TrashScreen> {
         onPressed: () => provider.clearTrashSelection(),
       ),
       title: Text(
-        '${provider.selectedTrashNoteIds.length} đã chọn',
+        AppLocalizations.translate(context, 'selectedCount').replaceAll('{count}', '${provider.selectedTrashNoteIds.length}'),
         style: TextStyle(
           color: AppColors.textPrimary(context),
           fontWeight: FontWeight.bold,
@@ -214,12 +213,12 @@ class _TrashScreenState extends State<TrashScreen> {
       actions: [
         IconButton(
           icon: const Icon(Icons.restore, color: AppColors.primary),
-          tooltip: 'Khôi phục',
+          tooltip: AppLocalizations.translate(context, 'restore'),
           onPressed: () => provider.restoreSelectedTrashNotes(),
         ),
         IconButton(
           icon: const Icon(Icons.delete_forever, color: AppColors.error),
-          tooltip: 'Xóa vĩnh viễn',
+          tooltip: AppLocalizations.translate(context, 'deleteForever'),
           onPressed: () => _confirmDeleteSelected(provider),
         ),
       ],
@@ -243,25 +242,25 @@ class _TrashScreenState extends State<TrashScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.restore, color: AppColors.primary),
-              title: const Text('Khôi phục ghi chú'),
+              title: Text(AppLocalizations.translate(context, 'restoreNote')),
               onTap: () {
                 provider.restoreNote(note.id);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã khôi phục ghi chú')),
+                  SnackBar(content: Text(AppLocalizations.translate(context, 'restoredNote'))),
                 );
               },
             ),
             ListTile(
               leading: const Icon(Icons.delete_forever, color: AppColors.error),
-              title: Text('Xóa vĩnh viễn', style: TextStyle(color: AppColors.error)),
+              title: Text(AppLocalizations.translate(context, 'deleteForever'), style: TextStyle(color: AppColors.error)),
               onTap: () async {
                 Navigator.pop(context); // Đóng BottomSheet trước
 
                 // Hiển thị thông báo trạng thái dọn dẹp ngầm
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đang xóa vĩnh viễn tài liệu đám mây...'), duration: Duration(seconds: 2)),
+                  SnackBar(content: Text(AppLocalizations.translate(context, 'deletingCloudNote')), duration: const Duration(seconds: 2)),
                 );
 
                 // Gọi hàm xử lý dọn sạch cả DB lẫn tệp tin đính kèm Cloudinary
@@ -275,10 +274,10 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   Widget _buildEmptyTrash() {
-    return const EmptyStateWidget(
+    return EmptyStateWidget(
       icon: Icons.delete_outline,
-      title: AppStrings.emptyTrashTitle,
-      subtitle: AppStrings.emptyTrashSubtitle,
+      title: AppLocalizations.translate(context, 'emptyTrashTitle'),
+      subtitle: AppLocalizations.translate(context, 'emptyTrashSubtitle'),
     );
   }
 }
