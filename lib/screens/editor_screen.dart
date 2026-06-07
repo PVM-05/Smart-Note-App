@@ -33,6 +33,7 @@ import '../core/app_strings.dart';
 import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
 import '../services/gemini_ai_service.dart';
+import '../utils/math_parser.dart';
 
 part 'editor_screen_ai.dart';
 
@@ -78,10 +79,14 @@ class _EditorScreenState extends State<EditorScreen>
   List<String> _audioUrls = [];
   String? _noteColor;
 
-  // Checklist mode
   bool _isChecklistMode = false;
   List<ChecklistItem> _checklistItems = [];
   List<ChecklistItem>? _originalChecklistItems;
+
+  // Math Suggestion
+  String? _mathSuggestionResult;
+  int _mathSuggestionOffset = -1;
+  int? _mathSuggestionChecklistIndex;
 
   late String _noteId;
   late DateTime _createdAt;
@@ -356,6 +361,10 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _onTextChanged() {
     if (_isLocked && !_isUnlocked) return;
+
+    // ── AI Tự động Tính Toán Toán Học ──
+    _checkMathSuggestion();
+
     // Chỉ kích hoạt hẹn giờ tự động lưu nếu phát hiện thực sự có sự thay đổi nội dung văn bản
     if (!_hasChanges()) return;
 
@@ -363,6 +372,72 @@ class _EditorScreenState extends State<EditorScreen>
     _autoSaveTimer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) _saveNote(isAutosave: true);
     });
+  }
+
+  void _checkMathSuggestion() {
+    if (!_isChecklistMode) {
+      int cursor = _quillController.selection.baseOffset;
+      if (cursor > 0) {
+        String fullText = _quillController.document.toPlainText();
+        if (cursor <= fullText.length) {
+          String textBeforeCursor = fullText.substring(0, cursor);
+          String? result = MathParser.evaluate(textBeforeCursor);
+          if (_mathSuggestionResult != result) {
+            setState(() {
+              _mathSuggestionResult = result;
+              _mathSuggestionOffset = cursor;
+              _mathSuggestionChecklistIndex = null;
+            });
+          }
+        }
+      } else if (_mathSuggestionResult != null) {
+        setState(() => _mathSuggestionResult = null);
+      }
+    } else {
+      // Tìm item checklist đang focus (nếu có thể)
+      bool found = false;
+      for (int i = 0; i < _checklistItems.length; i++) {
+        // Trong trường hợp này ta kiểm tra cuối text của mọi checklist (đơn giản hóa)
+        // Hoặc kiểm tra xem text có kết thúc bằng phép tính không
+        String text = _checklistItems[i].text;
+        String? result = MathParser.evaluate(text);
+        if (result != null) {
+          if (_mathSuggestionResult != result || _mathSuggestionChecklistIndex != i) {
+            setState(() {
+              _mathSuggestionResult = result;
+              _mathSuggestionChecklistIndex = i;
+            });
+          }
+          found = true;
+          break;
+        }
+      }
+      if (!found && _mathSuggestionResult != null) {
+        setState(() => _mathSuggestionResult = null);
+      }
+    }
+  }
+
+  void _insertMathSuggestion() {
+    if (_mathSuggestionResult == null) return;
+    
+    final resultText = ' $_mathSuggestionResult';
+    
+    if (!_isChecklistMode && _mathSuggestionOffset >= 0) {
+      _quillController.document.insert(_mathSuggestionOffset, resultText);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: _mathSuggestionOffset + resultText.length),
+        ChangeSource.local,
+      );
+    } else if (_isChecklistMode && _mathSuggestionChecklistIndex != null) {
+      int index = _mathSuggestionChecklistIndex!;
+      setState(() {
+        _checklistItems[index].text += resultText;
+      });
+    }
+    
+    setState(() => _mathSuggestionResult = null);
+    _onTextChanged();
   }
 
   @override
