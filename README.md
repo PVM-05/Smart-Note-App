@@ -222,6 +222,8 @@ flutter pub get
 
 ## 🧪 Testing Scenarios (Kịch bản Kiểm thử)
 
+> 📘 **Tài liệu kiểm thử chi tiết:** Xem báo cáo kiểm thử đầy đủ tại [Testing_Report.md](file:///d:/Workspace/TBDD/Smart-Note-App/docs/Testing_Report.md) bao gồm Unit Tests, Widget Tests, Security Rules và các kịch bản kiểm thử tích hợp thủ công.
+
 ### 1. App ↔ Firebase Realtime
 * Tạo ghi chú mới có chứa ảnh và định dạng chữ. 
 * Quay lại màn hình chính, kiểm tra Firestore xem dữ liệu (JSON Delta) đã được tải lên chưa.

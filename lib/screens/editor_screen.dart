@@ -1213,8 +1213,6 @@ class _EditorScreenState extends State<EditorScreen>
                 _showReminderSettingsSheet();
               },
             ),
-            _buildAppBarRoundBtn(icon: _status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('ghim'); return; } _togglePin(); }),
-            _buildAppBarRoundBtn(icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined, tooltip: 'Nhắc nhở', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('nhắc nhở'); return; } _showReminderSettingsSheet(); }),
             const SizedBox(width: 8),
           ],
         ),
