@@ -6,10 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../models/note_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/note_provider.dart';
-import '../core/app_strings.dart';
 import '../widgets/note_card_shimmer.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/main_drawer.dart';
@@ -56,7 +56,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Đã khôi phục $count ghi chú',
+            AppLocalizations.translate(context, 'restoredNotesCount').replaceAll('{count}', '$count'),
           ),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -77,20 +77,19 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
         ),
-        title: const Text(
-          'Chuyển vào Thùng rác?',
+        title: Text(
+          AppLocalizations.translate(context, 'moveToTrashTitle'),
         ),
         content: Text(
-          'Bạn có chắc muốn chuyển '
-              '${provider.selectedArchiveNoteIds.length} '
-              'ghi chú vào Thùng rác không?',
+          AppLocalizations.translate(context, 'moveToTrashConfirm')
+              .replaceAll('{count}', '${provider.selectedArchiveNoteIds.length}'),
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx, false);
             },
-            child: const Text('Hủy'),
+            child: Text(AppLocalizations.translate(context, 'cancel')),
           ),
           TextButton(
             onPressed: () {
@@ -99,8 +98,8 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
             style: TextButton.styleFrom(
               foregroundColor: AppColors.error,
             ),
-            child: const Text(
-              'Chuyển vào thùng rác',
+            child: Text(
+              AppLocalizations.translate(context, 'moveToTrash'),
             ),
           ),
         ],
@@ -355,7 +354,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       ),
 
       title: Text(
-        'Lưu trữ',
+        AppLocalizations.translate(context, 'archiveTitle'),
 
         style: GoogleFonts.roboto(
           color: AppColors.textPrimary(context),
@@ -374,7 +373,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
             color: AppColors.textPrimary(context),
           ),
 
-          tooltip: 'Đổi bố cục',
+          tooltip: AppLocalizations.translate(context, 'changeLayout'),
 
           onPressed: () {
             setState(() {
@@ -408,7 +407,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       ),
 
       title: Text(
-        '${provider.selectedArchiveNoteIds.length} đã chọn',
+        AppLocalizations.translate(context, 'selectedCount').replaceAll('{count}', '${provider.selectedArchiveNoteIds.length}'),
 
         style: GoogleFonts.roboto(
           color: AppColors.textPrimary(context),
@@ -424,7 +423,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
             color: AppColors.primary,
           ),
 
-          tooltip: 'Bỏ lưu trữ',
+          tooltip: AppLocalizations.translate(context, 'unarchive'),
 
           onPressed: () {
             _confirmUnarchiveSelected(
@@ -439,7 +438,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
             color: Colors.red,
           ),
 
-          tooltip: 'Chuyển vào thùng rác',
+          tooltip: AppLocalizations.translate(context, 'moveToTrash'),
 
           onPressed: () {
             _confirmDeleteSelected(
@@ -494,12 +493,12 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
                   color: AppColors.primary,
                 ),
 
-                title: const Text(
-                  'Bỏ lưu trữ',
+                title: Text(
+                  AppLocalizations.translate(context, 'unarchive'),
                 ),
 
-                subtitle: const Text(
-                  'Khôi phục về Trang chủ',
+                subtitle: Text(
+                  AppLocalizations.translate(context, 'restoreToHome'),
                 ),
 
                 onTap: () {
@@ -511,9 +510,9 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
 
                   ScaffoldMessenger.of(context)
                       .showSnackBar(
-                    const SnackBar(
+                    SnackBar(
                       content: Text(
-                        'Đã bỏ lưu trữ ghi chú',
+                        AppLocalizations.translate(context, 'unarchivedNote'),
                       ),
 
                       behavior:
@@ -529,10 +528,10 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
                   color: AppColors.error,
                 ),
 
-                title: const Text(
-                  'Chuyển vào thùng rác',
+                title: Text(
+                  AppLocalizations.translate(context, 'moveToTrash'),
 
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.error,
                   ),
                 ),
@@ -555,10 +554,10 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
   }
 
   Widget _buildEmptyArchive() {
-    return const EmptyStateWidget(
+    return EmptyStateWidget(
       icon: Icons.archive_outlined,
-      title: AppStrings.emptyArchiveTitle,
-      subtitle: AppStrings.emptyArchiveSubtitle,
+      title: AppLocalizations.translate(context, 'emptyArchiveTitle'),
+      subtitle: AppLocalizations.translate(context, 'emptyArchiveSubtitle'),
     );
   }
 }

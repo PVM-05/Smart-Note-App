@@ -25,16 +25,23 @@
 * **Tối ưu băng thông:** Chỉ đồng bộ những bản ghi thực sự có sự thay đổi (Dựa trên cờ `is_synced`).
 * **Đồng bộ tự động:** Hỗ trợ tính năng tự động tải (Pull) ghi chú mới nhất từ đám mây xuống.
 
-### 3. Multimedia Rich Text Editor (Mới)
+### 3. Multimedia Rich Text Editor
 * **flutter_quill WYSIWYG:** Trình soạn thảo văn bản phong phú, cho phép In đậm, In nghiêng, Đổi màu chữ/nền, Heading (H1, H2...), Danh sách đạn, Checkbox công việc.
 * **Chuyển đổi dữ liệu tự động:** Khả năng tương thích ngược siêu việt, tự động chuyển đổi các text thuần (plain text) cũ sang định dạng siêu nhẹ `Delta JSON`.
 * **Đính kèm Đa phương tiện:** Hỗ trợ đính kèm hình ảnh và bản Ghi âm (`.m4a`) chất lượng cao. Audio có thể phát lại trực tiếp ngay trong ứng dụng với thanh thời gian thực.
 
 ### 4. Giao diện Google Keep-Style
-* **Staggered Grid View:** Bố cục hiển thị lưới sinh động, thông minh.
+* **Staggered Grid View:** Bố cục hiển thị lưới sinh động, thông minh (Masonry Grid layout).
 * **Ghim (Pin) & Lưu trữ (Archive):** Sắp xếp ghi chú quan trọng lên đầu, cất gọn những ghi chú cũ.
-* **Bộ chọn nhãn (Labels):** Nhóm các ghi chú dễ dàng.
-* **Tìm kiếm toàn văn bản:** Tích hợp bộ lọc và tìm kiếm theo thời gian thực để truy xuất thông tin trong tíc tắc.
+* **Bộ chọn nhãn (Labels):** Nhóm và quản lý các ghi chú bằng tags dễ dàng.
+* **Tìm kiếm toàn văn bản:** Tìm kiếm nhanh theo thời gian thực sử dụng FTS5 và lọc theo các tiêu chí (ảnh, ghi âm, URL, nhãn).
+
+### 5. Trợ lý ảo Gemini AI & Các tính năng nâng cao
+* **Tích hợp Gemini AI:** Tự động đề xuất tiêu đề, tạo bản tóm tắt ngắn, gợi ý tag thông minh và chuyển đổi văn bản thô sang Checklist.
+* **Bảo mật Sinh trắc học:** Bảo mật từng ghi chú bằng Vân tay / FaceID (`local_auth`), tự động khóa lại khi thoát app hoặc chạy ngầm.
+* **Hẹn giờ nhắc nhở:** Lên lịch thông báo cục bộ (`flutter_local_notifications`) chính xác theo múi giờ, hoạt động ổn định kể cả khi offline.
+* **Bảng vẽ tự do (Drawing Board):** Canvas vẽ hình học (shapes), template giấy (kẻ ngang, ô ly), tùy chọn nét vẽ và hỗ trợ undo/redo.
+* **Xuất PDF & Đa ngôn ngữ:** Xuất ghi chú kèm hình ảnh ra file PDF sắc nét để chia sẻ/in ấn. Hỗ trợ thay đổi ngôn ngữ Anh / Việt tức thời.
 
 ---
 
@@ -48,12 +55,18 @@ flowchart TB
         HS[HomeScreen]
         ES[EditorScreen]
         LS[LoginScreen]
+        DS[DrawingScreen]
+        AS[ArchiveScreen]
+        TS[TrashScreen]
+        PS[ProfileScreen]
     end
 
     subgraph STATE["State Layer (Providers)"]
         NP[NoteProvider]
         AP[AuthProvider]
         SP[SyncProvider]
+        TP[ThemeProvider]
+        LP[LanguageProvider]
     end
 
     subgraph REPO["Repository Layer (Interfaces & Impl)"]
@@ -63,13 +76,19 @@ flowchart TB
 
     subgraph SERVICE["Service Layer (APIs & Local)"]
         LNS[LocalNoteService]
-        FTS[FirestoreService]
+        FNS[FirestoreNoteService]
         PDS[PendingDeleteService]
+        CLS[CloudinaryService]
+        BMS[BiometricService]
+        RMS[ReminderService]
+        PES[PdfExportService]
+        GAS[GeminiAiService]
     end
 
     subgraph STORAGE["Storage (Data Sources)"]
         SQ[(SQLite)]
         FB[(Firestore)]
+        CD[(Cloudinary)]
     end
 
     UI --> STATE
@@ -110,35 +129,27 @@ erDiagram
         string email
         string displayName
         string photoUrl
+        string bio
     }
 
     NOTES {
         string id PK
         string userId FK
         string title
-        string content "Delta JSON Format"
-        string status "active / pinned / archived"
-        string color
-        int isSynced
+        string content "Delta JSON / Checklist JSON Format"
+        string status "normal / pinned / archived / trash"
+        int isSynced "0 or 1"
+        int isLocked "0 or 1"
+        string noteColor "HEX Color"
+        string tags "JSON string list"
+        string imageUrls "JSON string list"
+        string audioUrls "JSON string list"
         int createdAt
         int updatedAt
-    }
-
-    TAGS {
-        string noteId PK,FK
-        string tag
-    }
-
-    MEDIA_ITEMS {
-        string id PK
-        string noteId FK
-        string type "image / audio"
-        string url
+        int reminder "Timestamp"
     }
 
     USERS ||--o{ NOTES : owns
-    NOTES ||--o{ TAGS : has
-    NOTES ||--o{ MEDIA_ITEMS : contains
 ```
 
 ---
@@ -147,12 +158,14 @@ erDiagram
 
 ```bash
 lib/
-├── models/         # Entity models (Note, User, SyncStatus)
-├── providers/      # State Management (NoteProvider, SyncProvider, AuthProvider)
+├── core/           # App configuration (AppColors, AppStrings, AppTheme, Localization)
+├── features/       # Feature modules (Editor sheets/widgets, Home widgets, Profile dialogs)
+├── models/         # Entity models (Note, User, ChecklistItem, SyncStatus)
+├── providers/      # State Management (NoteProvider, SyncProvider, AuthProvider, Theme, Language)
 ├── repositories/   # Abstract repositories & Implementations
-├── screens/        # UI Screens (Home, Editor, Sync, Login)
-├── services/       # Local database handlers, Firebase handlers
-├── widgets/        # Reusable UI components (NoteCard, Toolbar)
+├── screens/        # UI Screens (Home, Editor, Drawing, Settings, Profile, Trash, Archive, Sync)
+├── services/       # Local SQLite handlers, Firestore Sync, Cloudinary, Biometrics, Notifications, Gemini AI, PDF Export
+├── widgets/        # Reusable shared UI components (NoteCard, Drawer, Shimmer)
 └── main.dart       # App entry point
 ```
 
@@ -170,6 +183,11 @@ lib/
 | **Provider**     | App State Management        |
 | **flutter_quill**| Rich Text Editor (WYSIWYG)  |
 | **just_audio / record** | Voice Note Playback & Recording |
+| **local_auth**   | Biometric Authentication (FaceID/Vân tay) |
+| **flutter_local_notifications** | Timezone-aware Offline Reminders |
+| **firebase_ai**  | Gemini AI Note Assistant |
+| **Cloudinary (HTTP)** | Cloud Image & Audio Management |
+| **pdf / printing**| Export notes to clean PDF files |
 | **flutter_dotenv**| Environment Variables Security |
 
 ---
@@ -204,6 +222,8 @@ flutter pub get
 
 ## 🧪 Testing Scenarios (Kịch bản Kiểm thử)
 
+> 📘 **Tài liệu kiểm thử chi tiết:** Xem báo cáo kiểm thử đầy đủ tại [Testing_Report.md](file:///d:/Workspace/TBDD/Smart-Note-App/docs/Testing_Report.md) bao gồm Unit Tests, Widget Tests, Security Rules và các kịch bản kiểm thử tích hợp thủ công.
+
 ### 1. App ↔ Firebase Realtime
 * Tạo ghi chú mới có chứa ảnh và định dạng chữ. 
 * Quay lại màn hình chính, kiểm tra Firestore xem dữ liệu (JSON Delta) đã được tải lên chưa.
@@ -233,11 +253,11 @@ flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/sym
 
 ## 🔮 Future Improvements (Dự định Tương lai)
 
-* AI Note Summarization (Tóm tắt ghi chú bằng AI)
-* OCR Text Recognition (Trích xuất chữ từ hình ảnh)
-* Real-time Collaboration (Cùng sửa ghi chú thời gian thực)
-* Biometric Security (Khóa ghi chú bằng vân tay/FaceID với `local_auth`)
-* Web/Desktop Native Support
+* **OCR Text Recognition:** Trích xuất chữ từ hình ảnh bằng AI.
+* **Real-time Collaboration:** Cùng chỉnh sửa ghi chú thời gian thực nhiều người dùng.
+* **Voice-to-Text Transcription:** Chuyển đổi trực tiếp các file ghi âm giọng nói thành văn bản.
+* **Geotagging & Location Notes:** Gắn thẻ địa lý và hiển thị bản đồ trong ghi chú.
+* **Web/Desktop Optimization:** Hoàn thiện tối ưu hóa hiệu năng và tương thích giao diện gốc trên Web và Desktop.
 
 ---
 

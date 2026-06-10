@@ -11,8 +11,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:flutter_quill/flutter_quill.dart' hide Text;
+import 'package:flutter_quill/flutter_quill.dart';
+import '../utils/math_parser.dart';
 import '../models/note_model.dart';
 import '../features/editor/widgets/editor_upload_banner.dart';
 import '../features/editor/widgets/editor_image_section.dart';
@@ -30,11 +30,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'drawing_screen.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
+import '../core/app_localizations.dart';
 import '../core/design/app_colors.dart';
 import 'package:app_settings/app_settings.dart';
 import '../services/gemini_ai_service.dart';
 import '../services/reminder_service.dart';
-import '../utils/math_parser.dart'; // [MERGE từ Bản 1] Tích hợp bộ phân tích toán học
+import '../services/pdf_export_service.dart';
 
 part 'editor_screen_ai.dart';
 
@@ -140,22 +141,22 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<bool?> _showUploadExitConfirmation() async {
+    final l = AppLocalizations.translate;
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Đang tải lên tệp tin'),
-        content: const Text(
-            'Có tệp tin đang được tải lên. Nếu bạn thoát bây giờ, quá trình tải lên sẽ bị hủy và tệp tin sẽ không được lưu. Bạn có chắc chắn muốn thoát?'),
+        title: Text(l(context, 'uploadingFilesTitle')),
+        content: Text(l(context, 'uploadingFilesConfirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Ở lại'),
+            child: Text(l(context, 'stay')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Thoát'),
+            child: Text(l(context, 'exit')),
           ),
         ],
       ),
@@ -449,7 +450,11 @@ class _EditorScreenState extends State<EditorScreen>
       SnackBar(
         content: Text(message ?? AppStrings.biometricAuthFailed),
         behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(label: 'Thử lại', textColor: Colors.white, onPressed: _authenticateNote),
+        action: SnackBarAction(
+          label: AppLocalizations.translate(context, 'biometricRetry'),
+          textColor: Colors.white,
+          onPressed: _authenticateNote,
+        ),
         backgroundColor: AppColors.error,
       ),
     );
@@ -457,20 +462,24 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _showEnrollBiometricDialog() {
     if (!context.mounted) return;
+    final l = AppLocalizations.translate;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Chưa thiết lập sinh trắc học'),
-        content: const Text('Bạn cần thêm vân tay hoặc khuôn mặt trong cài đặt điện thoại để sử dụng tính năng khóa ghi chú.'),
+        title: Text(l(context, 'notSetBiometricTitle')),
+        content: Text(l(context, 'notSetBiometricDesc')),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Để sau')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(l(context, 'notSetBiometricBtnLater')),
+          ),
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               AppSettings.openAppSettings(type: AppSettingsType.security);
             },
-            child: const Text('Mở cài đặt'),
+            child: Text(l(context, 'notSetBiometricBtnOpen')),
           ),
         ],
       ),
@@ -564,7 +573,8 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên hình ảnh')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.translate(context, 'uploadImageError'))));
       }
     }
   }
@@ -584,7 +594,8 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi tải lên bản vẽ')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(AppLocalizations.translate(context, 'uploadDrawingError'))));
       }
     }
   }
@@ -623,7 +634,11 @@ class _EditorScreenState extends State<EditorScreen>
         _deletingUrls.remove(oldUrl);
         if (url != null) {
           final index = _imageUrls.indexOf(oldUrl);
-          if (index != -1) _imageUrls[index] = url; else _imageUrls.add(url);
+          if (index != -1) {
+            _imageUrls[index] = url;
+          } else {
+            _imageUrls.add(url);
+          }
         }
       });
       if (url != null) await _saveNote(isAutosave: true);
@@ -634,11 +649,13 @@ class _EditorScreenState extends State<EditorScreen>
         _uploadingFiles.remove(file);
         _deletingUrls.remove(oldUrl);
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lỗi cập nhật bản vẽ')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(AppLocalizations.translate(context, 'updateDrawingError'))));
     }
   }
 
   void _showImageSourceSheet() {
+    final l = AppLocalizations.translate;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -650,14 +667,24 @@ class _EditorScreenState extends State<EditorScreen>
             Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             ListTile(
-              leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.photo_library_outlined, color: _primary)),
-              title: const Text('Chọn từ thư viện'),
-              onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
+              leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.photo_library_outlined, color: _primary)),
+              title: Text(l(context, 'pickFromGallery')),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
             ),
             ListTile(
-              leading: const CircleAvatar(backgroundColor: Color(0xFFEFF6FF), child: Icon(Icons.camera_alt_outlined, color: _primary)),
-              title: const Text('Chụp ảnh'),
-              onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
+              leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFEFF6FF),
+                  child: Icon(Icons.camera_alt_outlined, color: _primary)),
+              title: Text(l(context, 'takePhoto')),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -694,7 +721,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         _setUploadState(
           isUploading: false,
-          message: 'Ghi âm thất bại: Không lấy được file audio.',
+          message: AppLocalizations.translate(context, 'recordFailed'),
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
           statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -706,9 +733,13 @@ class _EditorScreenState extends State<EditorScreen>
 
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    final msgUploading = AppLocalizations.translate(context, 'uploadingAudio');
+    final msgSuccess = AppLocalizations.translate(context, 'uploadAudioSuccess');
+    final msgFail = AppLocalizations.translate(context, 'uploadAudioFail');
+    final msgError = AppLocalizations.translate(context, 'uploadAudioError');
     _setUploadState(
       isUploading: true,
-      message: 'Đang tải lên âm thanh...',
+      message: msgUploading,
       bannerColor: const Color(0xFFEFF6FF),
       bannerTextColor: const Color(0xFF1E40AF),
       statusIcon: const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E75B6))),
@@ -722,7 +753,7 @@ class _EditorScreenState extends State<EditorScreen>
         await _saveNote(isAutosave: true);
         _setUploadState(
           isUploading: false,
-          message: 'Tải lên âm thanh thành công!',
+          message: msgSuccess,
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
           statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
@@ -731,7 +762,7 @@ class _EditorScreenState extends State<EditorScreen>
       } else {
         _setUploadState(
           isUploading: false,
-          message: 'Tải lên âm thanh thất bại.',
+          message: msgFail,
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
           statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -742,7 +773,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       _setUploadState(
         isUploading: false,
-        message: 'Lỗi: Tải lên âm thanh thất bại.',
+        message: msgError,
         bannerColor: const Color(0xFFFEF2F2),
         bannerTextColor: const Color(0xFF991B1B),
         statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -769,17 +800,20 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _delete() async {
+    final l = AppLocalizations.translate;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa ghi chú?'),
-        content: const Text('Ghi chú sẽ được chuyển vào Thùng rác và tự động xóa sau 7 ngày.'),
+        title: Text(l(context, 'deleteNoteTitle')),
+        content: Text(l(context, 'deleteNoteConfirm')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l(context, 'cancel'))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: Text(l(context, 'delete')),
           ),
         ],
       ),
@@ -815,7 +849,15 @@ class _EditorScreenState extends State<EditorScreen>
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_status == 'archived' ? 'Đã chuyển vào kho lưu trữ' : 'Đã hủy lưu trữ ghi chú'), duration: const Duration(seconds: 2)));
+      final l = AppLocalizations.translate;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_status == 'archived'
+              ? l(context, 'archivedNote')
+              : l(context, 'unarchivedNoteMsg')),
+          duration: const Duration(seconds: 2),
+        ),
+      );
       Navigator.of(context).pop();
     }
   }
@@ -834,10 +876,15 @@ class _EditorScreenState extends State<EditorScreen>
     final tomorrow = today.add(const Duration(days: 1));
     final dtDay = DateTime(dt.year, dt.month, dt.day);
 
+    final l = AppLocalizations.translate;
     String timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    if (dtDay == today) return 'Hôm nay, $timeStr';
-    if (dtDay == tomorrow) return 'Ngày mai, $timeStr';
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
+    if (dtDay == today) {
+      return l(context, 'reminderToday').replaceAll('{time}', timeStr);
+    } else if (dtDay == tomorrow) {
+      return l(context, 'reminderTomorrow').replaceAll('{time}', timeStr);
+    } else {
+      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} $timeStr';
+    }
   }
 
   // [Hạ tầng Bản 2] Cấu hình giao diện lựa chọn thời gian nhắc nhở nhanh
@@ -860,26 +907,73 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               Container(width: 42, height: 4, decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
-              Text('Nhắc nhở', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w500)),
+              Text(
+                AppLocalizations.translate(context, 'reminderSheetTitle'),
+                style: GoogleFonts.outfit(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
               const SizedBox(height: 12),
               if (_reminder != null) ...[
                 ListTile(
-                  leading: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: Icon(Icons.alarm, color: Theme.of(context).colorScheme.primary)),
-                  title: Text('Thời gian đã hẹn', style: GoogleFonts.outfit(fontSize: 15)),
-                  subtitle: Text(_formatReminderTime(_reminder!), style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600)),
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(Icons.alarm, color: Theme.of(context).colorScheme.primary),
+                  ),
+                  title: Text(
+                    AppLocalizations.translate(context, 'scheduledTime'),
+                    style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.w400),
+                  ),
+                  subtitle: Text(
+                    _formatReminderTime(_reminder!),
+                    style: GoogleFonts.outfit(fontSize: 14, color: Colors.grey.shade600),
+                  ),
                   trailing: TextButton.icon(
                     onPressed: () { Navigator.pop(context); _cancelReminder(); },
                     icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                    label: Text('Hủy', style: GoogleFonts.outfit(color: Colors.red)),
+                    label: Text(
+                      AppLocalizations.translate(context, 'cancel'),
+                      style: GoogleFonts.outfit(color: Colors.red),
+                    ),
                   ),
                 ),
                 const Divider(),
               ],
               if (now.isBefore(today18))
-                ListTile(leading: const Icon(Icons.wb_twighlight), title: Text('Hôm nay lúc 18:00', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _setReminder(today18); }),
-              ListTile(leading: const Icon(Icons.wb_sunny_outlined), title: Text('Ngày mai lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _setReminder(tomorrow8); }),
-              ListTile(leading: const Icon(Icons.next_week_outlined), title: Text('Thứ Hai tuần sau lúc 08:00', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _setReminder(nextMonday8); }),
-              ListTile(leading: const Icon(Icons.date_range_outlined), title: Text('Chọn ngày & giờ...', style: GoogleFonts.outfit(fontSize: 15)), onTap: () { Navigator.pop(context); _selectCustomDateTime(); }),
+                ListTile(
+                  leading: const Icon(Icons.wb_twighlight),
+                  title: Text(AppLocalizations.translate(context, 'todayAt18'), style: GoogleFonts.outfit(fontSize: 15)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _setReminder(today18);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.wb_sunny_outlined),
+                title: Text(AppLocalizations.translate(context, 'tomorrowAt8'), style: GoogleFonts.outfit(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setReminder(tomorrow8);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.next_week_outlined),
+                title: Text(AppLocalizations.translate(context, 'nextMondayAt8'), style: GoogleFonts.outfit(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setReminder(nextMonday8);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.date_range_outlined),
+                title: Text(AppLocalizations.translate(context, 'pickDateTime'), style: GoogleFonts.outfit(fontSize: 15)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _selectCustomDateTime();
+                },
+              ),
             ],
           ),
         );
@@ -888,18 +982,41 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _showNotificationPermissionDialog() {
+    final l = AppLocalizations.translate;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(children: [Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28), const SizedBox(width: 12), const Text('Quyền thông báo bị tắt')]),
-        content: const Text('Để không bỏ lỡ các nhắc nhở quan trọng của ghi chú, bạn cần cấp quyền thông báo trong cài đặt điện thoại.'),
+        title: Row(
+          children: [
+            Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28),
+            const SizedBox(width: 12),
+            Text(l(context, 'notifPermissionTitle')),
+          ],
+        ),
+        content: Text(l(context, 'notifPermissionDesc')),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('Để sau', style: GoogleFonts.outfit(color: Colors.grey.shade600))),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              l(context, 'notifPermissionLater'),
+              style: GoogleFonts.outfit(color: Colors.grey.shade600),
+            ),
+          ),
           ElevatedButton(
-            onPressed: () { Navigator.of(ctx).pop(); AppSettings.openAppSettings(type: AppSettingsType.notification); },
-            style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
-            child: const Text('Mở cài đặt'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              AppSettings.openAppSettings(type: AppSettingsType.notification);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              l(context, 'notifPermissionOpen'),
+              style: GoogleFonts.outfit(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
@@ -911,13 +1028,29 @@ class _EditorScreenState extends State<EditorScreen>
     if (!granted) { if (mounted) _showNotificationPermissionDialog(); return; }
     setState(() => _reminder = dt);
     await _saveNote(isAutosave: false);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⏰ Đã hẹn nhắc nhở lúc ${_formatReminderTime(dt)}'), behavior: SnackBarBehavior.floating));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.translate(context, 'reminderSet').replaceAll('{time}', _formatReminderTime(dt))),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _cancelReminder() async {
     setState(() => _reminder = null);
     await _saveNote(isAutosave: false);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🚫 Đã hủy nhắc nhở ghi chú'), behavior: SnackBarBehavior.floating));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.translate(context, 'reminderCancelled')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _selectCustomDateTime() async {
@@ -935,7 +1068,14 @@ class _EditorScreenState extends State<EditorScreen>
 
     final selectedDateTime = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, pickedTime.hour, pickedTime.minute);
     if (selectedDateTime.isBefore(DateTime.now())) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Thời gian nhắc nhở không được ở quá khứ!'), behavior: SnackBarBehavior.floating));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.translate(context, 'reminderPastError')),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
       return;
     }
     _setReminder(selectedDateTime);
@@ -991,7 +1131,7 @@ class _EditorScreenState extends State<EditorScreen>
           actions: [
             if (_isUploading) const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _primary, strokeWidth: 2)))),
             Tooltip(
-              message: 'AI Trợ lý',
+              message: AppLocalizations.translate(context, 'aiTooltip'),
               child: GestureDetector(
                 onTap: _isAiLoading ? null : _showAiOptions,
                 child: Container(
@@ -1008,22 +1148,75 @@ class _EditorScreenState extends State<EditorScreen>
             ),
             _buildAppBarRoundBtn(
               icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
-              tooltip: _isLocked ? 'Mở khóa ghi chú' : 'Khóa ghi chú',
+              tooltip: _isLocked ? AppLocalizations.translate(context, 'unlockNoteTooltip') : AppLocalizations.translate(context, 'lockNoteTooltip'),
               onTap: () async {
-                if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('khóa'); return; }
+                if (!_hasBeenSavedInDb) {
+                  _showRequiresSaveMessage(AppLocalizations.translate(context, 'lockNoteTooltip').toLowerCase());
+                  return;
+                }
                 final messenger = ScaffoldMessenger.of(context);
-                final provider = Provider.of<NoteProvider>(context, listen: false);
+                final provider =
+                    Provider.of<NoteProvider>(context, listen: false);
+                final msgLocked = AppLocalizations.translate(context, 'lockedNote');
+                final msgUnlocked = AppLocalizations.translate(context, 'unlockedNote');
                 try {
                   final success = await provider.toggleLock(_noteId);
-                  if (success) { setState(() { _isLocked = !_isLocked; _isUnlocked = !_isLocked; }); messenger.showSnackBar(SnackBar(content: Text(_isLocked ? '🔒 Đã khóa ghi chú' : '🔓 Đã mở khóa ghi chú'), behavior: SnackBarBehavior.floating)); }
+                  if (success) {
+                    setState(() {
+                      _isLocked = !_isLocked;
+                      _isUnlocked = !_isLocked;
+                    });
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(_isLocked ? msgLocked : msgUnlocked),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    );
+                  }
                 } catch (e) {
                   final msg = e.toString().replaceAll('Exception: ', '');
-                  if (msg == AppStrings.biometricNotEnrolled) _showEnrollBiometricDialog(); else messenger.showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
+                  if (msg == AppStrings.biometricNotEnrolled) {
+                    _showEnrollBiometricDialog();
+                  } else {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(msg),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
                 }
               },
             ),
-            _buildAppBarRoundBtn(icon: _status == 'pinned' ? Icons.push_pin : Icons.push_pin_outlined, tooltip: _status == 'pinned' ? 'Bỏ ghim' : 'Ghim', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('ghim'); return; } _togglePin(); }),
-            _buildAppBarRoundBtn(icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined, tooltip: 'Nhắc nhở', onTap: () { if (!_hasBeenSavedInDb) { _showRequiresSaveMessage('nhắc nhở'); return; } _showReminderSettingsSheet(); }),
+            _buildAppBarRoundBtn(
+              icon: _status == 'pinned'
+                  ? Icons.push_pin
+                  : Icons.push_pin_outlined,
+              tooltip: _status == 'pinned' ? AppLocalizations.translate(context, 'unpinTooltip') : AppLocalizations.translate(context, 'pinTooltip'),
+              onTap: () {
+                if (!_hasBeenSavedInDb) {
+                  _showRequiresSaveMessage(AppLocalizations.translate(context, 'pinTooltip').toLowerCase());
+                  return;
+                }
+                _togglePin();
+              },
+            ),
+            _buildAppBarRoundBtn(
+              icon: _reminder != null ? Icons.notifications_active : Icons.notification_add_outlined,
+              tooltip: AppLocalizations.translate(context, 'reminderTooltip'),
+              onTap: () {
+                if (!_hasBeenSavedInDb) {
+                  _showRequiresSaveMessage(AppLocalizations.translate(context, 'reminderTooltip').toLowerCase());
+                  return;
+                }
+                _showReminderSettingsSheet();
+              },
+            ),
             const SizedBox(width: 8),
           ],
         ),
@@ -1060,8 +1253,28 @@ class _EditorScreenState extends State<EditorScreen>
                           child: TextField(
                             controller: _titleController,
                             focusNode: _titleFocusNode,
-                            style: GoogleFonts.outfit(fontSize: 27, fontWeight: FontWeight.w400, color: isCustomColor ? (onDarkNoteBg ? Colors.white : const Color(0xFF0F172A)) : AppColors.textSecondary(context)),
-                            decoration: InputDecoration(hintText: 'Tiêu đề', border: InputBorder.none, hintStyle: TextStyle(color: isCustomColor ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)) : AppColors.placeholder(context))),
+                            autofocus: false,
+                            style: GoogleFonts.outfit(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w400,
+                              color: isCustomColor
+                                  ? (onDarkNoteBg
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A))
+                                  : AppColors.textSecondary(context),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: AppLocalizations.translate(context, 'titleHint'),
+                              border: InputBorder.none,
+                              hintStyle: TextStyle(
+                                color: isCustomColor
+                                    ? (onDarkNoteBg
+                                        ? const Color(0xFFCBD5E1)
+                                        : const Color(0xFF64748B))
+                                    : AppColors.placeholder(context),
+                              ),
+                            ),
+                            textCapitalization: TextCapitalization.sentences,
                             maxLines: null,
                           ),
                         ),
@@ -1085,7 +1298,16 @@ class _EditorScreenState extends State<EditorScreen>
                                       children: [
                                         Icon(Icons.alarm, size: 16, color: isCustomColor ? (onDarkNoteBg ? Colors.white70 : Colors.black87) : Theme.of(context).colorScheme.primary),
                                         const SizedBox(width: 6),
-                                        Text('Nhắc nhở: ${_formatReminderTime(_reminder!)}', style: GoogleFonts.outfit(fontSize: 13, color: isCustomColor ? (onDarkNoteBg ? Colors.white70 : Colors.black87) : Theme.of(context).colorScheme.onPrimaryContainer)),
+                                        Text(
+                                          AppLocalizations.translate(context, 'reminderPrefix').replaceAll('{time}', _formatReminderTime(_reminder!)),
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w400,
+                                            color: isCustomColor
+                                                ? (onDarkNoteBg ? Colors.white70 : Colors.black87)
+                                                : Theme.of(context).colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
                                         const SizedBox(width: 6),
                                         GestureDetector(onTap: _cancelReminder, child: Icon(Icons.close, size: 14, color: isCustomColor ? (onDarkNoteBg ? Colors.white60 : Colors.black54) : Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.7))),
                                       ],
@@ -1095,26 +1317,93 @@ class _EditorScreenState extends State<EditorScreen>
                               ),
                             ),
                           ),
-                        const SizedBox(height: 8),
-                        if (_isChecklistMode) _buildChecklistEditor() else GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _editorFocusNode.requestFocus(),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                QuillEditor.basic(controller: _quillController, focusNode: _editorFocusNode, config: QuillEditorConfig(scrollable: false, expands: false, placeholder: 'Ghi chú', customStyles: quillCustomStyles)),
-                                if (_audioUrls.isNotEmpty || _isRecording) ...[
-                                  const SizedBox(height: 16),
-                                  EditorAudioSection(audioUrls: _audioUrls, isRecording: _isRecording, recordDuration: _recordDuration, playingUrl: _playingUrl, isPlaying: _isPlaying, playPosition: _playPosition, playTotal: _playTotal, noteColor: _noteColor, onTogglePlay: _togglePlay, onSeek: (val) => _audioPlayer.seek(Duration(milliseconds: val.toInt())), onDeleteAudio: _deleteAudio, onStopRecording: _stopRecordingAndUpload),
+                        if (_isChecklistMode)
+                          _buildChecklistEditor()
+                        else
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              _editorFocusNode.requestFocus();
+                            },
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  QuillEditor.basic(
+                                    controller: _quillController,
+                                    focusNode: _editorFocusNode,
+                                    config: QuillEditorConfig(
+                                      scrollable: false,
+                                      expands: false,
+                                      autoFocus: false,
+                                      padding: EdgeInsets.zero,
+                                      placeholder: AppLocalizations.translate(context, 'notePlaceholder'),
+                                      customStyles: quillCustomStyles,
+                                    ),
+                                  ),
+                                  if (_audioUrls.isNotEmpty ||
+                                      _isRecording) ...[
+                                    const SizedBox(height: 16),
+                                    EditorAudioSection(
+                                      audioUrls: _audioUrls,
+                                      isRecording: _isRecording,
+                                      recordDuration: _recordDuration,
+                                      playingUrl: _playingUrl,
+                                      isPlaying: _isPlaying,
+                                      playPosition: _playPosition,
+                                      playTotal: _playTotal,
+                                      noteColor: _noteColor,
+                                      onTogglePlay: _togglePlay,
+                                      onSeek: (val) => _audioPlayer.seek(
+                                          Duration(milliseconds: val.toInt())),
+                                      onDeleteAudio: _deleteAudio,
+                                      onStopRecording: _stopRecordingAndUpload,
+                                    ),
+                                  ],
+                                  if (_tags.isNotEmpty) ...[
+                                    const SizedBox(height: 24),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      children: _tags
+                                          .map((tag) => Chip(
+                                                label: Text(
+                                                  tag,
+                                                  style: GoogleFonts.outfit(
+                                                    fontSize: 12,
+                                                    color: _noteColor != null
+                                                        ? const Color(
+                                                            0xFF1E293B)
+                                                        : AppColors
+                                                            .textSecondary(
+                                                                context),
+                                                  ),
+                                                ),
+                                                backgroundColor: _noteColor !=
+                                                        null
+                                                    ? Colors.black
+                                                        .withValues(alpha: 0.05)
+                                                    : AppColors.inputBackground(
+                                                        context),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8)),
+                                                side: BorderSide(
+                                                    color: _noteColor != null
+                                                        ? Colors.black
+                                                            .withValues(
+                                                                alpha: 0.08)
+                                                        : AppColors.divider(
+                                                            context)),
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 20),
                                 ],
-                                if (_tags.isNotEmpty) ...[
-                                  const SizedBox(height: 24),
-                                  Wrap(spacing: 8, runSpacing: 6, children: _tags.map((tag) => Chip(label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: _noteColor != null ? const Color(0xFF1E293B) : AppColors.textSecondary(context))), backgroundColor: _noteColor != null ? Colors.black.withValues(alpha: 0.05) : AppColors.inputBackground(context), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), side: BorderSide(color: _noteColor != null ? Colors.black.withValues(alpha: 0.08) : AppColors.divider(context)))).toList()),
-                                ],
-                                const SizedBox(height: 20),
-                              ],
                             ),
                           ),
                         ),
@@ -1139,11 +1428,42 @@ class _EditorScreenState extends State<EditorScreen>
                       children: [
                         GestureDetector(onTap: _authenticateNote, child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.lock_outline, size: 64, color: AppColors.primary))),
                         const SizedBox(height: 24),
-                        Text('Ghi chú đã được khóa', style: GoogleFonts.spaceGrotesk(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context))),
+                        Text(
+                          AppLocalizations.translate(context, 'noteLockedTitle'),
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary(context),
+                          ),
+                        ),
                         const SizedBox(height: 8),
-                        Text('Chạm để mở khóa bằng sinh trắc học', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textMetadata(context))),
+                        Text(
+                          AppLocalizations.translate(context, 'noteLockedSubtitle'),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: AppColors.textMetadata(context),
+                          ),
+                        ),
                         const SizedBox(height: 24),
-                        ElevatedButton.icon(onPressed: _authenticateNote, icon: const Icon(Icons.fingerprint, color: Colors.white), label: Text('Xác thực ngay', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+                        ElevatedButton.icon(
+                          onPressed: _authenticateNote,
+                          icon: const Icon(Icons.fingerprint,
+                              color: Colors.white),
+                          label: Text(
+                            AppLocalizations.translate(context, 'authenticateNow'),
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1156,6 +1476,9 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _deleteAudio(String url, int index) async {
+    final msgDeleting = AppLocalizations.translate(context, 'deletingAudio');
+    final msgSuccess = AppLocalizations.translate(context, 'deleteAudioSuccess');
+    final msgFail = AppLocalizations.translate(context, 'deleteAudioFail');
     if (_playingUrl == url) {
       await _audioPlayer.stop();
       setState(() {
@@ -1165,7 +1488,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
     _setUploadState(
       isUploading: true,
-      message: 'Đang xóa âm thanh khỏi đám mây...',
+      message: msgDeleting,
       bannerColor: const Color(0xFFEFF6FF),
       bannerTextColor: const Color(0xFF1E40AF),
       statusIcon: const SizedBox(
@@ -1183,7 +1506,7 @@ class _EditorScreenState extends State<EditorScreen>
         await _saveNote(isAutosave: true);
         _setUploadState(
           isUploading: false,
-          message: 'Đã xóa âm thanh thành công.',
+          message: msgSuccess,
           bannerColor: const Color(0xFFECFDF5),
           bannerTextColor: const Color(0xFF065F46),
           statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
@@ -1194,7 +1517,7 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         _setUploadState(
           isUploading: false,
-          message: 'Xóa âm thanh thất bại.',
+          message: msgFail,
           bannerColor: const Color(0xFFFEF2F2),
           bannerTextColor: const Color(0xFF991B1B),
           statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -1223,7 +1546,7 @@ class _EditorScreenState extends State<EditorScreen>
             Navigator.pop(context);
             _setUploadState(
               isUploading: true,
-              message: 'Đang xóa hình ảnh khỏi đám mây...',
+              message: AppLocalizations.translate(context, 'deletingImage'),
               bannerColor: const Color(0xFFEFF6FF),
               bannerTextColor: const Color(0xFF1E40AF),
               statusIcon: const SizedBox(
@@ -1238,7 +1561,7 @@ class _EditorScreenState extends State<EditorScreen>
                 _saveNote(isAutosave: true);
                 _setUploadState(
                   isUploading: false,
-                  message: 'Đã xóa hình ảnh thành công.',
+                  message: AppLocalizations.translate(context, 'deleteImageSuccess'),
                   bannerColor: const Color(0xFFECFDF5),
                   bannerTextColor: const Color(0xFF065F46),
                   statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
@@ -1249,7 +1572,7 @@ class _EditorScreenState extends State<EditorScreen>
               if (mounted) {
                 _setUploadState(
                   isUploading: false,
-                  message: 'Xóa hình ảnh thất bại.',
+                  message: AppLocalizations.translate(context, 'deleteImageFail'),
                   bannerColor: const Color(0xFFFEF2F2),
                   bannerTextColor: const Color(0xFF991B1B),
                   statusIcon: const Icon(Icons.error, color: Color(0xFFEF4444), size: 16),
@@ -1400,12 +1723,19 @@ class _EditorScreenState extends State<EditorScreen>
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _toolbarButton(icon: Icons.add_box_outlined, tooltip: 'Thêm', onTap: _isUploading ? null : _showAddOptions),
-                  _toolbarButton(icon: Icons.palette_outlined, tooltip: 'Màu sắc', onTap: _showColorPicker),
+                  _toolbarButton(
+                      icon: Icons.add_box_outlined,
+                      tooltip: AppLocalizations.translate(context, 'toolbarAdd'),
+                      onTap: _isUploading ? null : _showAddOptions),
+                  _toolbarButton(
+                    icon: Icons.palette_outlined,
+                    tooltip: AppLocalizations.translate(context, 'toolbarColor'),
+                    onTap: _showColorPicker,
+                  ),
                   if (!_isChecklistMode)
                     _toolbarButton(
                       icon: Icons.format_color_text,
-                      tooltip: 'Định dạng',
+                      tooltip: AppLocalizations.translate(context, 'toolbarFormat'),
                       color: _showFormattingToolbar ? _primary : null,
                       onTap: () { setState(() { _showFormattingToolbar = true; }); },
                     ),
@@ -1419,13 +1749,30 @@ class _EditorScreenState extends State<EditorScreen>
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _toolbarButton(icon: Icons.undo, tooltip: 'Hoàn tác', onTap: _quillController.hasUndo ? () => _quillController.undo() : null),
-                        _toolbarButton(icon: Icons.redo, tooltip: 'Làm lại', onTap: _quillController.hasRedo ? () => _quillController.redo() : null),
+                        _toolbarButton(
+                          icon: Icons.undo,
+                          tooltip: AppLocalizations.translate(context, 'toolbarUndo'),
+                          onTap: _quillController.hasUndo
+                              ? () => _quillController.undo()
+                              : null,
+                        ),
+                        _toolbarButton(
+                          icon: Icons.redo,
+                          tooltip: AppLocalizations.translate(context, 'toolbarRedo'),
+                          onTap: _quillController.hasRedo
+                              ? () => _quillController.redo()
+                              : null,
+                        ),
                       ],
                     );
                   },
                 ),
-              _toolbarButton(icon: Icons.more_vert, tooltip: 'Thêm nữa', onTap: _showMoreOptions),
+
+              // 📦 BỌC CỤM ICON BÊN PHẢI: Chỉ gồm duy nhất nút 3 chấm More dọc
+              _toolbarButton(
+                  icon: Icons.more_vert,
+                  tooltip: AppLocalizations.translate(context, 'toolbarMore'),
+                  onTap: _showMoreOptions),
             ],
           ),
         ),
@@ -1448,6 +1795,38 @@ class _EditorScreenState extends State<EditorScreen>
     );
   }
 
+  Note _getCurrentNoteObject() {
+    String finalContent = '';
+    if (_isChecklistMode) {
+      finalContent = jsonEncode({
+        'type': 'checklist',
+        'items': _checklistItems.map((item) => item.toJson()).toList(),
+      });
+    } else {
+      finalContent = jsonEncode(_quillController.document.toDelta().toJson());
+    }
+
+    return Note(
+      id: _noteId,
+      userId: widget.note?.userId ?? '',
+      title: _titleController.text.trim(),
+      content: finalContent,
+      status: _status,
+      noteColor: _noteColor,
+      tags: _tags,
+      imageUrls: _imageUrls,
+      audioUrls: _audioUrls,
+      createdAt: _createdAt,
+      updatedAt: DateTime.now(),
+      reminder: _reminder,
+    );
+  }
+
+  void _exportToPdf() {
+    final currentNote = _getCurrentNoteObject();
+    PdfExportService.exportNoteToPdf(context, currentNote);
+  }
+
   void _showMoreOptions() {
     showModalBottomSheet(
       context: context,
@@ -1458,13 +1837,14 @@ class _EditorScreenState extends State<EditorScreen>
         onDelete: _delete,
         onLabelSelection: _openLabelSelectionPage,
         onToggleArchive: _toggleArchive,
+        onExportPdf: _exportToPdf,
       ),
     );
   }
 
   void _showRequiresSaveMessage(String action) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Vui lòng nhập nội dung để có thể $action ghi chú này'),
+      content: Text(AppLocalizations.translate(context, 'requiresSaveMsg').replaceAll('{action}', action)),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
@@ -1496,7 +1876,7 @@ class _EditorScreenState extends State<EditorScreen>
         customBorder: const CircleBorder(),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Container(
+          child: SizedBox(
             width: 40, height: 40,
             child: Center(child: Icon(icon, size: 22, color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor))),
           ),
@@ -1569,7 +1949,7 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
           autofocus: true,
           style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
           decoration: InputDecoration(
-            hintText: 'Nhập tên nhãn',
+            hintText: AppLocalizations.translate(context, 'labelSearchHint'),
             border: InputBorder.none,
             hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
             suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: Icon(Icons.clear, size: 20, color: AppColors.textSecondary(context)), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) : null,
@@ -1586,7 +1966,10 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                 if (showCreate)
                   ListTile(
                     leading: const Icon(Icons.add, color: AppColors.primary),
-                    title: Text('Tạo "${_searchQuery.trim()}"', style: GoogleFonts.inter(color: AppColors.textPrimary(context))),
+                    title: Text(
+                        AppLocalizations.translate(context, 'createLabelOption').replaceAll('{name}', _searchQuery.trim()),
+                        style: GoogleFonts.inter(
+                            color: AppColors.textPrimary(context))),
                     onTap: () {
                       final newTag = _searchQuery.trim();
                       provider.addLabel(newTag);
@@ -1606,7 +1989,13 @@ class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
                     activeColor: AppColors.primary,
                     checkColor: AppColors.onPrimary,
                     onChanged: (val) {
-                      setState(() { if (val == true) _selectedTags.add(label); else _selectedTags.remove(label); });
+                      setState(() {
+                        if (val == true) {
+                          _selectedTags.add(label);
+                        } else {
+                          _selectedTags.remove(label);
+                        }
+                      });
                       widget.onTagsChanged(_selectedTags);
                     },
                   );
@@ -1657,19 +2046,34 @@ class _ImageViewerState extends State<_ImageViewer> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        title: Text('${_currentIndex + 1} trong số ${widget.imageUrls.length}', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+            AppLocalizations.translate(context, 'imageCountTitle')
+                .replaceAll('{current}', '${_currentIndex + 1}')
+                .replaceAll('{total}', '${widget.imageUrls.length}'),
+            style:
+                GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
+        centerTitle: false,
         actions: [
-          IconButton(icon: const Icon(Icons.brush), tooltip: 'Vẽ đè lên ảnh', onPressed: () => widget.onEditDrawing(currentUrl)),
+          IconButton(
+            icon: const Icon(Icons.brush),
+            tooltip: AppLocalizations.translate(context, 'drawOnImageTooltip'),
+            onPressed: () => widget.onEditDrawing(currentUrl),
+          ),
           PopupMenuButton<String>(
-            tooltip: 'Tùy chọn ảnh',
+            tooltip: AppLocalizations.translate(context, 'imageOptionsTooltip'),
             onSelected: (value) {
               if (value == 'duplicate') { widget.onDuplicate(currentUrl); setState(() {}); }
               else if (value == 'delete') { widget.onDelete(currentUrl); setState(() {}); }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(value: 'duplicate', child: Text('Sao chép')),
-              const PopupMenuItem(value: 'delete', child: Text('Xóa ảnh', style: TextStyle(color: Colors.red))),
+              PopupMenuItem(value: 'duplicate', child: Text(AppLocalizations.translate(context, 'duplicateImage'))),
+              PopupMenuItem(
+                  value: 'delete',
+                  child: Text(AppLocalizations.translate(context, 'deleteImage'), style: const TextStyle(color: Colors.red))),
             ],
           ),
         ],

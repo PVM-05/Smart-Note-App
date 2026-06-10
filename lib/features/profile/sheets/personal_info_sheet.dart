@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/design/app_colors.dart';
+import '../../../core/app_localizations.dart';
 
 class PersonalInfoSheet extends StatefulWidget {
   final TextEditingController nameController;
@@ -70,7 +71,7 @@ class _PersonalInfoSheetState extends State<PersonalInfoSheet> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Thông tin cá nhân',
+                AppLocalizations.translate(context, 'personalInfo'),
                 style: GoogleFonts.roboto(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -85,7 +86,7 @@ class _PersonalInfoSheetState extends State<PersonalInfoSheet> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Tên hiển thị',
+            AppLocalizations.translate(context, 'displayName'),
             style: GoogleFonts.roboto(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -96,11 +97,11 @@ class _PersonalInfoSheetState extends State<PersonalInfoSheet> {
           _buildField(
             context: context,
             controller: widget.nameController,
-            hint: 'Tên hiển thị',
+            hint: AppLocalizations.translate(context, 'displayName'),
           ),
           const SizedBox(height: 16),
           Text(
-            'Tiểu sử',
+            AppLocalizations.translate(context, 'bio'),
             style: GoogleFonts.roboto(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -111,7 +112,7 @@ class _PersonalInfoSheetState extends State<PersonalInfoSheet> {
           _buildField(
             context: context,
             controller: widget.bioController,
-            hint: 'Viết gì đó về bản thân...',
+            hint: AppLocalizations.translate(context, 'bioHint'),
             maxLines: 3,
           ),
           const SizedBox(height: 24),
@@ -121,7 +122,7 @@ class _PersonalInfoSheetState extends State<PersonalInfoSheet> {
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text(
-                  'Hủy',
+                  AppLocalizations.translate(context, 'cancel'),
                   style: GoogleFonts.roboto(
                       color: AppColors.textMetadata(context)),
                 ),
@@ -157,7 +158,7 @@ class _PersonalInfoSheetState extends State<PersonalInfoSheet> {
                           color: AppColors.onPrimary,
                         ),
                       )
-                    : Text('Lưu thay đổi',
+                    : Text(AppLocalizations.translate(context, 'saveChanges'),
                         style: GoogleFonts.roboto(fontWeight: FontWeight.w600)),
               ),
             ],
