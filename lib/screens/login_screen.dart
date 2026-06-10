@@ -5,6 +5,8 @@ import '../core/design/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../utils/connectivity_helper.dart';
 import 'syncing_screen.dart';
+import 'email_verification_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -52,10 +54,19 @@ class _LoginScreenState extends State<LoginScreen> {
         : await auth.registerWithEmail(email, password);
 
     if (success && context.mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SyncingScreen()),
-      );
+      final user = FirebaseAuth.instance.currentUser;
+      final isEmailProvider = user?.providerData.any((p) => p.providerId == 'password') ?? false;
+      if (isEmailProvider && user != null && !user.emailVerified) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const EmailVerificationScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const SyncingScreen()),
+        );
+      }
     }
   }
 
@@ -75,6 +86,105 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const SyncingScreen()),
       );
     }
+  }
+
+  // HIỂN THỊ DIALOG QUÊN MẬT KHẨU
+  void _showForgotPasswordDialog(BuildContext context, AuthProvider auth) {
+    final resetEmailController = TextEditingController(text: _emailController.text);
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Quên mật khẩu?',
+          style: GoogleFonts.roboto(fontWeight: FontWeight.bold, color: AppColors.textPrimary(context)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Nhập địa chỉ email của bạn để nhận liên kết đặt lại mật khẩu:',
+              style: GoogleFonts.roboto(color: AppColors.textSecondary(context), fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              keyboardType: TextInputType.emailAddress,
+              style: GoogleFonts.roboto(color: AppColors.textPrimary(context)),
+              decoration: InputDecoration(
+                labelText: 'Email',
+                labelStyle: GoogleFonts.roboto(color: AppColors.textMetadata(context)),
+                prefixIcon: const Icon(Icons.alternate_email_rounded, color: AppColors.primary),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.divider(context)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Hủy',
+              style: GoogleFonts.roboto(color: AppColors.textMetadata(context)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng nhập email!'), backgroundColor: AppColors.error),
+                );
+                return;
+              }
+              Navigator.pop(ctx); // Đóng dialog
+              
+              // Hiện loading hoặc snackbar thông báo đang gửi
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Đang gửi email yêu cầu đặt lại mật khẩu...')),
+              );
+              
+              final success = await auth.sendPasswordResetEmail(email);
+              if (!context.mounted) return;
+              
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Đã gửi email khôi phục mật khẩu đến $email. Vui lòng kiểm tra hộp thư!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(auth.error ?? 'Gửi email khôi phục thất bại!'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(
+              'Gửi yêu cầu',
+              style: GoogleFonts.roboto(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -187,9 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         alignment: Alignment.centerRight,
                         child: _isLogin
                             ? TextButton(
-                                onPressed: () {
-                                  // -TODO: Làm màn hình Quên mật khẩu-
-                                },
+                                onPressed: () => _showForgotPasswordDialog(context, auth),
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
                                   minimumSize: Size.zero,

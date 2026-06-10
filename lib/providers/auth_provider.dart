@@ -164,6 +164,13 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    if (!_isValidDomain(email)) {
+      _error = 'Không hỗ trợ tên miền email rác này. Vui lòng dùng Gmail, Yahoo, Outlook hoặc email giáo dục (.edu).';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
     try {
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
@@ -171,11 +178,59 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       _user = userCredential.user;
-      if (_user != null) await _syncUserProfile(_user!);
+      if (_user != null) {
+        await _user!.sendEmailVerification();
+        await _syncUserProfile(_user!);
+      }
       log('✅ Register: ${_user?.uid}');
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _translateAuthError(e.code); // Dùng hàm dịch lỗi
+      return false;
+    } catch (e) {
+      _error = 'Đã xảy ra lỗi không xác định. Vui lòng thử lại.';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Helper check domain
+  bool _isValidDomain(String email) {
+    final emailLower = email.toLowerCase().trim();
+    final parts = emailLower.split('@');
+    if (parts.length < 2) return false;
+    final domain = parts.last;
+
+    // Danh sách đen các domain email rác phổ biến
+    final disposableDomains = [
+      'yopmail.com', 'tempmail.com', 'mailinator.com', '10minutemail.com',
+      'guerrillamail.com', 'sharklasers.com', 'dispostable.com', 'getairmail.com',
+      'burnermail.io', 'trashmail.com', 'temp-mail.org', 'maildrop.cc',
+      'fakeinbox.com', 'throwawaymail.com', 'tempmailaddress.com', 'mohmal.com',
+      'temp-mail.ru', 'tempmail.net', 'yopmail.fr', 'yopmail.net', 'fakeinbox.com'
+    ];
+
+    if (disposableDomains.contains(domain)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // ✅ SEND PASSWORD RESET EMAIL
+  Future<bool> sendPasswordResetEmail(String email) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
+      log('✅ Password reset email sent to: $email');
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _translateAuthError(e.code);
       return false;
     } catch (e) {
       _error = 'Đã xảy ra lỗi không xác định. Vui lòng thử lại.';

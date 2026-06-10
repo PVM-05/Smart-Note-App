@@ -38,16 +38,15 @@ class ProfileHeader extends StatelessWidget {
             )
           ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: isUploadingAvatar ? null : onTapAvatar,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Stack(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: isUploadingAvatar ? null : onTapAvatar,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Stack(
                     alignment: Alignment.bottomRight,
                     children: [
                       CircleAvatar(
@@ -96,56 +95,40 @@ class ProfileHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          email,
-                          style: GoogleFonts.roboto(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.onPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Smart Note Pro',
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
-                            color: AppColors.onPrimary.withValues(alpha: 0.8),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.onPrimary.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.onPrimary.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Text(
-                            '✨ Premium Member',
-                            style: GoogleFonts.roboto(
-                              fontSize: 10,
-                              color: AppColors.onPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName.isNotEmpty ? displayName : email,
+                      style: GoogleFonts.roboto(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.onPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (displayName.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        email,
+                        style: GoogleFonts.roboto(
+                          fontSize: 14,
+                          color: AppColors.onPrimary.withValues(alpha: 0.8),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

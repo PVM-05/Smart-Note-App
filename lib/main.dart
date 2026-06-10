@@ -12,6 +12,7 @@ import 'repositories/sync_repository.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/email_verification_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -98,7 +99,15 @@ class MyApp extends StatelessWidget {
                     body: Center(child: CircularProgressIndicator()),
                   );
                 }
-                return snapshot.hasData ? const HomeScreen() : const LoginScreen();
+                if (snapshot.hasData) {
+                  final user = snapshot.data!;
+                  final isEmailProvider = user.providerData.any((p) => p.providerId == 'password');
+                  if (isEmailProvider && !user.emailVerified) {
+                    return const EmailVerificationScreen();
+                  }
+                  return const HomeScreen();
+                }
+                return const LoginScreen();
               },
             ),
           );

@@ -320,6 +320,7 @@ class AppLocalizations {
       'oldPasswordIncorrectError': 'Mật khẩu cũ không đúng',
       'avatarUpdateSuccess': 'Đã cập nhật ảnh ✓',
       'uploadError': 'Lỗi upload: {error}',
+      'changeAvatarTitle': 'Thay đổi ảnh đại diện',
 
       // Login & Syncing
       'welcomeBack': 'Chào mừng trở lại!',
@@ -662,6 +663,7 @@ class AppLocalizations {
       'oldPasswordIncorrectError': 'Old password incorrect',
       'avatarUpdateSuccess': 'Avatar updated ✓',
       'uploadError': 'Upload error: {error}',
+      'changeAvatarTitle': 'Change avatar picture',
 
       // Login & Syncing
       'welcomeBack': 'Welcome back!',
