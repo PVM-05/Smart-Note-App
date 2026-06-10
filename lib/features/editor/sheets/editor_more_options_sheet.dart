@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/design/app_colors.dart';
+import '../../../core/app_localizations.dart';
 
 class EditorMoreOptionsSheet extends StatelessWidget {
   final bool hasBeenSavedInDb;
@@ -7,6 +8,7 @@ class EditorMoreOptionsSheet extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onLabelSelection;
   final VoidCallback onToggleArchive;
+  final VoidCallback onExportPdf;
 
   const EditorMoreOptionsSheet({
     super.key,
@@ -15,6 +17,7 @@ class EditorMoreOptionsSheet extends StatelessWidget {
     required this.onDelete,
     required this.onLabelSelection,
     required this.onToggleArchive,
+    required this.onExportPdf,
   });
 
   @override
@@ -35,7 +38,7 @@ class EditorMoreOptionsSheet extends StatelessWidget {
             ListTile(
               leading: Icon(Icons.delete_outline,
                   color: AppColors.textSecondary(context)),
-              title: const Text('Xóa ghi chú'),
+              title: Text(AppLocalizations.translate(context, 'deleteNote')),
               onTap: () {
                 Navigator.pop(context);
                 onDelete();
@@ -44,10 +47,19 @@ class EditorMoreOptionsSheet extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.label_outline,
                 color: AppColors.textSecondary(context)),
-            title: const Text('Nhãn'),
+            title: Text(AppLocalizations.translate(context, 'labels')),
             onTap: () {
               Navigator.pop(context);
               onLabelSelection();
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.picture_as_pdf_outlined,
+                color: AppColors.textSecondary(context)),
+            title: Text(AppLocalizations.translate(context, 'exportPdf')),
+            onTap: () {
+              Navigator.pop(context);
+              onExportPdf();
             },
           ),
           if (hasBeenSavedInDb)
@@ -57,7 +69,9 @@ class EditorMoreOptionsSheet extends StatelessWidget {
                       ? Icons.unarchive_outlined
                       : Icons.archive_outlined,
                   color: AppColors.textSecondary(context)),
-              title: Text(status == 'archived' ? 'Hủy lưu trữ' : 'Lưu trữ'),
+              title: Text(status == 'archived'
+                  ? AppLocalizations.translate(context, 'unarchive')
+                  : AppLocalizations.translate(context, 'archive')),
               onTap: () {
                 Navigator.pop(context);
                 onToggleArchive();

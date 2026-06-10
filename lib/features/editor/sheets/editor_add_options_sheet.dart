@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/design/app_colors.dart';
+import '../../../core/app_localizations.dart';
 
 class EditorAddOptionsSheet extends StatelessWidget {
   final bool isRecording;
@@ -38,7 +39,7 @@ class EditorAddOptionsSheet extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.image_outlined,
                 color: AppColors.textSecondary(context)),
-            title: const Text('Thêm hình ảnh'),
+            title: Text(AppLocalizations.translate(context, 'addImage')),
             onTap: () {
               Navigator.pop(context);
               onAddImage();
@@ -47,7 +48,7 @@ class EditorAddOptionsSheet extends StatelessWidget {
           ListTile(
             leading: Icon(Icons.brush_outlined,
                 color: AppColors.textSecondary(context)),
-            title: const Text('Bản vẽ'),
+            title: Text(AppLocalizations.translate(context, 'addDrawing')),
             onTap: () {
               Navigator.pop(context);
               onAddDrawing();
@@ -61,7 +62,9 @@ class EditorAddOptionsSheet extends StatelessWidget {
                 color: isRecording
                     ? _recordColor
                     : AppColors.textSecondary(context)),
-            title: Text(isRecording ? 'Dừng ghi âm' : 'Ghi âm'),
+            title: Text(isRecording
+                ? AppLocalizations.translate(context, 'stopRecording')
+                : AppLocalizations.translate(context, 'startRecording')),
             onTap: () {
               Navigator.pop(context);
               onToggleRecording();
@@ -71,7 +74,7 @@ class EditorAddOptionsSheet extends StatelessWidget {
             ListTile(
               leading: Icon(Icons.check_box_outlined,
                   color: AppColors.textSecondary(context)),
-              title: const Text('Danh sách'),
+              title: Text(AppLocalizations.translate(context, 'addChecklist')),
               onTap: () {
                 Navigator.pop(context);
                 onSwitchToChecklistMode();

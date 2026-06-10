@@ -163,8 +163,8 @@ class CloudinaryService {
 
       request.fields['upload_preset'] = _uploadPreset;
       request.fields['folder'] = 'smart_note/$userId/audio';
-      // resource_type được xác định bởi URL path 'video/upload' — không set trong body
-
+      // resource_type được xác định bởi URL path 'video/upload' — hoặc set tường minh để đảm bảo an toàn
+      request.fields['resource_type'] = 'video';
 
       request.files.add(
         await http.MultipartFile.fromPath('file', file.path),

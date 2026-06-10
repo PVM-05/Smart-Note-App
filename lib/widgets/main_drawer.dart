@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../providers/note_provider.dart';
+import '../providers/language_provider.dart';
 import '../screens/home_screen.dart';
 import '../screens/manage_labels_screen.dart';
 import '../screens/setting_screen.dart';
@@ -21,6 +23,7 @@ class MainDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<LanguageProvider>(context); // Listen to LanguageProvider for real-time rebuilds
     final noteProvider = Provider.of<NoteProvider>(context);
 
     final systemLabels = noteProvider.allLabels;
@@ -61,7 +64,7 @@ class MainDrawer extends StatelessWidget {
             _buildKeepDrawerItem(
               context,
               icon: Icons.lightbulb_outline,
-              label: 'Ghi chú',
+              label: AppLocalizations.translate(context, 'drawerNotes'),
               isSelected: currentRoute == '/home' && activeLabel == null && !noteProvider.showOnlyReminders,
               onTap: () async {
                 noteProvider.selectLabel(null);
@@ -82,7 +85,7 @@ class MainDrawer extends StatelessWidget {
             _buildKeepDrawerItem(
               context,
               icon: Icons.notifications_none_outlined,
-              label: 'Nhắc nhở',
+              label: AppLocalizations.translate(context, 'drawerReminders'),
               isSelected: currentRoute == '/home' && noteProvider.showOnlyReminders,
               onTap: () async {
                 noteProvider.setShowOnlyReminders(true);
@@ -108,7 +111,7 @@ class MainDrawer extends StatelessWidget {
               _buildKeepDrawerItem(
                 context,
                 icon: Icons.add,
-                label: 'Tạo nhãn mới',
+                label: AppLocalizations.translate(context, 'drawerCreateNewLabel'),
                 isSelected: false,
                 onTap: () {
                   Navigator.pop(context);
@@ -125,7 +128,7 @@ class MainDrawer extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Nhãn',
+                      AppLocalizations.translate(context, 'drawerLabels'),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -147,7 +150,7 @@ class MainDrawer extends StatelessWidget {
                         );
                       },
                       child: Text(
-                        'Chỉnh sửa',
+                        AppLocalizations.translate(context, 'drawerEditLabels'),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -189,7 +192,7 @@ class MainDrawer extends StatelessWidget {
               _buildKeepDrawerItem(
                 context,
                 icon: Icons.add,
-                label: 'Tạo nhãn mới',
+                label: AppLocalizations.translate(context, 'drawerCreateNewLabel'),
                 isSelected: false,
                 onTap: () {
                   Navigator.pop(context);
@@ -207,7 +210,7 @@ class MainDrawer extends StatelessWidget {
             _buildKeepDrawerItem(
               context,
               icon: Icons.archive_outlined,
-              label: 'Lưu trữ',
+              label: AppLocalizations.translate(context, 'drawerArchive'),
               isSelected: currentRoute == '/archive',
               onTap: () {
                 Navigator.pop(context);
@@ -223,7 +226,7 @@ class MainDrawer extends StatelessWidget {
             _buildKeepDrawerItem(
               context,
               icon: Icons.delete_outline,
-              label: 'Thùng rác',
+              label: AppLocalizations.translate(context, 'drawerTrash'),
               isSelected: currentRoute == '/trash',
               onTap: () {
                 Navigator.pop(context);
@@ -239,7 +242,7 @@ class MainDrawer extends StatelessWidget {
             _buildKeepDrawerItem(
               context,
               icon: Icons.settings_outlined,
-              label: 'Cài đặt',
+              label: AppLocalizations.translate(context, 'drawerSettings'),
               isSelected: currentRoute == '/settings',
               onTap: () {
                 Navigator.pop(context); // Đóng drawer

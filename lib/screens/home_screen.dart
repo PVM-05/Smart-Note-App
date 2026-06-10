@@ -6,7 +6,9 @@ import 'package:animations/animations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
 import '../providers/note_provider.dart';
 import '../providers/sync_provider.dart';
 import '../models/note_model.dart';
@@ -130,14 +132,14 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã chuyển $count ghi chú vào thùng rác'),
+          content: Text(AppLocalizations.translate(context, 'movedNotesToTrash').replaceAll('{count}', '$count')),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: const EdgeInsets.all(12),
           duration: const Duration(seconds: 4),
           action: SnackBarAction(
-            label: 'Hoàn tác',
+            label: AppLocalizations.translate(context, 'undo'),
             textColor: _primary,
             onPressed: () async {
               ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -158,8 +160,8 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Gán nhãn dán',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: Text(AppLocalizations.translate(context, 'assignLabelTitle'),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         contentPadding:
             const EdgeInsets.only(top: 12, left: 0, right: 0, bottom: 0),
         content: SizedBox(
@@ -173,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: TextField(
                   controller: newLabelController,
                   decoration: InputDecoration(
-                    hintText: 'Tạo nhãn mới...',
+                    hintText: AppLocalizations.translate(context, 'createNewLabelHint'),
                     isDense: true,
                     suffixIcon: IconButton(
                       icon: Icon(Icons.add_circle, color: _primary),
@@ -188,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                   content:
-                                      Text('Đã tạo và gán nhãn "$newTag"')),
+                                      Text(AppLocalizations.translate(context, 'createdAndAssignedLabel').replaceAll('{tag}', newTag))),
                             );
                           }
                         }
@@ -220,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).clearSnackBars();
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Đã gán nhãn "$label"')),
+                              SnackBar(content: Text(AppLocalizations.translate(context, 'assignedLabel').replaceAll('{tag}', label))),
                             );
                           }
                         },
@@ -234,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy'),
+            child: Text(AppLocalizations.translate(context, 'cancel')),
           ),
         ],
       ),
@@ -259,13 +261,13 @@ class _HomeScreenState extends State<HomeScreen> {
             String message = '';
             switch (type) {
               case SortType.updatedNewest:
-                message = 'Đang sắp xếp: Mới chỉnh sửa gần đây';
+                message = AppLocalizations.translate(context, 'sortUpdatedNewest');
                 break;
               case SortType.createdNewest:
-                message = 'Đang sắp xếp: Mới tạo gần đây';
+                message = AppLocalizations.translate(context, 'sortCreatedNewest');
                 break;
               case SortType.titleAZ:
-                message = 'Đang sắp xếp: Tiêu đề A → Z';
+                message = AppLocalizations.translate(context, 'sortTitleAZ');
                 break;
             }
 
@@ -287,6 +289,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<LanguageProvider>(context); // Listen to LanguageProvider for real-time rebuilds
     return Consumer2<NoteProvider, SyncProvider>(
       builder: (context, noteProvider, syncProvider, child) {
         final isSelectionMode = noteProvider.isSelectionMode;
@@ -414,17 +417,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (pinnedNotes.isEmpty && normalNotes.isEmpty) {
       IconData emptyIcon = Icons.note_add_outlined;
-      String emptyTitle = 'Chưa có ghi chú nào';
-      String emptySubtitle = 'Hãy nhấn + ở góc dưới để thêm ghi chú mới!';
+      String emptyTitle = AppLocalizations.translate(context, 'emptyHomeTitle');
+      String emptySubtitle = AppLocalizations.translate(context, 'emptyHomeSubtitle');
 
       if (noteProvider.showOnlyReminders) {
         emptyIcon = Icons.notifications_none_outlined;
-        emptyTitle = 'Không có nhắc nhở';
-        emptySubtitle = 'Ghi chú có nhắc nhở sẽ xuất hiện ở đây';
+        emptyTitle = AppLocalizations.translate(context, 'emptyRemindersTitle');
+        emptySubtitle = AppLocalizations.translate(context, 'emptyRemindersSubtitle');
       } else if (noteProvider.selectedLabel != null) {
         emptyIcon = Icons.label_outline;
-        emptyTitle = 'Trống';
-        emptySubtitle = 'Không có ghi chú nào thuộc nhãn này';
+        emptyTitle = AppLocalizations.translate(context, 'emptyLabelTitle');
+        emptySubtitle = AppLocalizations.translate(context, 'emptyLabelSubtitle');
       }
 
       return EmptyStateWidget(
@@ -463,7 +466,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Text(
-                  'Được ghim',
+                  AppLocalizations.translate(context, 'pinnedSection'),
                   style: GoogleFonts.roboto(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -480,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Text(
-                    'Khác',
+                    AppLocalizations.translate(context, 'othersSection'),
                     style: GoogleFonts.roboto(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -611,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã lưu trữ $count ghi chú'),
+          content: Text(AppLocalizations.translate(context, 'archivedNotesCount').replaceAll('{count}', '$count')),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -622,11 +625,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   AppBar _normalAppBar(NoteProvider noteProvider) {
-    String searchPlaceholder = 'Tìm kiếm';
+    String searchPlaceholder = AppLocalizations.translate(context, 'searchPlaceholder');
     if (noteProvider.showOnlyReminders) {
-      searchPlaceholder = 'Tìm kiếm nhắc nhở';
+      searchPlaceholder = AppLocalizations.translate(context, 'searchRemindersPlaceholder');
     } else if (noteProvider.selectedLabel != null) {
-      searchPlaceholder = 'Tìm kiếm trong ${noteProvider.selectedLabel}';
+      searchPlaceholder = AppLocalizations.translate(context, 'searchInLabelPlaceholder')
+          .replaceAll('{label}', noteProvider.selectedLabel!);
     }
 
     return AppBar(
@@ -781,11 +785,11 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppColors.inputBackground(context),
       leading: IconButton(
         icon: Icon(Icons.close, color: AppColors.textPrimary(context)),
-        tooltip: 'Hủy chọn',
+        tooltip: AppLocalizations.translate(context, 'cancelSelection'),
         onPressed: () => provider.clearSelection(),
       ),
       title: Text(
-        '${provider.selectedNoteIds.length} đã chọn',
+        AppLocalizations.translate(context, 'selectedCount').replaceAll('{count}', '${provider.selectedNoteIds.length}'),
         style: TextStyle(
           color: AppColors.textPrimary(context),
           fontWeight: FontWeight.bold,
@@ -796,24 +800,24 @@ class _HomeScreenState extends State<HomeScreen> {
         IconButton(
           icon:
               Icon(Icons.label_outline, color: AppColors.textPrimary(context)),
-          tooltip: 'Thay đổi nhãn dán',
+          tooltip: AppLocalizations.translate(context, 'changeLabel'),
           onPressed: () => _showBatchTagDialog(context, provider),
         ),
         IconButton(
           icon: Icon(Icons.push_pin_outlined,
               color: AppColors.textPrimary(context)),
-          tooltip: 'Ghim/Bỏ ghim hàng loạt',
+          tooltip: AppLocalizations.translate(context, 'pinUnpinBatch'),
           onPressed: () => provider.togglePinSelectedNotes(),
         ),
         IconButton(
           icon: Icon(Icons.archive_outlined,
               color: AppColors.textPrimary(context)),
-          tooltip: 'Lưu trữ',
+          tooltip: AppLocalizations.translate(context, 'archive'),
           onPressed: () => _archiveSelectedNotes(provider),
         ),
         IconButton(
           icon: Icon(Icons.delete_outline, color: AppColors.error),
-          tooltip: 'Chuyển vào thùng rác',
+          tooltip: AppLocalizations.translate(context, 'moveToTrash'),
           onPressed: () => _moveToTrashSelected(provider),
         ),
       ],

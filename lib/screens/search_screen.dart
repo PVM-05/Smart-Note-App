@@ -4,11 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../providers/auth_provider.dart';
+import '../providers/language_provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note_model.dart';
 import '../widgets/note_card.dart';
-import '../core/app_strings.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 import '../widgets/empty_state.dart';
 import 'editor_screen.dart';
 
@@ -92,6 +93,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<LanguageProvider>(context); // Listen to LanguageProvider for real-time rebuilds
     return Scaffold(
       backgroundColor: AppColors.background(context),
       body: SafeArea(
@@ -154,7 +156,7 @@ class _SearchScreenState extends State<SearchScreen> {
               focusNode: _focusNode,
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
-                hintText: _activeFilters.isEmpty ? 'Tìm kiếm ghi chú của bạn' : '',
+                hintText: _activeFilters.isEmpty ? AppLocalizations.translate(context, 'searchYourNotesHint') : '',
                 hintStyle: GoogleFonts.outfit(color: AppColors.textMetadata(context).withValues(alpha: 0.6), fontSize: 15, fontWeight: FontWeight.w300,),
                 border: InputBorder.none,
                 isDense: true,
@@ -243,7 +245,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // ===================================
             // DANH MỤC LOẠI ĐA PHƯƠNG TIỆN (MEDIA FILTERS)
             // ===================================
-            Text('Loại ghi chú', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
+            Text(AppLocalizations.translate(context, 'noteTypeFilter'), style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 16,
@@ -251,10 +253,10 @@ class _SearchScreenState extends State<SearchScreen> {
               alignment: WrapAlignment.start,
               crossAxisAlignment: WrapCrossAlignment.start,
               children: [
-                _buildFilterIconItem(context, Icons.check_box_outlined, 'Danh sách', () => _onFilterTap('Danh sách', 'has:list')),
-                _buildFilterIconItem(context, Icons.image_outlined, 'Hình ảnh', () => _onFilterTap('Hình ảnh', 'has:image')),
-                _buildFilterIconItem(context, Icons.mic_none_rounded, 'Âm thanh', () => _onFilterTap('Âm thanh', 'has:audio')),
-                _buildFilterIconItem(context, Icons.link_rounded, 'URL', () => _onFilterTap('URL', 'has:url')),
+                _buildFilterIconItem(context, Icons.check_box_outlined, AppLocalizations.translate(context, 'listFilter'), () => _onFilterTap(AppLocalizations.translate(context, 'listFilter'), 'has:list')),
+                _buildFilterIconItem(context, Icons.image_outlined, AppLocalizations.translate(context, 'imageFilter'), () => _onFilterTap(AppLocalizations.translate(context, 'imageFilter'), 'has:image')),
+                _buildFilterIconItem(context, Icons.mic_none_rounded, AppLocalizations.translate(context, 'audioFilter'), () => _onFilterTap(AppLocalizations.translate(context, 'audioFilter'), 'has:audio')),
+                _buildFilterIconItem(context, Icons.link_rounded, AppLocalizations.translate(context, 'urlFilter'), () => _onFilterTap(AppLocalizations.translate(context, 'urlFilter'), 'has:url')),
               ],
             ),
 
@@ -264,7 +266,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // DANH MỤC NHÃN DÁN (TAGS)
             // ===================================
             if (labels.isNotEmpty) ...[
-              Text('Nhãn dán', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
+              Text(AppLocalizations.translate(context, 'labelFilter'), style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 16,
@@ -281,7 +283,7 @@ class _SearchScreenState extends State<SearchScreen> {
             // ===================================
             // DANH MỤC TRẠNG THÁI GHI CHÚ
             // ===================================
-            Text('Trạng thái', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
+            Text(AppLocalizations.translate(context, 'statusFilter'), style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textMetadata(context), letterSpacing: 0.8)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 16,
@@ -289,8 +291,8 @@ class _SearchScreenState extends State<SearchScreen> {
               alignment: WrapAlignment.start,
               crossAxisAlignment: WrapCrossAlignment.start,
               children: [
-                _buildFilterIconItem(context, Icons.push_pin_outlined, 'Được ghim', () => _onFilterTap('Được ghim', 'is:pinned')),
-                _buildFilterIconItem(context, Icons.archive_outlined, 'Kho Lưu trữ', () => _onFilterTap('Lưu trữ', 'is:archived')),
+                _buildFilterIconItem(context, Icons.push_pin_outlined, AppLocalizations.translate(context, 'pinnedSection'), () => _onFilterTap(AppLocalizations.translate(context, 'pinnedSection'), 'is:pinned')),
+                _buildFilterIconItem(context, Icons.archive_outlined, AppLocalizations.translate(context, 'archiveTitle'), () => _onFilterTap(AppLocalizations.translate(context, 'archiveTitle'), 'is:archived')),
               ],
             ),
           ],
@@ -341,9 +343,9 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildEmptyResult() {
     return EmptyStateWidget(
       icon: Icons.search_off_rounded,
-      title: AppStrings.emptySearchTitle,
-      subtitle: AppStrings.emptySearchSubtitle,
-      actionLabel: AppStrings.emptySearchAction,
+      title: AppLocalizations.translate(context, 'emptySearchTitle'),
+      subtitle: AppLocalizations.translate(context, 'emptySearchSubtitle'),
+      actionLabel: AppLocalizations.translate(context, 'emptySearchAction'),
       onAction: () {
         _searchController.clear();
         setState(() {
@@ -364,7 +366,7 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
             child: Text(
-              'TÌM THẤY ${notes.length} GHI CHÚ KHỚP',
+              AppLocalizations.translate(context, 'foundNotesCount').replaceAll('{count}', '${notes.length}'),
               style: GoogleFonts.outfit(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

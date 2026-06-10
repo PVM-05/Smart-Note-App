@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/note_provider.dart';
 import '../core/design/app_colors.dart';
+import '../core/app_localizations.dart';
 
 class ManageLabelsScreen extends StatefulWidget {
   const ManageLabelsScreen({super.key});
@@ -40,7 +41,7 @@ class _ManageLabelsScreenState extends State<ManageLabelsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: Text('Chỉnh sửa nhãn', style: GoogleFonts.spaceGrotesk(fontSize: 18, color: AppColors.textPrimary(context), fontWeight: FontWeight.bold)),
+        title: Text(AppLocalizations.translate(context, 'editLabelsTitle'), style: GoogleFonts.spaceGrotesk(fontSize: 18, color: AppColors.textPrimary(context), fontWeight: FontWeight.bold)),
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textPrimary(context),
@@ -77,7 +78,7 @@ class _ManageLabelsScreenState extends State<ManageLabelsScreen> {
                     },
                     style: GoogleFonts.inter(color: AppColors.textPrimary(context), fontSize: 15),
                     decoration: InputDecoration(
-                      hintText: 'Tạo nhãn mới',
+                      hintText: AppLocalizations.translate(context, 'createNewLabel'),
                       border: InputBorder.none,
                       hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
                     ),
