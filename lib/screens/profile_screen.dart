@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
-import 'package:firebase_storage/firebase_storage.dart';
 import '../core/design/app_colors.dart';
 import '../core/app_localizations.dart';
 import '../providers/auth_provider.dart';
@@ -16,6 +15,7 @@ import '../features/profile/widgets/profile_header.dart';
 import '../features/profile/widgets/profile_menu_tile.dart';
 import '../features/profile/sheets/personal_info_sheet.dart';
 import '../features/profile/sheets/security_sheet.dart';
+import '../services/cloudinary_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -128,6 +128,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickAndUploadAvatar() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isGoogleUser = auth.user?.providerData.any((p) => p.providerId == 'google.com') ?? false;
+    if (isGoogleUser) {
+      _showSnack(
+        AppLocalizations.translate(context, 'googleAvatarError'),
+        isError: true,
+      );
+      return;
+    }
+
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: AppColors.surface(context),
@@ -190,14 +200,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (picked == null) return;
     setState(() => _isUploadingAvatar = true);
     if (!mounted) return;
-    final auth = Provider.of<AuthProvider>(context, listen: false);
     final successMsg = AppLocalizations.translate(context, 'avatarUpdateSuccess');
     final uploadErrorTemplate = AppLocalizations.translate(context, 'uploadError');
     try {
-      final ref =
-          FirebaseStorage.instance.ref().child('avatars/${auth.user!.uid}.jpg');
-      await ref.putFile(File(picked.path));
-      final url = await ref.getDownloadURL();
+      final cloudinary = CloudinaryService();
+      final url = await cloudinary.uploadImage(File(picked.path), auth.user!.uid, isAvatar: true);
+      if (url == null) {
+        throw Exception('Cloudinary upload returned null URL');
+      }
       await FirebaseFirestore.instance
           .collection('users')
           .doc(auth.user!.uid)
@@ -331,6 +341,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final isEmailProvider =
             auth.user?.providerData.any((p) => p.providerId == 'password') ??
                 false;
+        final isGoogleUser =
+            auth.user?.providerData.any((p) => p.providerId == 'google.com') ??
+                false;
 
         return Scaffold(
           backgroundColor: AppColors.background(context),
@@ -365,6 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 email: email,
                 isUploadingAvatar: _isUploadingAvatar,
                 onTapAvatar: _pickAndUploadAvatar,
+                isGoogleUser: isGoogleUser,
               ),
 
               // ── 2. SECTIONS ──

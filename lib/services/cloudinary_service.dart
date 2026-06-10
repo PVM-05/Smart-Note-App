@@ -105,7 +105,7 @@ class CloudinaryService {
   // ════════════════════════════════════════
   // UPLOAD IMAGE (Multipart Stream)
   // ════════════════════════════════════════
-  Future<String?> uploadImage(File file, String userId, {bool isDrawing = false}) async {
+  Future<String?> uploadImage(File file, String userId, {bool isDrawing = false, bool isAvatar = false}) async {
     try {
       // 🔍 DEBUG: Xác minh env values trước khi upload
       developer.log('🔍 [Cloudinary] cloudName="$_cloudName" preset="$_uploadPreset"');
@@ -120,7 +120,11 @@ class CloudinaryService {
       final request = http.MultipartRequest('POST', uri);
 
       request.fields['upload_preset'] = _uploadPreset;
-      request.fields['folder'] = isDrawing ? 'smart_note/$userId/drawings' : 'smart_note/$userId/images';
+      if (isAvatar) {
+        request.fields['folder'] = 'smart_note/$userId/avatars';
+      } else {
+        request.fields['folder'] = isDrawing ? 'smart_note/$userId/drawings' : 'smart_note/$userId/images';
+      }
 
       request.files.add(
         await http.MultipartFile.fromPath('file', file.path),

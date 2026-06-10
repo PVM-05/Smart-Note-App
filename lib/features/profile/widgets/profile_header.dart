@@ -8,6 +8,7 @@ class ProfileHeader extends StatelessWidget {
   final String email;
   final bool isUploadingAvatar;
   final VoidCallback onTapAvatar;
+  final bool isGoogleUser;
 
   const ProfileHeader({
     super.key,
@@ -16,6 +17,7 @@ class ProfileHeader extends StatelessWidget {
     required this.email,
     required this.isUploadingAvatar,
     required this.onTapAvatar,
+    required this.isGoogleUser,
   });
 
   @override
@@ -77,22 +79,23 @@ class ProfileHeader extends StatelessWidget {
                                   )
                                 : null),
                       ),
-                      Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: AppColors.onPrimary,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 4,
-                            )
-                          ],
+                      if (!isGoogleUser)
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: AppColors.onPrimary,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 4,
+                              )
+                            ],
+                          ),
+                          child: Icon(Icons.camera_alt,
+                              size: 11, color: AppColors.textSecondary(context)),
                         ),
-                        child: Icon(Icons.camera_alt,
-                            size: 11, color: AppColors.textSecondary(context)),
-                      ),
                     ],
                   ),
                 ),

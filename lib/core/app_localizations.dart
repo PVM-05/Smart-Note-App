@@ -321,6 +321,7 @@ class AppLocalizations {
       'avatarUpdateSuccess': 'Đã cập nhật ảnh ✓',
       'uploadError': 'Lỗi upload: {error}',
       'changeAvatarTitle': 'Thay đổi ảnh đại diện',
+      'googleAvatarError': 'Tài khoản đăng nhập bằng Google không thể thay đổi ảnh đại diện.',
 
       // Login & Syncing
       'welcomeBack': 'Chào mừng trở lại!',
@@ -664,6 +665,7 @@ class AppLocalizations {
       'avatarUpdateSuccess': 'Avatar updated ✓',
       'uploadError': 'Upload error: {error}',
       'changeAvatarTitle': 'Change avatar picture',
+      'googleAvatarError': 'Google sign-in accounts cannot change their avatar.',
 
       // Login & Syncing
       'welcomeBack': 'Welcome back!',
