@@ -1,244 +1,126 @@
-# Smart Note App
+<h1 align="center">
+  <br>
+  <img src="assets/images/app_icon.png" alt="Smart Note App" width="120">
+  <br>
+  Smart Note App (Offline-First)
+  <br>
+</h1>
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.0.0%20%2B-02569B?logo=flutter\&logoColor=white)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-3.0--4.0-0175C2?logo=dart\&logoColor=white)](https://dart.dev)
-[![Firebase](https://img.shields.io/badge/Firebase-Core%20%7C%20Auth%20%7C%20Firestore-FFCA28?logo=firebase\&logoColor=black)](https://firebase.google.com)
-[![SQLite](https://img.shields.io/badge/SQLite-FTS5%20Enabled-003B57?logo=sqlite\&logoColor=white)](https://sqlite.org)
-[![Provider](https://img.shields.io/badge/Provider-State%20Management-00b4ab?logo=flutter\&logoColor=white)](https://pub.dev/packages/provider)
-[![Architecture](https://img.shields.io/badge/Architecture-Clean%20Architecture-green)](https://clean-architecture)
+<h4 align="center">Ứng dụng ghi chú cá nhân thông minh, tích hợp Trợ lý AI và đồng bộ hóa đám mây mượt mà.</h4>
 
-> **Smart Note App** là ứng dụng ghi chú thông minh hoạt động theo mô hình **Offline-First**, hỗ trợ đồng bộ hóa đám mây thời gian thực, thiết kế theo phong cách Google Keep và được trang bị trình soạn thảo Rich Text vô cùng mạnh mẽ.
-> 
-> Dự án được xây dựng bằng Flutter + Firebase + SQLite, áp dụng mô hình Clean Architecture để tối ưu khả năng mở rộng, bảo trì và hiệu năng siêu tốc.
-
----
-
-## ✨ Tính năng nổi bật
-
-### 1. Offline-First & Last-Writer-Wins Architecture
-* **Lưu trữ tức thì:** Ghi chú được lưu ngay lập tức vào SQLite cục bộ.
-* **Không độ trễ:** Hoạt động trơn tru kể cả khi hoàn toàn mất mạng internet.
-* **Xử lý Xung đột Thông minh:** Sử dụng thuật toán **Last-Writer-Wins** (Dữ liệu mới nhất sẽ chiến thắng) để tự động đối chiếu thời gian chỉnh sửa (`updatedAt`) giữa Firebase và SQLite, ngăn chặn tuyệt đối việc mất dữ liệu khi người dùng chỉnh sửa cùng 1 ghi chú trên nhiều thiết bị.
-
-### 2. Background Cloud Sync
-* **Đồng bộ ngầm:** Tự động đẩy dữ liệu lên Firebase Cloud Firestore ngay khi có mạng trở lại.
-* **Tối ưu băng thông:** Chỉ đồng bộ những bản ghi thực sự có sự thay đổi (Dựa trên cờ `is_synced`).
-* **Đồng bộ tự động:** Hỗ trợ tính năng tự động tải (Pull) ghi chú mới nhất từ đám mây xuống.
-
-### 3. Multimedia Rich Text Editor (Mới)
-* **flutter_quill WYSIWYG:** Trình soạn thảo văn bản phong phú, cho phép In đậm, In nghiêng, Đổi màu chữ/nền, Heading (H1, H2...), Danh sách đạn, Checkbox công việc.
-* **Chuyển đổi dữ liệu tự động:** Khả năng tương thích ngược siêu việt, tự động chuyển đổi các text thuần (plain text) cũ sang định dạng siêu nhẹ `Delta JSON`.
-* **Đính kèm Đa phương tiện:** Hỗ trợ đính kèm hình ảnh và bản Ghi âm (`.m4a`) chất lượng cao. Audio có thể phát lại trực tiếp ngay trong ứng dụng với thanh thời gian thực.
-
-### 4. Giao diện Google Keep-Style
-* **Staggered Grid View:** Bố cục hiển thị lưới sinh động, thông minh.
-* **Ghim (Pin) & Lưu trữ (Archive):** Sắp xếp ghi chú quan trọng lên đầu, cất gọn những ghi chú cũ.
-* **Bộ chọn nhãn (Labels):** Nhóm các ghi chú dễ dàng.
-* **Tìm kiếm toàn văn bản:** Tích hợp bộ lọc và tìm kiếm theo thời gian thực để truy xuất thông tin trong tíc tắc.
+<p align="center">
+  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.x-blue.svg?logo=flutter"></a>
+  <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-3.x-0175C2.svg?logo=dart"></a>
+  <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-Integrated-FFCA28.svg?logo=firebase"></a>
+  <a href="https://sqlite.org/index.html"><img src="https://img.shields.io/badge/SQLite-FTS5-003B57.svg?logo=sqlite"></a>
+  <a href="https://ai.google.dev/"><img src="https://img.shields.io/badge/Gemini-AI-8E75B2.svg?logo=google"></a>
+</p>
 
 ---
 
-## 🏗️ Clean Architecture
+## 🌟 Giới thiệu (Overview)
 
-Ứng dụng tuân thủ nghiêm ngặt mô hình Clean Architecture để tách biệt giao diện, logic trạng thái, và thao tác dữ liệu:
+**Smart Note App** là một ứng dụng di động được xây dựng bằng **Flutter**, áp dụng kiến trúc **Clean Architecture** và mô hình **Offline-First**. Ứng dụng cho phép người dùng ghi chép đa phương tiện, quản lý công việc và tự động đồng bộ hóa dữ liệu lên Cloud Firestore. 
 
-```mermaid
-flowchart TB
-    subgraph UI["UI Layer (Screens & Widgets)"]
-        HS[HomeScreen]
-        ES[EditorScreen]
-        LS[LoginScreen]
-    end
+Đặc biệt, dự án tích hợp sâu **Google Gemini AI** giúp người dùng tóm tắt ghi chú, tự động tạo Checklist và gợi ý nhãn phân loại một cách thông minh.
 
-    subgraph STATE["State Layer (Providers)"]
-        NP[NoteProvider]
-        AP[AuthProvider]
-        SP[SyncProvider]
-    end
+## 🚀 Tính năng nổi bật (Key Features)
 
-    subgraph REPO["Repository Layer (Interfaces & Impl)"]
-        NR[NoteRepository]
-        SR[SyncRepository]
-    end
-
-    subgraph SERVICE["Service Layer (APIs & Local)"]
-        LNS[LocalNoteService]
-        FTS[FirestoreService]
-        PDS[PendingDeleteService]
-    end
-
-    subgraph STORAGE["Storage (Data Sources)"]
-        SQ[(SQLite)]
-        FB[(Firestore)]
-    end
-
-    UI --> STATE
-    STATE --> REPO
-    REPO --> SERVICE
-    SERVICE --> STORAGE
-```
+- 📝 **Rich Text Editor:** Soạn thảo văn bản phong phú (In đậm, nghiêng, màu sắc, danh sách).
+- 🖼️ **Đa phương tiện:** Hỗ trợ chèn Hình ảnh, ghi âm giọng nói và Bảng vẽ tay (Drawing Board).
+- ☁️ **Offline-First Sync:** Lưu trữ ngay lập tức bằng SQLite, tự động đồng bộ ngầm lên Firebase khi có mạng.
+- 🤖 **Trợ lý Gemini AI:** Tự động tóm tắt văn bản, gợi ý tiêu đề, chuyển đổi văn bản thô thành To-do list.
+- 🔒 **Bảo mật sinh trắc học:** Khóa ghi chú riêng tư bằng Vân tay / FaceID.
+- 🔍 **Tìm kiếm toàn văn (FTS5):** Tìm kiếm nội dung cực nhanh bằng SQLite FTS5.
+- 📄 **Xuất PDF:** Cho phép trích xuất ghi chú thành file PDF định dạng chuẩn.
 
 ---
 
-## 🔄 Đồng bộ dữ liệu Offline-First (Last-Writer-Wins)
+## 🛠️ Công nghệ sử dụng (Tech Stack)
 
-```mermaid
-flowchart TD
-    A[Người dùng Sửa Ghi chú] --> B[Lưu ngay vào SQLite cục bộ]
-    B --> C{Có kết nối Internet?}
-
-    C -- Có --> D[Lấy updatedAt từ Firestore]
-    D --> E{Local mới hơn Cloud?}
-    E -- Có --> F[Push lên Firestore]
-    F --> G[Cập nhật is_synced = 1]
-    
-    E -- Không --> H[Kéo bản cập nhật từ Cloud về đè lên Local]
-
-    C -- Không --> I[Giữ is_synced = 0]
-    I --> J[Hàng đợi Background Sync Queue]
-    J --> D
-```
+- **Frontend:** Flutter & Dart
+- **Quản lý trạng thái (State Management):** Provider
+- **Local Database:** SQLite (`sqflite`)
+- **Cloud Database:** Firebase Firestore & Firebase Storage
+- **Xác thực (Authentication):** Firebase Auth (Google Sign-In, Email/Password)
+- **Trí tuệ nhân tạo (AI):** Firebase AI SDK (Mô hình `gemini-2.5-flash-lite`)
+- **Quản lý ảnh phụ trợ:** Cloudinary API
 
 ---
 
-## 🗄️ ERD Database Design
+## ⚙️ Hướng dẫn cài đặt (Getting Started)
 
-```mermaid
-erDiagram
-    USERS {
-        string id PK
-        string email
-        string displayName
-        string photoUrl
-    }
+Làm theo các bước dưới đây để cài đặt và chạy dự án trên máy tính của bạn.
 
-    NOTES {
-        string id PK
-        string userId FK
-        string title
-        string content "Delta JSON Format"
-        string status "active / pinned / archived"
-        string color
-        int isSynced
-        int createdAt
-        int updatedAt
-    }
+### Yêu cầu hệ thống (Prerequisites)
+* Đã cài đặt [Flutter SDK](https://docs.flutter.dev/get-started/install) (Phiên bản >= 3.x)
+* Đã cài đặt Android Studio hoặc VS Code.
+* Có tài khoản Firebase và Cloudinary.
 
-    TAGS {
-        string noteId PK,FK
-        string tag
-    }
-
-    MEDIA_ITEMS {
-        string id PK
-        string noteId FK
-        string type "image / audio"
-        string url
-    }
-
-    USERS ||--o{ NOTES : owns
-    NOTES ||--o{ TAGS : has
-    NOTES ||--o{ MEDIA_ITEMS : contains
-```
-
----
-
-## 📂 Project Structure
-
+### 1. Clone mã nguồn
 ```bash
-lib/
-├── models/         # Entity models (Note, User, SyncStatus)
-├── providers/      # State Management (NoteProvider, SyncProvider, AuthProvider)
-├── repositories/   # Abstract repositories & Implementations
-├── screens/        # UI Screens (Home, Editor, Sync, Login)
-├── services/       # Local database handlers, Firebase handlers
-├── widgets/        # Reusable UI components (NoteCard, Toolbar)
-└── main.dart       # App entry point
+git clone https://github.com/your-username/Smart-Note-App.git
+cd Smart-Note-App
 ```
 
----
-
-## 🛠️ Technologies Used
-
-| Technology       | Purpose                     |
-| ---------------- | --------------------------- |
-| **Flutter**      | Cross-platform UI Framework |
-| **Firebase Auth**| Google Sign-In & Authentication |
-| **Cloud Firestore**| Realtime Cloud Database    |
-| **Firebase Storage**| Audio & Image Storage       |
-| **SQLite (sqflite)**| Offline Local Database      |
-| **Provider**     | App State Management        |
-| **flutter_quill**| Rich Text Editor (WYSIWYG)  |
-| **just_audio / record** | Voice Note Playback & Recording |
-| **flutter_dotenv**| Environment Variables Security |
-
----
-
-## 🚀 Installation & Setup
-
-### Requirements
-
-* Flutter SDK >= 3.0.0
-* Dart SDK >= 3.0.0
-* Android Studio / VS Code
-
-### Setup
-
+### 2. Tải các thư viện phụ thuộc
 ```bash
-# 1. Clone dự án
-git clone <YOUR_REPOSITORY_URL>
-cd smart-note-app
-
-# 2. Xóa cache và nạp lại thư viện
-flutter clean
 flutter pub get
 ```
 
-### Firebase & Môi trường Configuration
-1. Tạo project trên Firebase Console. Thêm ứng dụng Android (`com.example.smart_note_app`).
-2. Tải `google-services.json` và đặt vào thư mục `android/app/`.
-3. Bật **Authentication** (Google Sign In), **Firestore**, và **Storage** trên Firebase Console.
-4. Tạo file `.env` ở thư mục gốc của dự án để cấu hình các biến môi trường nếu có.
+### 3. Cấu hình biến môi trường (.env)
+Dự án sử dụng file `.env` để bảo mật API Keys. Tạo một file tên là `.env` ở thư mục gốc của dự án (ngang hàng với `pubspec.yaml`) và điền các thông tin sau:
+```env
+# Cloudinary API Keys (Để upload ảnh)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+```
 
----
-
-## 🧪 Testing Scenarios (Kịch bản Kiểm thử)
-
-### 1. App ↔ Firebase Realtime
-* Tạo ghi chú mới có chứa ảnh và định dạng chữ. 
-* Quay lại màn hình chính, kiểm tra Firestore xem dữ liệu (JSON Delta) đã được tải lên chưa.
-
-### 2. Multi-device Conflict Resolution
-* Đăng nhập cùng 1 tài khoản trên 2 máy (A và B).
-* Tắt mạng máy A, sửa Ghi chú 1.
-* Trên máy B, sửa Ghi chú 1 và lưu lại lên Cloud.
-* Bật mạng máy A, bấm "Đồng bộ ngay". App sẽ báo phát hiện Cloud có dữ liệu mới hơn và tự động kéo dữ liệu từ máy B về mà không đè mù dữ liệu cũ.
-
-### 3. Offline Mode
-* Tắt WiFi/4G. Viết ghi chú mới, thu âm giọng nói.
-* Ghi chú vẫn lưu mượt mà. Đóng app mở lại dữ liệu vẫn còn.
-* Bật WiFi lại, hệ thống tự động tải file thu âm lên Firebase Storage và đẩy ghi chú lên Firestore.
-
----
-
-## 📦 Production Build
-
-Để xuất file cài đặt APK tối ưu dung lượng và bảo mật mã nguồn:
-
+### 4. Kết nối Firebase
+Dự án đã có sẵn các file cấu hình Firebase. Tuy nhiên, nếu bạn muốn kết nối với Firebase của riêng bạn:
+1. Cài đặt [Firebase CLI](https://firebase.google.com/docs/cli).
+2. Chạy lệnh cấu hình FlutterFire:
 ```bash
-flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols
+flutterfire configure
+```
+
+### 5. Chạy ứng dụng
+Khởi chạy máy ảo Android (Emulator) hoặc cắm thiết bị thật, sau đó chạy lệnh:
+```bash
+flutter run
+```
+
+### 6. Build file cài đặt (APK)
+Để xuất file APK phát hành cài đặt cho điện thoại:
+```bash
+flutter build apk --release
+```
+File APK sẽ nằm ở: `build/app/outputs/flutter-apk/app-release.apk`
+
+---
+
+## 🏛️ Cấu trúc thư mục cốt lõi (Folder Structure)
+
+```text
+lib/
+ ┣ core/           # Cấu hình UI, Colors, Themes chung
+ ┣ models/         # Các Data class (Note, User, Checklist)
+ ┣ providers/      # Nơi xử lý State và Logic nghiệp vụ (Auth, NoteProvider)
+ ┣ screens/        # Các màn hình giao diện (UI)
+ ┣ services/       # Giao tiếp với API, Database (SQLite, Firestore, Gemini AI)
+ ┣ utils/          # Các hàm hỗ trợ (Format ngày, kiểm tra kết nối mạng)
+ ┗ widgets/        # Các UI Components dùng chung (NoteCard, EmptyState)
 ```
 
 ---
 
-## 🔮 Future Improvements (Dự định Tương lai)
+## 👥 Nhóm tác giả (Authors)
+* **Phạm Văn Minh** - Mã SV: 23010350 (Đại học Phenikaa)
+* **Trần Thị Thu Hường** - Mã SV: 23010344 (Đại học Phenikaa)
 
-* AI Note Summarization (Tóm tắt ghi chú bằng AI)
-* OCR Text Recognition (Trích xuất chữ từ hình ảnh)
-* Real-time Collaboration (Cùng sửa ghi chú thời gian thực)
-* Biometric Security (Khóa ghi chú bằng vân tay/FaceID với `local_auth`)
-* Web/Desktop Native Support
+*Giảng viên hướng dẫn: Cô Vũ Thị Ngọc Anh*
 
 ---
-
-*Được phát triển với niềm đam mê dành cho Flutter & Kiến trúc phần mềm hoàn hảo! 💙*
+*Cảm ơn bạn đã quan tâm đến dự án Smart Note App! Nếu thấy hữu ích, hãy cho dự án 1 ⭐️ (Star) nhé!*
