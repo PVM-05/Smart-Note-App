@@ -17,7 +17,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -63,10 +63,17 @@ class LocalNoteService {
           await db.execute("ALTER TABLE notes ADD COLUMN note_color TEXT");
         }
         if (oldVersion < 7) {
-          await db.execute("ALTER TABLE notes ADD COLUMN reminder INTEGER");
+          try {
+            await db.execute("ALTER TABLE notes ADD COLUMN reminder INTEGER");
+          } catch (_) {}
           // Thêm index để tăng tốc truy vấn
           await db.execute('CREATE INDEX IF NOT EXISTS idx_notes_user_status ON notes(user_id, status)');
           await db.execute('CREATE INDEX IF NOT EXISTS idx_notes_user_synced ON notes(user_id, is_synced)');
+        }
+        if (oldVersion < 8) {
+          try {
+            await db.execute("ALTER TABLE notes ADD COLUMN reminder INTEGER");
+          } catch (_) {}
         }
       },
     );
