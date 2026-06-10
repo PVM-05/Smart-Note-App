@@ -1,4 +1,4 @@
-g<h1 align="center">
+<h1 align="center">
   <br>
   <img src="assets/images/app_icon.png" alt="Smart Note App" width="120">
   <br>
