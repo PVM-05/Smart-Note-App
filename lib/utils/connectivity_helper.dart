@@ -11,10 +11,10 @@ class ConnectivityHelper {
     _subscription = _connectivity.onConnectivityChanged.listen((results) {
       final isOnline = !results.contains(ConnectivityResult.none);
       if (isOnline) {
-        log('📶 ConnectivityHelper: có mạng');
+        log('ConnectivityHelper: có mạng');
         onOnline();
       } else {
-        log('📵 ConnectivityHelper: mất mạng');
+        log('ConnectivityHelper: mất mạng');
       }
     });
   }

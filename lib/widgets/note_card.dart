@@ -59,7 +59,7 @@ class NoteCard extends StatelessWidget {
         ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B))
         : AppColors.textMetadata(context);
 
-    final String displayTitle = isLocked ? '🔒 Ghi chú đã khóa' : note.title;
+    final String displayTitle = isLocked ? 'Ghi chú đã khóa' : note.title;
     final bool isChecklist = !isLocked && note.isChecklist;
     final String displayContent = isLocked
         ? 'Nội dung đã được bảo vệ'
