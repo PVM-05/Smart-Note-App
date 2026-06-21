@@ -102,7 +102,8 @@ class AppLocalizations {
       'trashWarning': 'Ghi chú trong Thùng rác sẽ bị xóa tự động sau 7 ngày.',
       'trashTitle': 'Thùng rác',
       'clearTrash': 'Dọn sạch thùng rác',
-      'clearTrashInDevelopment': 'Tính năng dọn sạch đang phát triển',
+      'clearTrashConfirmTitle': 'Dọn sạch Thùng rác?',
+      'clearTrashConfirmContent': 'Tất cả ghi chú trong Thùng rác sẽ bị xóa vĩnh viễn.',
       'restore': 'Khôi phục',
       'deleteForever': 'Xóa vĩnh viễn',
       'restoreNote': 'Khôi phục ghi chú',
@@ -158,6 +159,8 @@ class AppLocalizations {
 
       // Editor – upload/delete banners
       'uploadingAudio': 'Đang tải lên âm thanh...',
+      'transcribingAudio': 'Đang chuyển giọng nói thành văn bản...',
+      'voiceNote': 'Bản ghi âm',
       'uploadAudioSuccess': 'Tải lên âm thanh thành công!',
       'uploadAudioFail': 'Tải lên âm thanh thất bại.',
       'uploadAudioError': 'Lỗi: Tải lên âm thanh thất bại.',
@@ -447,6 +450,8 @@ class AppLocalizations {
       'trashTitle': 'Trash',
       'clearTrash': 'Empty Trash',
       'clearTrashInDevelopment': 'Empty feature is in development',
+      'clearTrashConfirmTitle': 'Empty Trash?',
+      'clearTrashConfirmContent': 'All notes in the Trash will be permanently deleted.',
       'restore': 'Restore',
       'deleteForever': 'Delete forever',
       'restoreNote': 'Restore note',
@@ -502,6 +507,8 @@ class AppLocalizations {
 
       // Editor – upload/delete banners
       'uploadingAudio': 'Uploading audio...',
+      'transcribingAudio': 'Transcribing voice to text...',
+      'voiceNote': 'Voice note',
       'uploadAudioSuccess': 'Audio uploaded successfully!',
       'uploadAudioFail': 'Audio upload failed.',
       'uploadAudioError': 'Error: Audio upload failed.',

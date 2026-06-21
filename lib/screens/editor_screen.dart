@@ -734,6 +734,7 @@ class _EditorScreenState extends State<EditorScreen>
     if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final msgUploading = AppLocalizations.translate(context, 'uploadingAudio');
+    final msgTranscribing = AppLocalizations.translate(context, 'transcribingAudio');
     final msgSuccess = AppLocalizations.translate(context, 'uploadAudioSuccess');
     final msgFail = AppLocalizations.translate(context, 'uploadAudioFail');
     final msgError = AppLocalizations.translate(context, 'uploadAudioError');
@@ -750,15 +751,77 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       if (url != null) {
         setState(() => _audioUrls.add(url));
-        await _saveNote(isAutosave: true);
-        _setUploadState(
-          isUploading: false,
-          message: msgSuccess,
-          bannerColor: const Color(0xFFECFDF5),
-          bannerTextColor: const Color(0xFF065F46),
-          statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
-          autoHide: true,
-        );
+
+        // Cố gắng chuyển đổi Speech-to-Text bằng Gemini AI
+        String transcribedText = '';
+        try {
+          final file = File(path);
+          if (await file.exists()) {
+            _setUploadState(
+              isUploading: true,
+              message: msgTranscribing,
+              bannerColor: const Color(0xFFFEF3C7),
+              bannerTextColor: const Color(0xFF92400E),
+              statusIcon: const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706)),
+              ),
+            );
+            final bytes = await file.readAsBytes();
+            transcribedText = await _geminiAiService.transcribeAudio(bytes, 'audio/mp4');
+          }
+        } catch (sttError) {
+          debugPrint('Speech to Text error: $sttError');
+        }
+
+        if (mounted) {
+          setState(() {
+            if (transcribedText.isNotEmpty) {
+              if (_isChecklistMode) {
+                if (_checklistItems.isNotEmpty && _checklistItems.last.text.trim().isEmpty) {
+                  _checklistItems.last.text = transcribedText;
+                } else {
+                  _checklistItems.add(ChecklistItem(text: transcribedText));
+                }
+              } else {
+                final index = _quillController.selection.baseOffset;
+                final docLen = _quillController.document.length;
+                int insertIndex = index >= 0 && index <= docLen ? index : docLen;
+                String textToInsert = transcribedText;
+                if (insertIndex > 0) {
+                  final plainText = _quillController.document.toPlainText();
+                  if (insertIndex <= plainText.length) {
+                    final prevChar = plainText.substring(insertIndex - 1, insertIndex);
+                    if (prevChar != '\n' && prevChar != ' ') {
+                      textToInsert = '\n$transcribedText';
+                    }
+                  }
+                }
+                _quillController.document.insert(insertIndex, textToInsert);
+                _quillController.updateSelection(
+                  TextSelection.collapsed(offset: insertIndex + textToInsert.length),
+                  ChangeSource.local,
+                );
+              }
+              _isDirty = true;
+            }
+          });
+
+          if (transcribedText.isNotEmpty) {
+            _onTextChanged();
+          }
+
+          await _saveNote(isAutosave: true);
+          _setUploadState(
+            isUploading: false,
+            message: msgSuccess,
+            bannerColor: const Color(0xFFECFDF5),
+            bannerTextColor: const Color(0xFF065F46),
+            statusIcon: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+            autoHide: true,
+          );
+        }
       } else {
         _setUploadState(
           isUploading: false,
@@ -1085,8 +1148,15 @@ class _EditorScreenState extends State<EditorScreen>
   Widget build(BuildContext context) {
     final isCustomColor = _noteColor != null;
     final onDarkNoteBg = isCustomColor && _isNoteBackgroundDark(context);
-    final textColor = isCustomColor ? (onDarkNoteBg ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B)) : null;
-    final placeholderColor = isCustomColor ? (onDarkNoteBg ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)) : null;
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+
+    final Color textColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFFFFFFF) : const Color(0xFF000000))
+        : (isDarkTheme ? const Color(0xFFFFFFFF) : const Color(0xFF000000));
+
+    final Color placeholderColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFE2E8F0) : const Color(0xFF4A5568))
+        : (isDarkTheme ? const Color(0xFF9AA0A6) : const Color(0xFF5F6368));
 
     final quillBaseStyles = DefaultStyles.getInstance(context);
     final quillCustomStyles = DefaultStyles(
@@ -1257,21 +1327,13 @@ class _EditorScreenState extends State<EditorScreen>
                             style: GoogleFonts.outfit(
                               fontSize: 27,
                               fontWeight: FontWeight.w400,
-                              color: isCustomColor
-                                  ? (onDarkNoteBg
-                                      ? Colors.white
-                                      : const Color(0xFF0F172A))
-                                  : AppColors.textSecondary(context),
+                              color: textColor,
                             ),
                             decoration: InputDecoration(
                               hintText: AppLocalizations.translate(context, 'titleHint'),
                               border: InputBorder.none,
                               hintStyle: TextStyle(
-                                color: isCustomColor
-                                    ? (onDarkNoteBg
-                                        ? const Color(0xFFCBD5E1)
-                                        : const Color(0xFF64748B))
-                                    : AppColors.placeholder(context),
+                                color: placeholderColor,
                               ),
                             ),
                             textCapitalization: TextCapitalization.sentences,
@@ -1587,6 +1649,10 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Widget _buildChecklistEditor() {
+    final isCustomColor = _noteColor != null;
+    final onDarkNoteBg = isCustomColor && _isNoteBackgroundDark(context);
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
         EditorChecklistSection(
@@ -1644,14 +1710,33 @@ class _EditorScreenState extends State<EditorScreen>
                   Wrap(
                     spacing: 8,
                     runSpacing: 6,
-                    children: _tags
-                        .map((tag) => Chip(
-                      label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF475569))),
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      side: BorderSide(color: Colors.grey.shade200),
-                    ))
-                        .toList(),
+                    children: _tags.map((tag) {
+                      final Color tagBgColor;
+                      final Color tagTextColor;
+                      if (isCustomColor) {
+                        if (onDarkNoteBg) {
+                          tagBgColor = Colors.white.withValues(alpha: 0.15);
+                          tagTextColor = Colors.white;
+                        } else {
+                          tagBgColor = Colors.black.withValues(alpha: 0.08);
+                          tagTextColor = const Color(0xFF202124);
+                        }
+                      } else {
+                        tagBgColor = isDarkTheme
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.black.withValues(alpha: 0.06);
+                        tagTextColor = isDarkTheme
+                            ? const Color(0xFFE8EAED)
+                            : const Color(0xFF202124);
+                      }
+
+                      return Chip(
+                        label: Text(tag, style: GoogleFonts.outfit(fontSize: 12, color: tagTextColor)),
+                        backgroundColor: tagBgColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        side: BorderSide.none,
+                      );
+                    }).toList(),
                   ),
                 ],
                 const SizedBox(height: 12),

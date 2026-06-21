@@ -57,6 +57,39 @@ class _TrashScreenState extends State<TrashScreen> {
     }
   }
 
+  Future<void> _confirmClearTrash(NoteProvider provider) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.translate(context, 'clearTrashConfirmTitle')),
+        content: Text(AppLocalizations.translate(context, 'clearTrashConfirmContent')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppLocalizations.translate(context, 'cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: Text(AppLocalizations.translate(context, 'delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.translate(context, 'deletingCloudNote')),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      await provider.emptyTrash();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<NoteProvider>(
@@ -70,7 +103,7 @@ class _TrashScreenState extends State<TrashScreen> {
           // Chuyển mạch AppBar tùy theo trạng thái chọn
           appBar: isSelectionMode
               ? _selectionAppBar(provider)
-              : _normalAppBar(context),
+              : _normalAppBar(context, provider),
 
           body: _buildBody(provider),
         );
@@ -161,7 +194,7 @@ class _TrashScreenState extends State<TrashScreen> {
   }
 
   // APPBAR BÌNH THƯỜNG
-  AppBar _normalAppBar(BuildContext context) {
+  AppBar _normalAppBar(BuildContext context, NoteProvider provider) {
     return AppBar(
       backgroundColor: AppColors.background(context),
       elevation: 0,
@@ -177,18 +210,20 @@ class _TrashScreenState extends State<TrashScreen> {
         style: TextStyle(color: AppColors.textPrimary(context), fontSize: 18),
       ),
       actions: [
-        // Thêm nút Xóa toàn bộ Thùng rác nhanh (Tùy chọn)
-        IconButton(
-          icon: Icon(Icons.delete_sweep, color: AppColors.textPrimary(context)),
-          tooltip: AppLocalizations.translate(context, 'clearTrash'),
-          onPressed: () {
-            if (Provider.of<NoteProvider>(context, listen: false).trashNotes.isNotEmpty) {
-              ScaffoldMessenger.of(context).clearSnackBars();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(AppLocalizations.translate(context, 'clearTrashInDevelopment'))),
-              );
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: AppColors.textPrimary(context)),
+          onSelected: (value) {
+            if (value == 'empty_trash') {
+              _confirmClearTrash(provider);
             }
           },
+          itemBuilder: (BuildContext context) => [
+            PopupMenuItem<String>(
+              value: 'empty_trash',
+              enabled: provider.trashNotes.isNotEmpty,
+              child: Text(AppLocalizations.translate(context, 'clearTrash')),
+            ),
+          ],
         ),
       ],
     );

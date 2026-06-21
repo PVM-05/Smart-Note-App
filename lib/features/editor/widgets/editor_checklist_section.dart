@@ -30,12 +30,22 @@ class EditorChecklistSection extends StatelessWidget {
   Widget _buildChecklistTile(
       BuildContext context, ChecklistItem item, int index) {
     final isCustomColor = noteColor != null;
-    final textThemeColor = isCustomColor
-        ? const Color(0xFF1E293B)
-        : AppColors.textSecondary(context);
-    final hintColor = isCustomColor
-        ? const Color(0xFF64748B)
-        : AppColors.placeholder(context);
+    final resolvedColor = noteColor != null ? AppColors.resolveNoteBackground(context, noteColor) : null;
+    final onDarkNoteBg = resolvedColor != null && resolvedColor.computeLuminance() < 0.45;
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+
+    final Color textThemeColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFFFFFFF) : const Color(0xFF000000))
+        : (isDarkTheme ? const Color(0xFFFFFFFF) : const Color(0xFF000000));
+        
+    final Color hintColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFE2E8F0) : const Color(0xFF4A5568))
+        : (isDarkTheme ? const Color(0xFF9AA0A6) : const Color(0xFF5F6368));
+        
+    final Color itemIconColor = isCustomColor
+        ? (onDarkNoteBg ? Colors.white54 : const Color(0xFF64748B))
+        : (isDarkTheme ? Colors.grey.shade400 : Colors.grey.shade500);
+
     const primaryColor = AppColors.primary;
 
     return Container(
@@ -50,9 +60,7 @@ class EditorChecklistSection extends StatelessWidget {
               padding: const EdgeInsets.all(8.0),
               child: Icon(
                 Icons.drag_indicator,
-                color: isCustomColor
-                    ? const Color(0xFF64748B)
-                    : Colors.grey.shade500,
+                color: itemIconColor,
                 size: 20,
               ),
             ),
@@ -69,8 +77,8 @@ class EditorChecklistSection extends StatelessWidget {
               activeColor: primaryColor,
               side: BorderSide(
                 color: isCustomColor
-                    ? const Color(0xFF475569)
-                    : Colors.grey.shade600,
+                    ? (onDarkNoteBg ? Colors.white70 : const Color(0xFF475569))
+                    : (isDarkTheme ? Colors.grey.shade400 : Colors.grey.shade600),
                 width: 1.5,
               ),
             ),
@@ -83,7 +91,9 @@ class EditorChecklistSection extends StatelessWidget {
                 ..selection = TextSelection.collapsed(offset: item.text.length),
               style: GoogleFonts.outfit(
                 fontSize: 15,
-                color: item.checked ? Colors.grey.shade400 : textThemeColor,
+                color: item.checked
+                    ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.5) : Colors.grey.shade500)
+                    : textThemeColor,
                 decoration: item.checked
                     ? TextDecoration.lineThrough
                     : TextDecoration.none,
@@ -108,9 +118,7 @@ class EditorChecklistSection extends StatelessWidget {
                 padding: const EdgeInsets.all(8.0),
                 child: Icon(
                   Icons.close,
-                  color: isCustomColor
-                      ? const Color(0xFF64748B)
-                      : Colors.grey.shade500,
+                  color: itemIconColor,
                   size: 18,
                 ),
               ),
@@ -122,6 +130,19 @@ class EditorChecklistSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCustomColor = noteColor != null;
+    final resolvedColor = noteColor != null ? AppColors.resolveNoteBackground(context, noteColor) : null;
+    final onDarkNoteBg = resolvedColor != null && resolvedColor.computeLuminance() < 0.45;
+    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+
+    final Color headerIconColor = isCustomColor
+        ? (onDarkNoteBg ? Colors.white70 : const Color(0xFF64748B))
+        : (isDarkTheme ? Colors.grey.shade400 : Colors.grey.shade600);
+
+    final Color hintColor = isCustomColor
+        ? (onDarkNoteBg ? const Color(0xFFE2E8F0) : const Color(0xFF4A5568))
+        : (isDarkTheme ? const Color(0xFF9AA0A6) : const Color(0xFF5F6368));
+
     return Column(
       children: [
         // Header: Icon checklist + nút X để thoát checklist mode
@@ -129,18 +150,18 @@ class EditorChecklistSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Row(
             children: [
-              const Icon(Icons.drag_indicator,
-                  color: Color(0xFF94A3B8), size: 20),
+              Icon(Icons.drag_indicator,
+                  color: headerIconColor.withValues(alpha: 0.7), size: 20),
               const SizedBox(width: 4),
               Icon(Icons.check_box_outline_blank,
-                  color: Colors.grey.shade600, size: 20),
+                  color: headerIconColor, size: 20),
               const Spacer(),
               GestureDetector(
                 onTap: onExitChecklistMode,
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child:
-                      Icon(Icons.close, color: Colors.grey.shade700, size: 22),
+                      Icon(Icons.close, color: headerIconColor, size: 22),
                 ),
               ),
             ],
@@ -161,7 +182,7 @@ class EditorChecklistSection extends StatelessWidget {
                     Tween<double>(begin: 0, end: 4).animate(animation).value;
                 return Material(
                   elevation: elevation,
-                  color: Colors.white,
+                  color: resolvedColor ?? AppColors.surface(context),
                   borderRadius: BorderRadius.circular(8),
                   child: child,
                 );
@@ -181,13 +202,13 @@ class EditorChecklistSection extends StatelessWidget {
                   child: Row(
                     children: [
                       const SizedBox(width: 28), // Align với drag handle
-                      Icon(Icons.add, color: Colors.grey.shade600, size: 20),
+                      Icon(Icons.add, color: hintColor, size: 20),
                       const SizedBox(width: 12),
                       Text(
                         'Mục danh sách',
                         style: GoogleFonts.outfit(
                           fontSize: 15,
-                          color: Colors.grey.shade600,
+                          color: hintColor,
                         ),
                       ),
                     ],

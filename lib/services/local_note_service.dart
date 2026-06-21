@@ -17,7 +17,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -34,7 +34,8 @@ class LocalNoteService {
             audio_urls TEXT,          
             created_at INTEGER,
             updated_at INTEGER,
-            reminder INTEGER
+            reminder INTEGER,
+            sort_order INTEGER DEFAULT 0
           )
         ''');
         // ── Performance indexes ──
@@ -74,6 +75,18 @@ class LocalNoteService {
           try {
             await db.execute("ALTER TABLE notes ADD COLUMN reminder INTEGER");
           } catch (_) {}
+        }
+        if (oldVersion < 9) {
+          try {
+            await db.execute("ALTER TABLE notes ADD COLUMN sort_order INTEGER DEFAULT 0");
+          } catch (_) {}
+          // Gán sort_order ban đầu cho các note hiện có dựa trên thứ tự updated_at DESC
+          await db.execute('''
+            UPDATE notes SET sort_order = (
+              SELECT COUNT(*) FROM notes AS n2
+              WHERE n2.updated_at > notes.updated_at
+            )
+          ''');
         }
       },
     );
@@ -126,7 +139,7 @@ class LocalNoteService {
         userId,
         'trash',
       ],
-      orderBy: 'updated_at DESC',
+      orderBy: 'sort_order ASC, updated_at DESC',
       limit: limit,
       offset: offset,
     );
@@ -146,7 +159,7 @@ class LocalNoteService {
       'notes',
       where: 'user_id = ? AND status = ?',
       whereArgs: [userId, 'pinned'],
-      orderBy: 'updated_at DESC',
+      orderBy: 'sort_order ASC, updated_at DESC',
     );
     return maps.map((m) => Note.fromMap(m)).toList();
   }

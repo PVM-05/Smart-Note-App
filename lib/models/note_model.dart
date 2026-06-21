@@ -82,6 +82,7 @@ class Note {
   final List<String> imageUrls;  // ← MỚI: URL ảnh Cloudinary
   final List<String> audioUrls;  // ← MỚI: URL audio Cloudinary
   final DateTime? reminder;      // ← MỚI: Ngày giờ nhắc nhở
+  final int sortOrder;           // ← Thứ tự sắp xếp tùy chỉnh (kéo thả)
 
   Note({
     required this.id,
@@ -96,6 +97,7 @@ class Note {
     this.imageUrls = const [],   // ← MỚI
     this.audioUrls = const [],   // ← MỚI
     this.reminder,               // ← MỚI
+    this.sortOrder = 0,          // ← Thứ tự sắp xếp tùy chỉnh
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -117,6 +119,7 @@ class Note {
     'created_at': createdAt.millisecondsSinceEpoch,
     'updated_at': updatedAt.millisecondsSinceEpoch,
     'reminder': reminder?.millisecondsSinceEpoch, // ← MỚI
+    'sort_order': sortOrder,
   };
 
   /// Helper an toàn: decode JSON list, fallback về [] nếu dữ liệu cũ (CSV hoặc null)
@@ -155,6 +158,7 @@ class Note {
     reminder: m['reminder'] != null
         ? DateTime.fromMillisecondsSinceEpoch(m['reminder'])
         : null, // ← MỚI
+    sortOrder: m['sort_order'] ?? 0,
   );
 
   // ── Firestore ──
@@ -172,6 +176,7 @@ class Note {
     'created_at': Timestamp.fromDate(createdAt),
     'updated_at': Timestamp.fromDate(updatedAt),
     'reminder': reminder != null ? Timestamp.fromDate(reminder!) : null, // ← MỚI
+    'sort_order': sortOrder,
   };
 
   factory Note.fromFirestoreMap(Map<String, dynamic> m) => Note(
@@ -195,6 +200,7 @@ class Note {
     reminder: m['reminder'] != null
         ? (m['reminder'] as Timestamp).toDate()
         : null, // ← MỚI
+    sortOrder: m['sort_order'] ?? 0,
   );
 
   Note copyWith({
@@ -210,6 +216,7 @@ class Note {
     DateTime? reminder,       // ← MỚI
     bool clearReminder = false, // ← MỚI
     DateTime? updatedAt,
+    int? sortOrder,
   }) =>
       Note(
         id: id,
@@ -226,5 +233,6 @@ class Note {
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now(),
         reminder: clearReminder ? null : (reminder ?? this.reminder), // ← MỚI
+        sortOrder: sortOrder ?? this.sortOrder,
       );
 }

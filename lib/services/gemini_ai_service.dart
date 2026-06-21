@@ -1,7 +1,20 @@
+import 'dart:typed_data';
 import 'package:firebase_ai/firebase_ai.dart';
 
 class GeminiAiService {
   GenerativeModel? _model;
+
+  Future<String> transcribeAudio(Uint8List bytes, String mimeType) async {
+    try {
+      final response = await model.generateContent([
+        Content.inlineData(mimeType, bytes),
+        Content.text('Hãy chuyển toàn bộ âm thanh trong file ghi âm này thành văn bản thuần túy (thường là tiếng Việt). Chỉ trả về phần văn bản nói được nhận dạng, không được thêm bất kỳ lời giải thích, ghi chú hay ký tự nào khác ngoài nội dung lời nói.'),
+      ]);
+      return response.text?.trim() ?? '';
+    } catch (e) {
+      return '';
+    }
+  }
 
   GenerativeModel get model {
     _model ??= FirebaseAI.googleAI().generativeModel(

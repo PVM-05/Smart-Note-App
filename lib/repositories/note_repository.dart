@@ -21,6 +21,7 @@ abstract class NoteRepository {
   Future<void> deleteNoteForever(String id);
 
   Future<List<Note>> getArchivedNotes(String userId);
+  Future<void> updateNotesSortOrder(List<Note> notes);
 }
 
 class NoteRepositoryImpl implements NoteRepository {
@@ -163,5 +164,33 @@ class NoteRepositoryImpl implements NoteRepository {
   @override
   Future<List<Note>> getArchivedNotes(String userId) async {
     return await _localService.getArchivedNotes(userId: userId);
+  }
+
+  // ── Batch update sort_order cho kéo thả ──
+  @override
+  Future<void> updateNotesSortOrder(List<Note> notes) async {
+    final database = await _localService.db;
+    await database.transaction((txn) async {
+      for (final note in notes) {
+        await txn.update(
+          'notes',
+          {'sort_order': note.sortOrder, 'is_synced': 0},
+          where: 'id = ?',
+          whereArgs: [note.id],
+        );
+      }
+    });
+
+    // Push lên Cloud nếu có mạng
+    if (await _canSync()) {
+      try {
+        for (final note in notes) {
+          await _firestoreService.saveNote(note);
+          await _localService.markSynced(note.id);
+        }
+      } catch (_) {
+        // Giữ isSynced=false → SyncProvider sẽ retry sau
+      }
+    }
   }
 }

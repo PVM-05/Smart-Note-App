@@ -520,10 +520,16 @@ class NoteProvider extends ChangeNotifier {
     await _repository.deleteNoteForever(id);
   }
 
+
   Future<void> restoreNote(String id) async {
     final index = _trashNotes.indexWhere((n) => n.id == id);
     if (index != -1) {
-      final restoredNote = _trashNotes[index].copyWith(status: 'normal', isSynced: false, updatedAt: DateTime.now());
+      final note = _trashNotes[index];
+      final restoredNote = note.copyWith(
+        status: 'normal',
+        isSynced: false,
+        updatedAt: DateTime.now(),
+      );
       _trashNotes.removeAt(index);
       _notes.insert(0, restoredNote);
       notifyListeners();
@@ -546,19 +552,25 @@ class NoteProvider extends ChangeNotifier {
   }
 
   Future<void> restoreSelectedTrashNotes() async {
-    final idsToRestore = _selectedTrashNoteIds.toList();
+    final ids = _selectedTrashNoteIds.toList();
     clearTrashSelection();
-    for (final id in idsToRestore) {
+    for (final id in ids) {
       await restoreNote(id);
     }
   }
 
   Future<void> deleteForeverSelectedTrashNotes() async {
-    final idsToDelete = _selectedTrashNoteIds.toList();
+    final ids = _selectedTrashNoteIds.toList();
     clearTrashSelection();
+    for (final id in ids) {
+      await deleteNoteForever(id);
+    }
+  }
 
-    // Gọi tuần tự giải thuật dọn dẹp đồng bộ an toàn dữ liệu
-    for (final id in idsToDelete) {
+  Future<void> emptyTrash() async {
+    final ids = _trashNotes.map((n) => n.id).toList();
+    clearTrashSelection();
+    for (final id in ids) {
       await deleteNoteForever(id);
     }
   }
@@ -567,6 +579,8 @@ class NoteProvider extends ChangeNotifier {
     final isPinnedNow = note.status == 'pinned';
     final updatedNote = note.copyWith(
       status: isPinnedNow ? 'normal' : 'pinned',
+      isSynced: false,
+      updatedAt: DateTime.now(),
     );
 
     if (isPinnedNow) {
@@ -702,6 +716,34 @@ class NoteProvider extends ChangeNotifier {
     _isSearching = false;
     _filtered = [];
     notifyListeners();
+  }
+
+  // ── KÉO THẢ SẮP XẾP GHI CHÚ ──
+  Future<void> reorderNotes(int oldIndex, int newIndex, {bool isPinned = false}) async {
+    final list = isPinned ? _pinnedNotesList : _notes;
+    if (oldIndex < 0 || oldIndex >= list.length) return;
+    if (newIndex < 0 || newIndex >= list.length) return;
+    if (oldIndex == newIndex) return;
+
+    // 1. Di chuyển item trong bộ nhớ
+    final item = list.removeAt(oldIndex);
+    list.insert(newIndex, item);
+
+    // 2. Gán lại sortOrder tuần tự cho toàn bộ danh sách
+    final updatedNotes = <Note>[];
+    for (int i = 0; i < list.length; i++) {
+      if (list[i].sortOrder != i) {
+        list[i] = list[i].copyWith(sortOrder: i, isSynced: false);
+        updatedNotes.add(list[i]);
+      }
+    }
+
+    notifyListeners();
+
+    // 3. Batch update vào SQLite + sync Cloud
+    if (updatedNotes.isNotEmpty) {
+      await _repository.updateNotesSortOrder(updatedNotes);
+    }
   }
 
   void clearNotes() {

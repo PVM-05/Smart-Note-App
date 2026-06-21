@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:animations/animations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:reorderables/reorderables.dart';
 import '../core/design/app_colors.dart';
 import '../core/app_localizations.dart';
 import '../providers/auth_provider.dart';
@@ -266,8 +267,8 @@ class _HomeScreenState extends State<HomeScreen> {
               case SortType.createdNewest:
                 message = AppLocalizations.translate(context, 'sortCreatedNewest');
                 break;
-              case SortType.titleAZ:
-                message = AppLocalizations.translate(context, 'sortTitleAZ');
+              case SortType.custom:
+                message = 'Thứ tự tùy chỉnh';
                 break;
             }
 
@@ -443,8 +444,8 @@ class _HomeScreenState extends State<HomeScreen> {
           return b.updatedAt.compareTo(a.updatedAt);
         case SortType.createdNewest:
           return b.createdAt.compareTo(a.createdAt);
-        case SortType.titleAZ:
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        case SortType.custom:
+          return a.sortOrder.compareTo(b.sortOrder);
       }
     }
 
@@ -476,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            _buildNotesSliverSection(pinnedNotes, noteProvider),
+            _buildNotesSliverSection(pinnedNotes, noteProvider, isPinned: true),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
             if (normalNotes.isNotEmpty) ...[
               SliverToBoxAdapter(
@@ -493,13 +494,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              _buildNotesSliverSection(normalNotes, noteProvider),
+              _buildNotesSliverSection(normalNotes, noteProvider, isPinned: false),
             ],
           ]
           // ── KHÔNG CÓ NOTE GHIM → HIỆN THẲNG NOTE THƯỜNG
           else ...[
             const SliverToBoxAdapter(child: SizedBox(height: 8)),
-            _buildNotesSliverSection(normalNotes, noteProvider),
+            _buildNotesSliverSection(normalNotes, noteProvider, isPinned: false),
           ],
 
           // Progress Indicator load thêm dữ liệu
@@ -583,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: InkWell(
                   splashColor: selectBgColor,
                   highlightColor: Colors.transparent,
-                  onLongPress: () => provider.toggleSelection(note.id),
+                  onLongPress: _sortType == SortType.custom ? null : () => provider.toggleSelection(note.id),
                   onTap: () {
                     if (isSelectionMode) {
                       provider.toggleSelection(note.id);
@@ -700,12 +701,23 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 4),
               IconButton(
-                icon: Icon(
-                  _isGrid
-                      ? Icons.view_agenda_outlined
-                      : Icons.grid_view_outlined,
-                  size: 24,
-                  color: AppColors.textPrimary(context),
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return RotationTransition(
+                      turns: Tween<double>(begin: 0.5, end: 1.0).animate(animation),
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Icon(
+                    _isGrid ? Icons.view_agenda_outlined : Icons.grid_view_outlined,
+                    key: ValueKey<bool>(_isGrid),
+                    size: 24,
+                    color: AppColors.textPrimary(context),
+                  ),
                 ),
                 style: IconButton.styleFrom(
                   hoverColor: AppColors.ripple(context),
@@ -824,30 +836,124 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNotesSliverSection(List<Note> notes, NoteProvider noteProvider) {
-    if (_isGrid) {
-      return SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        sliver: SliverMasonryGrid.count(
-          crossAxisCount: 2,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          itemBuilder: (context, index) {
-            return _buildNoteItem(notes[index], noteProvider);
+  Widget _buildNotesSliverSection(List<Note> notes, NoteProvider noteProvider, {bool isPinned = false}) {
+    final isCustomSort = _sortType == SortType.custom;
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      sliver: SliverToBoxAdapter(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 350),
+          switchInCurve: Curves.easeInOut,
+          switchOutCurve: Curves.easeInOut,
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.96, end: 1.0).animate(animation),
+                child: child,
+              ),
+            );
           },
-          childCount: notes.length,
+          child: _isGrid
+              ? _buildGridSection(notes, noteProvider, isPinned, isCustomSort)
+              : _buildListSection(notes, noteProvider, isPinned, isCustomSort),
         ),
-      );
-    } else {
-      return SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        sliver: SliverList.builder(
-          itemCount: notes.length,
-          itemBuilder: (context, index) {
-            return _buildNoteItem(notes[index], noteProvider);
-          },
-        ),
+      ),
+    );
+  }
+
+  Widget _buildGridSection(List<Note> notes, NoteProvider noteProvider, bool isPinned, bool isCustomSort) {
+    if (isCustomSort) {
+      return LayoutBuilder(
+        key: ValueKey('grid_custom_${isPinned ? "pinned" : "normal"}'),
+        builder: (context, constraints) {
+          final cardWidth = (constraints.maxWidth - 8) / 2;
+          return ReorderableWrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            controller: _scrollController,
+            onReorder: (oldIndex, newIndex) {
+              int adjustedNewIndex = newIndex;
+              if (newIndex > oldIndex) {
+                adjustedNewIndex -= 1;
+              }
+              final note = notes[oldIndex];
+              if (!noteProvider.selectedNoteIds.contains(note.id)) {
+                noteProvider.toggleSelection(note.id);
+              }
+              noteProvider.reorderNotes(oldIndex, adjustedNewIndex, isPinned: isPinned);
+            },
+            onNoReorder: (index) {
+              final note = notes[index];
+              if (!noteProvider.selectedNoteIds.contains(note.id)) {
+                noteProvider.toggleSelection(note.id);
+              }
+            },
+            children: notes.map((note) {
+              return SizedBox(
+                key: ValueKey('${isPinned ? "pinned_wrap" : "normal_wrap"}_${note.id}'),
+                width: cardWidth,
+                child: _buildNoteItem(note, noteProvider),
+              );
+            }).toList(),
+          );
+        },
       );
     }
+
+    return MasonryGridView.count(
+      key: ValueKey('grid_normal_${isPinned ? "pinned" : "normal"}'),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      itemCount: notes.length,
+      itemBuilder: (context, index) {
+        return _buildNoteItem(notes[index], noteProvider);
+      },
+    );
+  }
+
+  Widget _buildListSection(List<Note> notes, NoteProvider noteProvider, bool isPinned, bool isCustomSort) {
+    if (isCustomSort) {
+      return ReorderableListView.builder(
+        key: ValueKey('list_custom_${isPinned ? "pinned" : "normal"}'),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: notes.length,
+        onReorderItem: (oldIndex, newIndex) {
+          final note = notes[oldIndex];
+          if (!noteProvider.selectedNoteIds.contains(note.id)) {
+            noteProvider.toggleSelection(note.id);
+          }
+          noteProvider.reorderNotes(oldIndex, newIndex, isPinned: isPinned);
+        },
+        onReorderStart: (index) {
+          final note = notes[index];
+          if (!noteProvider.selectedNoteIds.contains(note.id)) {
+            noteProvider.toggleSelection(note.id);
+          }
+        },
+        itemBuilder: (context, index) {
+          return ReorderableDelayedDragStartListener(
+            key: ValueKey('${isPinned ? "pinned" : "normal"}_${notes[index].id}'),
+            index: index,
+            child: _buildNoteItem(notes[index], noteProvider),
+          );
+        },
+      );
+    }
+
+    return ListView.builder(
+      key: ValueKey('list_normal_${isPinned ? "pinned" : "normal"}'),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: notes.length,
+      itemBuilder: (context, index) {
+        return _buildNoteItem(notes[index], noteProvider);
+      },
+    );
   }
 }

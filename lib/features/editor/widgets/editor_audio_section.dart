@@ -127,56 +127,45 @@ class EditorAudioSection extends StatelessWidget {
                   size: 20),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ghi âm âm thanh ${index + 1}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1E293B),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isThisLoaded
-                      ? '${_formatDuration(playPosition)} / ${_formatDuration(playTotal)}'
-                      : '00:00',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    color: isCustomColor
-                        ? const Color(0xFF64748B)
-                        : Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (isThisLoaded && playTotal.inMilliseconds > 0)
-            SizedBox(
-              width: 80,
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2,
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 4),
-                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 8),
-                ),
-                child: Slider(
-                  value: playPosition.inMilliseconds
-                      .toDouble()
-                      .clamp(0, playTotal.inMilliseconds.toDouble()),
-                  max: playTotal.inMilliseconds.toDouble(),
-                  activeColor: primaryColor,
-                  inactiveColor: Colors.grey.shade300,
-                  onChanged: onSeek,
-                ),
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 2,
+                thumbShape:
+                    const RoundSliderThumbShape(enabledThumbRadius: 4),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 8),
+              ),
+              child: Slider(
+                value: isThisLoaded
+                    ? playPosition.inMilliseconds
+                        .toDouble()
+                        .clamp(0, playTotal.inMilliseconds.toDouble())
+                    : 0.0,
+                max: isThisLoaded && playTotal.inMilliseconds > 0
+                    ? playTotal.inMilliseconds.toDouble()
+                    : 1.0,
+                activeColor: primaryColor,
+                inactiveColor: isCustomColor
+                    ? Colors.black.withValues(alpha: 0.1)
+                    : Colors.grey.shade300,
+                onChanged: isThisLoaded ? onSeek : null,
               ),
             ),
+          ),
           const SizedBox(width: 8),
+          Text(
+            isThisLoaded
+                ? '${_formatDuration(playPosition)} / ${_formatDuration(playTotal)}'
+                : '00:00',
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              color: isCustomColor
+                  ? const Color(0xFF64748B)
+                  : Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(width: 12),
           GestureDetector(
             onTap: () => onDeleteAudio(url, index),
             child: Icon(Icons.delete_outline_rounded,

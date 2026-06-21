@@ -5,7 +5,7 @@ import '../../../core/design/app_colors.dart';
 enum SortType {
   updatedNewest,
   createdNewest,
-  titleAZ,
+  custom,
 }
 
 class SortOptionsSheet extends StatelessWidget {
@@ -68,21 +68,21 @@ class SortOptionsSheet extends StatelessWidget {
           const Divider(),
           _buildSortOption(
             context,
+            type: SortType.custom,
+            icon: Icons.drag_handle,
+            title: 'Tuỳ chỉnh',
+          ),
+          _buildSortOption(
+            context,
             type: SortType.updatedNewest,
             icon: Icons.history,
-            title: 'Mới chỉnh sửa gần đây',
+            title: 'Ngày tạo',
           ),
           _buildSortOption(
             context,
             type: SortType.createdNewest,
             icon: Icons.access_time,
-            title: 'Mới tạo gần đây',
-          ),
-          _buildSortOption(
-            context,
-            type: SortType.titleAZ,
-            icon: Icons.sort_by_alpha,
-            title: 'Tiêu đề A → Z',
+            title: 'Ngày sửa đổi',
           ),
         ],
       ),
