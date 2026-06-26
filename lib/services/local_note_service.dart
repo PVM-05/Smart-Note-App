@@ -17,7 +17,7 @@ class LocalNoteService {
     final path = join(await getDatabasesPath(), 'smart_note.db');
     return openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE notes(
@@ -36,6 +36,13 @@ class LocalNoteService {
             updated_at INTEGER,
             reminder INTEGER,
             sort_order INTEGER DEFAULT 0
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE labels(
+            name TEXT,
+            user_id TEXT,
+            PRIMARY KEY (name, user_id)
           )
         ''');
         // ── Performance indexes ──
@@ -85,6 +92,15 @@ class LocalNoteService {
             UPDATE notes SET sort_order = (
               SELECT COUNT(*) FROM notes AS n2
               WHERE n2.updated_at > notes.updated_at
+            )
+          ''');
+        }
+        if (oldVersion < 10) {
+          await db.execute('''
+            CREATE TABLE labels(
+              name TEXT,
+              user_id TEXT,
+              PRIMARY KEY (name, user_id)
             )
           ''');
         }
@@ -357,5 +373,32 @@ class LocalNoteService {
       where: 'user_id = ?',
       whereArgs: [userId],
     );
+  }
+
+  Future<List<String>> getCustomLabels(String userId) async {
+    if (kIsWeb) return [];
+    final database = await db;
+    final maps = await database.query(
+      'labels',
+      columns: ['name'],
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    return maps.map((m) => m['name'] as String).toList();
+  }
+
+  Future<void> syncCustomLabels(String userId, List<String> names) async {
+    if (kIsWeb) return;
+    final database = await db;
+    await database.transaction((txn) async {
+      await txn.delete('labels', where: 'user_id = ?', whereArgs: [userId]);
+      for (final name in names) {
+        await txn.insert(
+          'labels',
+          {'name': name, 'user_id': userId},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 }

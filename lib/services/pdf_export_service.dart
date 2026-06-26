@@ -195,6 +195,78 @@ class PdfExportService {
     }
   }
 
+  static Future<void> exportMultipleNotesToPdf(BuildContext flutterContext, List<Note> notes) async {
+    ScaffoldMessenger.of(flutterContext).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.translate(flutterContext, 'pdfInitializing')),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final doc = pw.Document();
+      final font = await PdfGoogleFonts.robotoRegular();
+      final fontBold = await PdfGoogleFonts.robotoBold();
+      final fontItalic = await PdfGoogleFonts.robotoItalic();
+
+      final pdfTheme = pw.ThemeData.withFont(
+        base: font,
+        bold: fontBold,
+        italic: fontItalic,
+      );
+
+      for (final note in notes) {
+        doc.addPage(
+          pw.MultiPage(
+            theme: pdfTheme,
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.all(36),
+            build: (pw.Context context) {
+              return [
+                pw.Text(
+                  note.title.isNotEmpty ? note.title : AppLocalizations.translate(flutterContext, 'titleHint'),
+                  style: pw.TextStyle(font: fontBold, fontSize: 18),
+                ),
+                pw.SizedBox(height: 12),
+                pw.Text(
+                  note.plainTextContent,
+                  style: pw.TextStyle(font: font, fontSize: 12),
+                ),
+              ];
+            },
+          ),
+        );
+      }
+
+      final pdfBytes = await doc.save();
+      final filename = 'SmartNotes_Export.pdf';
+
+      await Printing.sharePdf(
+        bytes: pdfBytes,
+        filename: filename,
+      );
+
+      if (flutterContext.mounted) {
+        ScaffoldMessenger.of(flutterContext).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.translate(flutterContext, 'pdfExportSuccess')),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Lỗi xuất PDF: $e");
+      if (flutterContext.mounted) {
+        ScaffoldMessenger.of(flutterContext).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.translate(flutterContext, 'pdfExportError').replaceAll('{error}', '$e')),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   /// Dựng widget Checklist trong PDF
   static pw.Widget _buildChecklistPdf(Note note) {
     try {

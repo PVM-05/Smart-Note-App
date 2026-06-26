@@ -7,6 +7,7 @@ import '../services/cloudinary_service.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
 import '../services/reminder_service.dart';
+import 'package:uuid/uuid.dart';
 
 class NoteProvider extends ChangeNotifier {
   final NoteRepository _repository;
@@ -31,6 +32,7 @@ class NoteProvider extends ChangeNotifier {
   bool get hasMoreNotes => _hasMoreNotes;
 
   // Quản lý nhãn toàn cục và bộ lọc
+  String? _userId;
   List<String> _customLabels = [];
   String? _selectedLabel;
   bool _showOnlyReminders = false;
@@ -139,6 +141,7 @@ class NoteProvider extends ChangeNotifier {
 
   // Khởi chạy hoặc làm mới lại từ đầu (Trang 1)
   Future<void> refreshNotes(String userId) async {
+    _userId = userId;
     _currentOffset = 0;
     _hasMoreNotes = true;
     _isLoading = true;
@@ -157,6 +160,10 @@ class NoteProvider extends ChangeNotifier {
       if (fetchedNotes.length < _pageLimit) {
         _hasMoreNotes = false;
       }
+      
+      // Tải nhãn dán tùy chọn từ cơ sở dữ liệu
+      _customLabels = await _repository.getCustomLabels(userId);
+      
       _invalidateLabelCache();
     } finally {
       _isLoading = false;
@@ -198,12 +205,15 @@ class NoteProvider extends ChangeNotifier {
 
   // ── CÁC LOGIC THAO TÁC NOTE ──
 
-  void addLabel(String labelName) {
+  void addLabel(String labelName) async {
     final trimmed = labelName.trim();
     if (trimmed.isNotEmpty && !allLabels.contains(trimmed)) {
       _customLabels.add(trimmed);
       _invalidateLabelCache();
       notifyListeners();
+      if (_userId != null) {
+        await _repository.saveCustomLabels(_userId!, _customLabels);
+      }
     }
   }
 
@@ -229,6 +239,28 @@ class NoteProvider extends ChangeNotifier {
         }
       }
     }
+    notifyListeners();
+  }
+
+  Future<void> updateTagsForSelectedNotes(List<String> tags) async {
+    final idsToLabel = _selectedNoteIds.toList();
+
+    for (final id in idsToLabel) {
+      int index = _notes.indexWhere((n) => n.id == id);
+      bool isPinned = false;
+      if (index == -1) {
+        index = _pinnedNotesList.indexWhere((n) => n.id == id);
+        isPinned = true;
+      }
+
+      if (index != -1) {
+        final targetList = isPinned ? _pinnedNotesList : _notes;
+        final note = targetList[index];
+        targetList[index] = note.copyWith(tags: tags, isSynced: false);
+        await _repository.saveNote(targetList[index]);
+      }
+    }
+    _invalidateLabelCache();
     notifyListeners();
   }
 
@@ -268,6 +300,9 @@ class NoteProvider extends ChangeNotifier {
     if (_selectedLabel == oldName) _selectedLabel = trimmedNew;
     _invalidateLabelCache();
     notifyListeners();
+    if (_userId != null) {
+      await _repository.saveCustomLabels(_userId!, _customLabels);
+    }
   }
 
   Future<void> deleteLabel(String labelName) async {
@@ -300,6 +335,9 @@ class NoteProvider extends ChangeNotifier {
     if (_selectedLabel == labelName) _selectedLabel = null;
     _invalidateLabelCache();
     notifyListeners();
+    if (_userId != null) {
+      await _repository.saveCustomLabels(_userId!, _customLabels);
+    }
   }
 
   void toggleSelection(String id) {
@@ -461,6 +499,7 @@ class NoteProvider extends ChangeNotifier {
   }
 
   Future<void> fetchTrashNotes(String userId) async {
+    _userId = userId;
     final allTrash = await _repository.getTrashNotes(userId);
     final now = DateTime.now();
     _trashNotes = [];
@@ -534,6 +573,8 @@ class NoteProvider extends ChangeNotifier {
       _notes.insert(0, restoredNote);
       notifyListeners();
       await _repository.saveNote(restoredNote);
+      // Lên lịch lại nhắc nhở nếu note có reminder trong tương lai
+      await _scheduleReminderIfNeeded(restoredNote);
     }
   }
 
@@ -595,6 +636,7 @@ class NoteProvider extends ChangeNotifier {
   }
 
   Future<void> fetchArchivedNotes(String userId) async {
+    _userId = userId;
     _archivedNotes = await _repository.getArchivedNotes(userId);
     notifyListeners();
   }
@@ -614,6 +656,8 @@ class NoteProvider extends ChangeNotifier {
       _archivedNotes.insert(0, archivedNote);
       notifyListeners();
       await _repository.saveNote(archivedNote);
+      // Hủy nhắc nhở khi lưu trữ ghi chú
+      await ReminderService().cancelReminder(id);
     }
   }
 
@@ -625,6 +669,8 @@ class NoteProvider extends ChangeNotifier {
       _notes.insert(0, restoredNote);
       notifyListeners();
       await _repository.saveNote(restoredNote);
+      // Lên lịch lại nhắc nhở nếu note có reminder trong tương lai
+      await _scheduleReminderIfNeeded(restoredNote);
     }
   }
 
@@ -636,6 +682,8 @@ class NoteProvider extends ChangeNotifier {
       _trashNotes.insert(0, trashedNote);
       notifyListeners();
       await _repository.saveNote(trashedNote);
+      // Hủy nhắc nhở khi chuyển note vào thùng rác
+      await ReminderService().cancelReminder(id);
     }
   }
 
@@ -898,5 +946,88 @@ class NoteProvider extends ChangeNotifier {
       _archivedNotes[index] = updatedNote;
       return;
     }
+  }
+
+  Future<void> duplicateNotes(List<String> ids) async {
+    for (final id in ids) {
+      Note? foundNote;
+      for (final list in [_notes, _pinnedNotesList, _archivedNotes]) {
+        final index = list.indexWhere((n) => n.id == id);
+        if (index != -1) {
+          foundNote = list[index];
+          break;
+        }
+      }
+
+      if (foundNote != null) {
+        final newId = const Uuid().v4();
+        final duplicate = Note(
+          id: newId,
+          userId: foundNote.userId,
+          title: foundNote.title,
+          content: foundNote.content,
+          status: foundNote.status,
+          isSynced: false,
+          isLocked: foundNote.isLocked,
+          noteColor: foundNote.noteColor,
+          tags: List<String>.from(foundNote.tags),
+          imageUrls: List<String>.from(foundNote.imageUrls),
+          audioUrls: List<String>.from(foundNote.audioUrls),
+          reminder: foundNote.reminder,
+          sortOrder: foundNote.sortOrder,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        if (duplicate.status == 'pinned') {
+          _pinnedNotesList.insert(0, duplicate);
+        } else if (duplicate.status == 'archived') {
+          _archivedNotes.insert(0, duplicate);
+        } else {
+          _notes.insert(0, duplicate);
+        }
+        await _repository.saveNote(duplicate);
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> updateColorForSelectedNotes(String? color) async {
+    for (final id in selectedNoteIds) {
+      Note? note;
+      for (final list in [_notes, _pinnedNotesList]) {
+        final index = list.indexWhere((n) => n.id == id);
+        if (index != -1) {
+          note = list[index];
+          break;
+        }
+      }
+      if (note != null) {
+        final updatedNote = note.copyWith(noteColor: color, isSynced: false, updatedAt: DateTime.now());
+        _updateNoteInMemory(updatedNote);
+        await _repository.saveNote(updatedNote);
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> setReminderForSelectedNotes(DateTime dt) async {
+    for (final id in selectedNoteIds) {
+      Note? note;
+      for (final list in [_notes, _pinnedNotesList]) {
+        final index = list.indexWhere((n) => n.id == id);
+        if (index != -1) {
+          note = list[index];
+          break;
+        }
+      }
+      if (note != null) {
+        final updatedNote = note.copyWith(reminder: dt, isSynced: false, updatedAt: DateTime.now());
+        _updateNoteInMemory(updatedNote);
+        await _repository.saveNote(updatedNote);
+        await _scheduleReminderIfNeeded(updatedNote);
+      }
+    }
+    notifyListeners();
   }
 }

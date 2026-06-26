@@ -22,14 +22,14 @@ class AppColors {
   static const Color lightRipple = Color(0x1A000000);
   static const Color lightSelected = Color(0x333B82F6);
 
-  // Dark (Google Keep–inspired: navy base + layered surfaces)
-  static const Color darkBackground = Color(0xFF1A1C22);
-  static const Color darkSurface = Color(0xFF25262B);
-  static const Color darkSearchBar = Color(0xFF2E303D);
+  // Dark (Google Keep–inspired: deeper navy base for OLED richness)
+  static const Color darkBackground = Color(0xFF141519); // deeper than before
+  static const Color darkSurface = Color(0xFF1E2028);    // richer surface
+  static const Color darkSearchBar = Color(0xFF272A33);  // subtle contrast
   static const Color darkIconCircle = Color(0xFF3C404B);
-  static const Color darkInputBackground = Color(0xFF2E303D);
-  static const Color darkToolbarBackground = Color(0xFF25262B);
-  static const Color darkDrawerSelected = Color(0xFF394457);
+  static const Color darkInputBackground = Color(0xFF272A33);
+  static const Color darkToolbarBackground = Color(0xFF1E2028);
+  static const Color darkDrawerSelected = Color(0xFF2E3A50);
   static const Color darkFabBackground = Color(0xFF3C404B);
   static const Color darkTextPrimary = Color(0xFFFFFFFF);
   static const Color darkTextSecondary = Color(0xFFE8EAED);
@@ -38,8 +38,8 @@ class AppColors {
   static const Color darkDivider = Color(0xFF3C404B);
   static const Color darkDisabled = Color(0xFF48484A);
   static const Color darkRipple = Color(0x1AFFFFFF);
-  static const Color darkSelected = Color(0x33BB86FC);
-  static const Color darkAccent = Color(0xFFBB86FC);
+  static const Color darkSelected = Color(0x333B82F6); // blue-tinted selection
+  static const Color darkAccent = Color(0xFF60A5FA);   // accent-400 blue
 
   // On colors
   static const Color onPrimary = Colors.white;

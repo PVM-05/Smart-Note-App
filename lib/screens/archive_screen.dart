@@ -14,6 +14,8 @@ import '../widgets/note_card_shimmer.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/note_card.dart';
+import 'package:animations/animations.dart';
+import 'editor_screen.dart';
 
 class ArchiveScreen extends StatefulWidget {
   const ArchiveScreen({super.key});
@@ -68,46 +70,38 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
     }
   }
 
-  Future<void> _confirmDeleteSelected(
+  Future<void> _deleteSelectedNotes(
       NoteProvider provider,
       ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        title: Text(
-          AppLocalizations.translate(context, 'moveToTrashTitle'),
-        ),
-        content: Text(
-          AppLocalizations.translate(context, 'moveToTrashConfirm')
-              .replaceAll('{count}', '${provider.selectedArchiveNoteIds.length}'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx, false);
-            },
-            child: Text(AppLocalizations.translate(context, 'cancel')),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx, true);
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.error,
-            ),
-            child: Text(
-              AppLocalizations.translate(context, 'moveToTrash'),
-            ),
-          ),
-        ],
-      ),
-    );
+    final count = provider.selectedArchiveNoteIds.length;
+    final deletedIds = List<String>.from(provider.selectedArchiveNoteIds);
 
-    if (confirm == true) {
-      await provider.deleteSelectedArchiveNotes();
+    await provider.deleteSelectedArchiveNotes();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.translate(context, 'movedNotesToTrash').replaceAll('{count}', '$count'),
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(12),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: AppLocalizations.translate(context, 'undo'),
+            textColor: AppColors.primary,
+            onPressed: () async {
+              for (final id in deletedIds) {
+                await provider.restoreNote(id);
+              }
+            },
+          ),
+        ),
+      );
     }
   }
 
@@ -269,63 +263,76 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
 
     final isSelectionMode =
         provider.isArchiveSelectionMode;
+    final selectBgColor = AppColors.primary.withValues(alpha: 0.05);
 
-    return AnimatedContainer(
-      duration: const Duration(
-        milliseconds: 250,
-      ),
-
-      curve: Curves.easeOut,
-
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: isSelected
-              ? AppColors.primary
-              : Colors.transparent,
-          width: 2,
-        ),
-
-        borderRadius: BorderRadius.circular(
-          _isGrid ? 16 : 18,
-        ),
-      ),
-
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(
-          _isGrid ? 14 : 18,
-        ),
-
-        child: Material(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.05)
-              : AppColors.surface(context),
-
-          child: InkWell(
-            onLongPress: () {
-              provider.toggleArchiveSelection(
-                note.id,
-              );
-            },
-
-            onTap: () {
-              if (isSelectionMode) {
-                provider.toggleArchiveSelection(
-                  note.id,
-                );
-              } else {
-                _showArchiveOptions(
-                  context,
-                  note,
-                  provider,
-                );
-              }
-            },
-
-            child: NoteCard(
-              note: note,
-              isGrid: _isGrid,
-            ),
+    return Container(
+      margin: _isGrid
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: AnimatedScale(
+        scale: isSelected ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOutCubic,
+        child: OpenContainer(
+          transitionType: ContainerTransitionType.fade,
+          transitionDuration: const Duration(milliseconds: 320),
+          closedElevation: 0,
+          openElevation: 0,
+          tappable: false,
+          closedColor: Colors.transparent,
+          middleColor: Colors.transparent,
+          openColor: Theme.of(context).scaffoldBackgroundColor,
+          closedShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
+          openBuilder: (context, _) => EditorScreen(note: note),
+          onClosed: (_) {
+            Future.delayed(const Duration(milliseconds: 320), () async {
+              if (!mounted) return;
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              if (auth.isAuthenticated && auth.userId != null) {
+                await provider.fetchNotes(auth.userId!);
+              }
+            });
+          },
+          closedBuilder: (context, openContainer) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOutCubic,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : Colors.transparent,
+                  width: 2,
+                ),
+                color: isSelected ? selectBgColor : AppColors.surface(context),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  splashColor: selectBgColor,
+                  highlightColor: Colors.transparent,
+                  onLongPress: () {
+                    provider.toggleArchiveSelection(note.id);
+                  },
+                  onTap: () {
+                    if (isSelectionMode) {
+                      provider.toggleArchiveSelection(note.id);
+                    } else {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      openContainer();
+                    }
+                  },
+                  child: NoteCard(
+                    note: note,
+                    isGrid: _isGrid,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -356,10 +363,11 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       title: Text(
         AppLocalizations.translate(context, 'archiveTitle'),
 
-        style: GoogleFonts.roboto(
+        style: GoogleFonts.outfit(
           color: AppColors.textPrimary(context),
           fontSize: 18,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
         ),
       ),
 
@@ -409,18 +417,19 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       title: Text(
         AppLocalizations.translate(context, 'selectedCount').replaceAll('{count}', '${provider.selectedArchiveNoteIds.length}'),
 
-        style: GoogleFonts.roboto(
+        style: GoogleFonts.outfit(
           color: AppColors.textPrimary(context),
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
           fontSize: 18,
+          letterSpacing: -0.2,
         ),
       ),
 
       actions: [
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.unarchive_outlined,
-            color: AppColors.primary,
+            color: AppColors.textPrimary(context),
           ),
 
           tooltip: AppLocalizations.translate(context, 'unarchive'),
@@ -433,15 +442,15 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         ),
 
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.delete_outline,
-            color: Colors.red,
+            color: AppColors.textPrimary(context),
           ),
 
           tooltip: AppLocalizations.translate(context, 'moveToTrash'),
 
           onPressed: () {
-            _confirmDeleteSelected(
+            _deleteSelectedNotes(
               provider,
             );
           },
@@ -450,108 +459,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
     );
   }
 
-  void _showArchiveOptions(
-      BuildContext context,
-      Note note,
-      NoteProvider provider,
-      ) {
-    showModalBottomSheet(
-      context: context,
 
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
-      ),
-
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-
-            children: [
-              Container(
-                width: 42,
-                height: 4,
-
-                margin: const EdgeInsets.only(
-                  top: 12,
-                  bottom: 8,
-                ),
-
-                decoration: BoxDecoration(
-                  color: AppColors.divider(context),
-
-                  borderRadius:
-                  BorderRadius.circular(2),
-                ),
-              ),
-
-              ListTile(
-                leading: const Icon(
-                  Icons.unarchive_outlined,
-                  color: AppColors.primary,
-                ),
-
-                title: Text(
-                  AppLocalizations.translate(context, 'unarchive'),
-                ),
-
-                subtitle: Text(
-                  AppLocalizations.translate(context, 'restoreToHome'),
-                ),
-
-                onTap: () {
-                  provider.unarchiveNote(
-                    note.id,
-                  );
-
-                  Navigator.pop(context);
-
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        AppLocalizations.translate(context, 'unarchivedNote'),
-                      ),
-
-                      behavior:
-                      SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-              ),
-
-              ListTile(
-                leading: const Icon(
-                  Icons.delete_outline,
-                  color: AppColors.error,
-                ),
-
-                title: Text(
-                  AppLocalizations.translate(context, 'moveToTrash'),
-
-                  style: const TextStyle(
-                    color: AppColors.error,
-                  ),
-                ),
-
-                onTap: () {
-                  provider.moveArchivedNoteToTrash(
-                    note.id,
-                  );
-
-                  Navigator.pop(context);
-                },
-              ),
-
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildEmptyArchive() {
     return EmptyStateWidget(

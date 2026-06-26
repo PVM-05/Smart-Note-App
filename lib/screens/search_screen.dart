@@ -12,6 +12,7 @@ import '../core/design/app_colors.dart';
 import '../core/app_localizations.dart';
 import '../widgets/empty_state.dart';
 import 'editor_screen.dart';
+import 'package:animations/animations.dart';
 
 // Class lưu trữ thông tin của một bộ lọc (Bao gồm Tên hiển thị và Mã Token để gửi xuống DB)
 class FilterToken {
@@ -401,24 +402,40 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildNoteItem(Note note, NoteProvider provider) {
     return Container(
-      // ⚡ LOẠI BỎ BOXDECORATION VIỀN XÁM THỪA để NoteCard hiển thị phẳng hoàn toàn đồng bộ với Keep View
       margin: const EdgeInsets.symmetric(vertical: 5),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => EditorScreen(note: note)),
-          ).then((_) {
+      child: OpenContainer(
+        transitionType: ContainerTransitionType.fade,
+        transitionDuration: const Duration(milliseconds: 320),
+        closedElevation: 0,
+        openElevation: 0,
+        tappable: false,
+        closedColor: Colors.transparent,
+        middleColor: Colors.transparent,
+        openColor: Theme.of(context).scaffoldBackgroundColor,
+        closedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        openBuilder: (context, _) => EditorScreen(note: note),
+        onClosed: (_) {
+          Future.delayed(const Duration(milliseconds: 320), () async {
             if (!mounted) return;
             final auth = Provider.of<AuthProvider>(context, listen: false);
             provider.refreshNotes(auth.userId!);
           });
         },
-        child: NoteCard(
-          note: note,
-          searchQuery: _searchController.text,
-          isGrid: _isGrid,
-        ),
+        closedBuilder: (context, openContainer) {
+          return InkWell(
+            onTap: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              openContainer();
+            },
+            child: NoteCard(
+              note: note,
+              searchQuery: _searchController.text,
+              isGrid: _isGrid,
+            ),
+          );
+        },
       ),
     );
   }

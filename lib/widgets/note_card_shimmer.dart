@@ -30,10 +30,10 @@ class NoteCardShimmer extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14), // 🔒 Locked: card radius = 14
           border: Border.all(
             color: isDark ? AppColors.darkPlaceholder : AppColors.divider(context),
-            width: 1,
+            width: isDark ? 1.0 : 0.6,
           ),
         ),
         child: Column(

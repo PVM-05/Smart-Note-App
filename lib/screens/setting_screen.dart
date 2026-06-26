@@ -56,7 +56,7 @@ class _SettingScreenState extends State<SettingScreen> {
               return SwitchListTile(
                 secondary: Icon(
                   themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                  color: AppColors.primary,
+                  color: AppColors.textPrimary(context),
                 ),
                 title: Text(
                   AppLocalizations.translate(context, 'darkModeTitle'),
@@ -88,7 +88,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 2: ĐỔI NGÔN NGỮ =================
           ListTile(
-            leading: const Icon(Icons.language, color: AppColors.primary),
+            leading: Icon(Icons.language, color: AppColors.textPrimary(context)),
             title: Text(
               AppLocalizations.translate(context, 'languageTitle'),
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
@@ -115,9 +115,9 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 3: BIOMETRIC =================
           SwitchListTile(
-            secondary: const Icon(
+            secondary: Icon(
               Icons.fingerprint,
-              color: AppColors.primary,
+              color: AppColors.textPrimary(context),
             ),
             title: Text(
               AppLocalizations.translate(context, 'settingsBiometricLockTitle'),
@@ -137,6 +137,7 @@ class _SettingScreenState extends State<SettingScreen> {
                       SnackBar(
                         content: Text(AppLocalizations.translate(localContext, 'biometricNotAvailable')),
                         backgroundColor: AppColors.error,
+                        duration: const Duration(seconds: 2),
                       ),
                     );
                   }
@@ -202,7 +203,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 4: THÔNG BÁO =================
           ListTile(
-            leading: const Icon(Icons.notifications_none_rounded, color: AppColors.primary),
+            leading: Icon(Icons.notifications_none_rounded, color: AppColors.textPrimary(context)),
             title: Text(
               AppLocalizations.translate(context, 'notificationsTitle'),
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
@@ -210,7 +211,10 @@ class _SettingScreenState extends State<SettingScreen> {
             subtitle: Text(AppLocalizations.translate(context, 'notificationsSubtitle')),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(AppLocalizations.translate(context, 'featureInDevelopment'))),
+                SnackBar(
+                  content: Text(AppLocalizations.translate(context, 'featureInDevelopment')),
+                  duration: const Duration(seconds: 2),
+                ),
               );
             },
           ),
@@ -218,7 +222,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 5: TRỢ GIÚP =================
           ListTile(
-            leading: const Icon(Icons.help_outline_rounded, color: AppColors.primary),
+            leading: Icon(Icons.help_outline_rounded, color: AppColors.textPrimary(context)),
             title: Text(
               AppLocalizations.translate(context, 'helpTitle'),
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
@@ -226,7 +230,10 @@ class _SettingScreenState extends State<SettingScreen> {
             subtitle: Text(AppLocalizations.translate(context, 'helpSubtitle')),
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(AppLocalizations.translate(context, 'featureInDevelopment'))),
+                SnackBar(
+                  content: Text(AppLocalizations.translate(context, 'featureInDevelopment')),
+                  duration: const Duration(seconds: 2),
+                ),
               );
             },
           ),
@@ -234,7 +241,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
           // ================= CHỨC NĂNG 6: VỀ ỨNG DỤNG =================
           ListTile(
-            leading: const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+            leading: Icon(Icons.info_outline_rounded, color: AppColors.textPrimary(context)),
             title: Text(
               AppLocalizations.translate(context, 'aboutTitle'),
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
@@ -309,7 +316,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   ListTile(
                     title: const Text('Tiếng Việt'),
                     trailing: isVi
-                        ? const Icon(Icons.check_circle, color: AppColors.primary)
+                        ? Icon(Icons.check_circle, color: AppColors.textPrimary(context))
                         : null,
                     onTap: () async {
                       await langProvider.setLanguage('vi');
@@ -321,7 +328,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   ListTile(
                     title: const Text('English'),
                     trailing: !isVi
-                        ? const Icon(Icons.check_circle, color: AppColors.primary)
+                        ? Icon(Icons.check_circle, color: AppColors.textPrimary(context))
                         : null,
                     onTap: () async {
                       await langProvider.setLanguage('en');

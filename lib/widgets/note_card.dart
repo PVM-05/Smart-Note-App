@@ -7,6 +7,11 @@ import '../core/design/app_colors.dart';
 import '../models/note_model.dart';
 import '../core/app_localizations.dart';
 
+// ─── Radius Design Tokens ───────────────────────────────────────────────────
+// card = 14 | badge/chip/tag = 20 (pill) | inner-clip = 13.5
+// This scale is locked across the whole app — do not deviate.
+// ────────────────────────────────────────────────────────────────────────────
+
 class NoteCard extends StatelessWidget {
   final Note note;
   final String? searchQuery;
@@ -35,21 +40,40 @@ class NoteCard extends StatelessWidget {
     final hasReminder = !isLocked && note.reminder != null;
 
     final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final defaultBorderColor = isDarkTheme ? const Color(0xFF42454D) : const Color(0xFFC2C8D0);
+
+    // ── Border strategy: light shadow > thin border ──────────────────────
+    // Light mode: very thin 0.6px border + subtle tinted shadow
+    // Dark mode: 1px border only (shadow invisible on dark backgrounds)
+    final defaultBorderColor = isDarkTheme
+        ? const Color(0xFF42454D)
+        : const Color(0xFFD1D5DB); // softer than before
     BorderSide borderSide = BorderSide.none;
+    List<BoxShadow> cardShadows = [];
 
     if (hasImages) {
       cardColor = AppColors.surface(context);
       onDarkNoteBg = false;
       borderSide = BorderSide(
         color: hasCustomColor ? AppColors.parseColor(note.noteColor!) : defaultBorderColor,
-        width: hasCustomColor ? 2 : 1.2,
+        width: hasCustomColor ? 1.5 : 0.6,
       );
     } else if (!hasCustomColor) {
-      borderSide = BorderSide(
-        color: defaultBorderColor,
-        width: 1.2,
-      );
+      borderSide = BorderSide(color: defaultBorderColor, width: isDarkTheme ? 1.0 : 0.6);
+      if (!isDarkTheme) {
+        // Soft tinted shadow replaces harsh border weight in light mode
+        cardShadows = [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 1,
+            offset: const Offset(0, 1),
+          ),
+        ];
+      }
     }
 
     final Color titleColor;
@@ -105,11 +129,12 @@ class NoteCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14), // 🔒 Locked: card radius = 14
         border: cardBorder,
+        boxShadow: cardShadows,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(11.5), // Giúp ảnh/nội dung bo tròn mượt mà khớp theo góc của viền
+        borderRadius: BorderRadius.circular(13.5),
         child: cardBody,
       ),
     );
@@ -140,8 +165,8 @@ class NoteCard extends StatelessWidget {
           // ── 1. HÌNH ẢNH TOÀN BỘ (GOOGLE KEEP STYLE) ──
           if (hasImages)
             CachedNetworkImage(
-              imageUrl: note.imageUrls.first, // Lấy hình ảnh đầu tiên trong danh sách
-              fit: BoxFit.fitWidth, // Chiếm trọn bề ngang, hiển thị nguyên vẹn tỉ lệ ảnh không bị cắt xén
+              imageUrl: note.imageUrls.first,
+              fit: BoxFit.fitWidth,
               placeholder: (context, url) => Container(
                 height: 120,
                 color: AppColors.surface(context),
@@ -162,7 +187,7 @@ class NoteCard extends StatelessWidget {
 
           // Phần thân chứa Tiêu đề, Nội dung văn bản, Thông tin file ghi âm và Chân thẻ
           Padding(
-            padding: const EdgeInsets.all(14.0),
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -181,9 +206,9 @@ class NoteCard extends StatelessWidget {
                               displayTitle,
                               style: GoogleFonts.outfit(
                                 fontSize: 15,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600, // w700→w600: less heavy, more editorial
                                 color: titleColor,
-                                letterSpacing: -0.3,
+                                letterSpacing: -0.2,
                               ),
                               maxLines: 2,
                             ),
@@ -201,7 +226,7 @@ class NoteCard extends StatelessWidget {
                 ),
 
                 if (displayTitle.isNotEmpty && displayContent.isNotEmpty)
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
                 if (displayContent.isNotEmpty)
                   _buildHighlightedText(
@@ -210,59 +235,63 @@ class NoteCard extends StatelessWidget {
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       color: contentColor,
-                      height: 1.55,
+                      height: 1.5,
+                      letterSpacing: 0.1,
                     ),
-                    maxLines: 6, // Hiển thị tối đa 6 dòng preview giống Google Keep
+                    maxLines: 6,
                   ),
 
                 // ── 3b. PREVIEW CHECKLIST ──
                 if (isChecklist)
                   _buildChecklistPreview(context),
 
-                // ── 4. HIỂN THỊ BIỂU TƯỢNG VÀ TÊN FILE ÂM THANH 1 ──
-                if (hasAudio) ...[
+                // ── 4. BADGE ROW: AUDIO + REMINDER ──
+                if (hasAudio || hasReminder) ...[
                   const SizedBox(height: 10),
-                  _buildAudioFileAttachment(context, note.audioUrls.first),
-                ],
-
-                // ── 4b. HIỂN THỊ NHẮC NHỞ GHI CHÚ ──
-                if (hasReminder) ...[
-                  const SizedBox(height: 10),
-                  _buildReminderBadge(context),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (hasAudio)
+                        _buildAudioFileAttachment(context, note.audioUrls.first, onDarkNoteBg: onDarkNoteBg, hasCustomColor: hasCustomColor, isDarkTheme: isDarkTheme),
+                      if (hasReminder)
+                        _buildReminderBadge(context, onDarkNoteBg: onDarkNoteBg, hasCustomColor: hasCustomColor, isDarkTheme: isDarkTheme),
+                    ],
+                  ),
                 ],
 
                 // ── 5. FOOTER: DANH SÁCH THẺ (TAGS) ──
                 if (hasTags)
                   Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
+                    padding: const EdgeInsets.only(top: 10.0),
                     child: Wrap(
-                      spacing: 6.0,
-                      runSpacing: 6.0,
+                      spacing: 5.0,
+                      runSpacing: 5.0,
                       children: note.tags.map((tag) {
                         final Color tagBgColor;
                         final Color tagTextColor;
                         if (hasCustomColor) {
                           if (onDarkNoteBg) {
-                            tagBgColor = Colors.white.withValues(alpha: 0.15);
+                            tagBgColor = Colors.white.withValues(alpha: 0.14);
                             tagTextColor = Colors.white;
                           } else {
-                            tagBgColor = Colors.black.withValues(alpha: 0.08);
+                            tagBgColor = Colors.black.withValues(alpha: 0.07);
                             tagTextColor = const Color(0xFF202124);
                           }
                         } else {
                           tagBgColor = isDarkTheme
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : Colors.black.withValues(alpha: 0.06);
+                              ? Colors.white.withValues(alpha: 0.09)
+                              : Colors.black.withValues(alpha: 0.05);
                           tagTextColor = isDarkTheme
                               ? const Color(0xFFE8EAED)
-                              : const Color(0xFF202124);
+                              : const Color(0xFF374151);
                         }
 
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: tagBgColor,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(20), // 🔒 pill = 20
                           ),
                           child: Text(
                             tag,
@@ -270,6 +299,7 @@ class NoteCard extends StatelessWidget {
                               fontSize: 10,
                               color: tagTextColor,
                               fontWeight: FontWeight.w500,
+                              letterSpacing: 0.3,
                             ),
                           ),
                         );
@@ -289,14 +319,15 @@ class NoteCard extends StatelessWidget {
     return AppColors.surface(context);
   }
 
-  // Widget hiển thị Biểu tượng Micro + Tên file âm thanh gọn gàng
-  Widget _buildAudioFileAttachment(BuildContext context, String audioUrl) {
+  // Widget hiển thị Biểu tượng Micro + Tên file âm thanh gọn gàng — pill badge
+  Widget _buildAudioFileAttachment(
+    BuildContext context,
+    String audioUrl, {
+    required bool onDarkNoteBg,
+    required bool hasCustomColor,
+    required bool isDarkTheme,
+  }) {
     final String fileName = AppLocalizations.translate(context, 'voiceNote');
-
-    final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
-    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final cardBgColor = _resolveCardColor(context);
-    final bool onDarkNoteBg = hasCustomColor && (cardBgColor.computeLuminance() < 0.45);
 
     final Color audioBgColor;
     final Color audioTextColor;
@@ -305,7 +336,7 @@ class NoteCard extends StatelessWidget {
         audioBgColor = Colors.white.withValues(alpha: 0.12);
         audioTextColor = Colors.white;
       } else {
-        audioBgColor = Colors.black.withValues(alpha: 0.08);
+        audioBgColor = Colors.black.withValues(alpha: 0.07);
         audioTextColor = const Color(0xFF202124);
       }
     } else {
@@ -314,34 +345,35 @@ class NoteCard extends StatelessWidget {
           : Colors.black.withValues(alpha: 0.05);
       audioTextColor = isDarkTheme
           ? const Color(0xFFE8EAED)
-          : const Color(0xFF202124);
+          : const Color(0xFF374151);
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: audioBgColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(20), // 🔒 pill = 20
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min, // Chỉ chiếm không gian vừa đủ theo tên file
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.mic_none_rounded, // Biểu tượng ghi âm
-            size: 16,
+            Icons.mic_none_rounded,
+            size: 13,
             color: audioTextColor,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Flexible(
             child: Text(
-              fileName, // Tên file âm thanh được trích xuất hoặc tên mặc định
+              fileName,
               style: GoogleFonts.outfit(
-                fontSize: 12,
+                fontSize: 11,
                 color: audioTextColor,
                 fontWeight: FontWeight.w500,
+                letterSpacing: 0.2,
               ),
               maxLines: 1,
-              overflow: TextOverflow.ellipsis, // Nếu tên file quá dài sẽ tự động hiển thị dấu ...
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -368,7 +400,7 @@ class NoteCard extends StatelessWidget {
           checkedColor = Colors.white.withValues(alpha: 0.5);
           uncheckedColor = Colors.white;
         } else {
-          checkedColor = const Color(0xFF5F6368);
+          checkedColor = const Color(0xFF6B7280);
           uncheckedColor = const Color(0xFF202124);
         }
       } else {
@@ -376,44 +408,49 @@ class NoteCard extends StatelessWidget {
           checkedColor = const Color(0xFF9AA0A6);
           uncheckedColor = const Color(0xFFE8EAED);
         } else {
-          checkedColor = const Color(0xFF5F6368);
+          checkedColor = const Color(0xFF6B7280);
           uncheckedColor = const Color(0xFF202124);
         }
       }
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: items.map<Widget>((item) {
-          final checked = item['checked'] == true;
-          final text = item['text'] as String? ?? '';
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  checked ? Icons.check_box : Icons.check_box_outline_blank,
-                  size: 16,
-                  color: checked ? checkedColor : uncheckedColor,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    text,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: checked ? checkedColor : uncheckedColor,
-                      decoration: checked ? TextDecoration.lineThrough : TextDecoration.none,
-                      height: 1.4,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: items.map<Widget>((item) {
+            final checked = item['checked'] == true;
+            final text = item['text'] as String? ?? '';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    // 🔒 Icon consistency: always use outlined variants
+                    checked ? Icons.check_box_outlined : Icons.check_box_outline_blank,
+                    size: 15,
+                    color: checked ? checkedColor : uncheckedColor,
                   ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: checked ? checkedColor : uncheckedColor,
+                        decoration: checked ? TextDecoration.lineThrough : TextDecoration.none,
+                        height: 1.4,
+                        letterSpacing: 0.1,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
       );
     } catch (_) {
       return const SizedBox.shrink();
@@ -501,22 +538,23 @@ class NoteCard extends StatelessWidget {
     return content.trim();
   }
 
-  Widget _buildReminderBadge(BuildContext context) {
-    final bool hasCustomColor = note.noteColor != null && note.noteColor!.isNotEmpty;
-    final bool onDarkNoteBg = hasCustomColor &&
-        (_resolveCardColor(context).computeLuminance() < 0.45);
-    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-        
+  // Widget badge nhắc nhở — pill-shaped, outlined alarm icon
+  Widget _buildReminderBadge(
+    BuildContext context, {
+    required bool onDarkNoteBg,
+    required bool hasCustomColor,
+    required bool isDarkTheme,
+  }) {
     final DateTime dt = note.reminder!;
     final now = DateTime.now();
     final isExpired = dt.isBefore(now);
-    
+
     String reminderText = '';
     final today = DateTime(now.year, now.month, now.day);
     final tomorrow = today.add(const Duration(days: 1));
     final dtDay = DateTime(dt.year, dt.month, dt.day);
-    String timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    
+    final timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
     if (dtDay == today) {
       reminderText = 'Hôm nay, $timeStr';
     } else if (dtDay == tomorrow) {
@@ -532,7 +570,7 @@ class NoteCard extends StatelessWidget {
         badgeBgColor = Colors.white.withValues(alpha: 0.12);
         badgeTextColor = Colors.white.withValues(alpha: 0.9);
       } else {
-        badgeBgColor = Colors.black.withValues(alpha: 0.08);
+        badgeBgColor = Colors.black.withValues(alpha: 0.07);
         badgeTextColor = const Color(0xFF202124);
       }
     } else {
@@ -541,28 +579,27 @@ class NoteCard extends StatelessWidget {
           : Colors.black.withValues(alpha: 0.05);
       badgeTextColor = isDarkTheme
           ? const Color(0xFFE8EAED)
-          : const Color(0xFF202124);
+          : const Color(0xFF374151);
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: badgeBgColor,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isExpired 
-              ? Colors.red.withValues(alpha: 0.3) 
-              : Colors.transparent,
-          width: 1,
-        ),
+        color: isExpired
+            ? Colors.red.withValues(alpha: isDarkTheme ? 0.18 : 0.08)
+            : badgeBgColor,
+        borderRadius: BorderRadius.circular(20), // 🔒 pill = 20
+        border: isExpired
+            ? Border.all(color: Colors.red.withValues(alpha: 0.35), width: 0.8)
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.alarm,
-            size: 13,
-            color: isExpired ? Colors.red : badgeTextColor,
+            Icons.alarm_outlined, // 🔒 Icon consistency: always outlined
+            size: 12,
+            color: isExpired ? Colors.red.shade400 : badgeTextColor,
           ),
           const SizedBox(width: 4),
           Flexible(
@@ -570,8 +607,9 @@ class NoteCard extends StatelessWidget {
               reminderText,
               style: GoogleFonts.outfit(
                 fontSize: 11,
-                color: isExpired ? Colors.red : badgeTextColor,
-                fontWeight: FontWeight.w400,
+                color: isExpired ? Colors.red.shade400 : badgeTextColor,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.1,
                 decoration: isExpired ? TextDecoration.lineThrough : TextDecoration.none,
               ),
               maxLines: 1,

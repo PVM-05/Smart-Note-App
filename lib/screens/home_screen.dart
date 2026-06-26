@@ -16,6 +16,7 @@ import '../models/note_model.dart';
 
 import '../widgets/note_card.dart';
 import 'editor_screen.dart';
+import 'label_selection_screen.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/profile_drawer.dart';
 import '../widgets/note_card_shimmer.dart';
@@ -24,6 +25,9 @@ import 'search_screen.dart';
 import '../features/home/sheets/sort_options_sheet.dart';
 import '../features/home/widgets/home_quick_menu.dart';
 import '../services/reminder_service.dart';
+import '../services/pdf_export_service.dart';
+import 'package:app_settings/app_settings.dart';
+import '../features/editor/sheets/editor_color_picker_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -136,9 +140,9 @@ class _HomeScreenState extends State<HomeScreen> {
           content: Text(AppLocalizations.translate(context, 'movedNotesToTrash').replaceAll('{count}', '$count')),
           behavior: SnackBarBehavior.floating,
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(12),
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 2),
           action: SnackBarAction(
             label: AppLocalizations.translate(context, 'undo'),
             textColor: _primary,
@@ -154,93 +158,143 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showBatchTagDialog(BuildContext context, NoteProvider provider) {
-    final labels = provider.allLabels;
-    final TextEditingController newLabelController = TextEditingController();
+  void _openBatchTagScreen(BuildContext context, NoteProvider provider) {
+    final selectedNotes = provider.notes.where((n) => provider.selectedNoteIds.contains(n.id)).toList();
+    final Set<String> unionTags = {};
+    for (final note in selectedNotes) {
+      unionTags.addAll(note.tags);
+    }
 
-    showDialog(
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LabelSelectionScreen(
+          initialTags: unionTags.toList(),
+          onTagsChanged: (updatedTags) async {
+            await provider.updateTagsForSelectedNotes(updatedTags);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showNotificationPermissionDialog(BuildContext context) {
+    final l = AppLocalizations.translate;
+    showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(AppLocalizations.translate(context, 'assignLabelTitle'),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        contentPadding:
-            const EdgeInsets.only(top: 12, left: 0, right: 0, bottom: 0),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: TextField(
-                  controller: newLabelController,
-                  decoration: InputDecoration(
-                    hintText: AppLocalizations.translate(context, 'createNewLabelHint'),
-                    isDense: true,
-                    suffixIcon: IconButton(
-                      icon: Icon(Icons.add_circle, color: _primary),
-                      onPressed: () async {
-                        final newTag = newLabelController.text.trim();
-                        if (newTag.isNotEmpty) {
-                          Navigator.pop(ctx);
-                          provider.addLabel(newTag);
-                          await provider.addLabelToSelectedNotes(newTag);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content:
-                                      Text(AppLocalizations.translate(context, 'createdAndAssignedLabel').replaceAll('{tag}', newTag))),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              if (labels.isNotEmpty)
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.4,
-                  ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: labels.length,
-                    itemBuilder: (context, index) {
-                      final label = labels[index];
-                      return ListTile(
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 24),
-                        leading: const Icon(Icons.label_outline, size: 20),
-                        title:
-                            Text(label, style: const TextStyle(fontSize: 15)),
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          await provider.addLabelToSelectedNotes(label);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(AppLocalizations.translate(context, 'assignedLabel').replaceAll('{tag}', label))),
-                            );
-                          }
-                        },
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.notifications_off_outlined, color: Colors.amber.shade700, size: 28),
+            const SizedBox(width: 12),
+            Text(l(context, 'notifPermissionTitle')),
+          ],
         ),
+        content: Text(l(context, 'notifPermissionDesc')),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(AppLocalizations.translate(context, 'cancel')),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              l(context, 'notifPermissionLater'),
+              style: GoogleFonts.outfit(color: Colors.grey.shade600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              AppSettings.openAppSettings(type: AppSettingsType.notification);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(l(context, 'notifPermissionSettings')),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _setBatchReminder(BuildContext context, NoteProvider provider) async {
+    final granted = await ReminderService().requestPermissions();
+    if (!granted) {
+      if (context.mounted) {
+        _showNotificationPermissionDialog(context);
+      }
+      return;
+    }
+    if (!context.mounted) return;
+
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('vi', 'VN'),
+    );
+    if (pickedDate == null || !context.mounted) return;
+
+    final TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (pickedTime == null || !context.mounted) return;
+
+    final selectedDateTime = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    if (selectedDateTime.isBefore(DateTime.now())) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.translate(context, 'reminderPastError')),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    await provider.setReminderForSelectedNotes(selectedDateTime);
+    provider.clearSelection();
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.translate(context, 'reminderSet')
+              .replaceAll('{time}', '${selectedDateTime.hour.toString().padLeft(2, '0')}:${selectedDateTime.minute.toString().padLeft(2, '0')} ${selectedDateTime.day.toString().padLeft(2, '0')}/${selectedDateTime.month.toString().padLeft(2, '0')}')),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showBatchColorPicker(BuildContext context, NoteProvider provider) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return EditorColorPickerSheet(
+          noteColor: null,
+          onColorSelected: (newColor) async {
+            Navigator.pop(ctx);
+            await provider.updateColorForSelectedNotes(newColor);
+            provider.clearSelection();
+          },
+        );
+      },
     );
   }
 
@@ -275,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ScaffoldMessenger.of(context).clearSnackBars();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(message, style: GoogleFonts.roboto()),
+                content: Text(message, style: GoogleFonts.outfit()),
                 duration: const Duration(seconds: 1),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -620,6 +674,7 @@ class _HomeScreenState extends State<HomeScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: const EdgeInsets.all(12),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -690,10 +745,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       searchPlaceholder,
-                      style: GoogleFonts.roboto(
+                      style: GoogleFonts.outfit(
                         color: AppColors.placeholder(context),
                         fontSize: 15,
-                        fontWeight: FontWeight.w300,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),
@@ -704,10 +759,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   transitionBuilder: (Widget child, Animation<double> animation) {
-                    return RotationTransition(
-                      turns: Tween<double>(begin: 0.5, end: 1.0).animate(animation),
-                      child: FadeTransition(
-                        opacity: animation,
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.8, end: 1.0).animate(animation),
                         child: child,
                       ),
                     );
@@ -810,27 +865,67 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       actions: [
         IconButton(
-          icon:
-              Icon(Icons.label_outline, color: AppColors.textPrimary(context)),
-          tooltip: AppLocalizations.translate(context, 'changeLabel'),
-          onPressed: () => _showBatchTagDialog(context, provider),
-        ),
-        IconButton(
           icon: Icon(Icons.push_pin_outlined,
               color: AppColors.textPrimary(context)),
           tooltip: AppLocalizations.translate(context, 'pinUnpinBatch'),
           onPressed: () => provider.togglePinSelectedNotes(),
         ),
         IconButton(
-          icon: Icon(Icons.archive_outlined,
+          icon: Icon(Icons.notification_add_outlined,
               color: AppColors.textPrimary(context)),
-          tooltip: AppLocalizations.translate(context, 'archive'),
-          onPressed: () => _archiveSelectedNotes(provider),
+          tooltip: AppLocalizations.translate(context, 'reminderTooltip'),
+          onPressed: () => _setBatchReminder(context, provider),
         ),
         IconButton(
-          icon: Icon(Icons.delete_outline, color: AppColors.error),
-          tooltip: AppLocalizations.translate(context, 'moveToTrash'),
-          onPressed: () => _moveToTrashSelected(provider),
+          icon: Icon(Icons.palette_outlined,
+              color: AppColors.textPrimary(context)),
+          tooltip: AppLocalizations.translate(context, 'toolbarColor'),
+          onPressed: () => _showBatchColorPicker(context, provider),
+        ),
+        IconButton(
+          icon:
+              Icon(Icons.label_outline, color: AppColors.textPrimary(context)),
+          tooltip: AppLocalizations.translate(context, 'changeLabel'),
+          onPressed: () => _openBatchTagScreen(context, provider),
+        ),
+        PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: AppColors.textPrimary(context)),
+          onSelected: (value) async {
+            if (value == 'archive') {
+              _archiveSelectedNotes(provider);
+            } else if (value == 'delete') {
+              _moveToTrashSelected(provider);
+            } else if (value == 'duplicate') {
+              await provider.duplicateNotes(provider.selectedNoteIds.toList());
+              provider.clearSelection();
+            } else if (value == 'send') {
+              final selectedNotes = provider.notes
+                  .where((n) => provider.selectedNoteIds.contains(n.id))
+                  .toList();
+              if (selectedNotes.isNotEmpty) {
+                await PdfExportService.exportMultipleNotesToPdf(context, selectedNotes);
+              }
+              provider.clearSelection();
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'archive',
+              child: Text(AppLocalizations.translate(context, 'archive')),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Text(AppLocalizations.translate(context, 'delete')),
+            ),
+            PopupMenuItem(
+              value: 'duplicate',
+              child: Text(AppLocalizations.translate(context, 'makeCopy')),
+            ),
+            PopupMenuItem(
+              value: 'send',
+              child: Text(AppLocalizations.translate(context, 'sendNote')),
+            ),
+          ],
         ),
       ],
     );

@@ -31,63 +31,20 @@ class _TrashScreenState extends State<TrashScreen> {
     });
   }
 
-  Future<void> _confirmDeleteSelected(NoteProvider provider) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppLocalizations.translate(context, 'deleteForeverTitle')),
-        content: Text(
-            AppLocalizations.translate(context, 'deleteForeverConfirm').replaceAll('{count}', '${provider.selectedTrashNoteIds.length}')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(AppLocalizations.translate(context, 'cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: Text(AppLocalizations.translate(context, 'delete')),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await provider.deleteForeverSelectedTrashNotes();
-    }
+  Future<void> _deleteSelectedForever(NoteProvider provider) async {
+    await provider.deleteForeverSelectedTrashNotes();
   }
 
-  Future<void> _confirmClearTrash(NoteProvider provider) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppLocalizations.translate(context, 'clearTrashConfirmTitle')),
-        content: Text(AppLocalizations.translate(context, 'clearTrashConfirmContent')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(AppLocalizations.translate(context, 'cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: Text(AppLocalizations.translate(context, 'delete')),
-          ),
-        ],
+  Future<void> _clearTrash(NoteProvider provider) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.translate(context, 'deletingCloudNote')),
+        duration: const Duration(seconds: 2),
       ),
     );
-
-    if (confirm == true) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.translate(context, 'deletingCloudNote')),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      await provider.emptyTrash();
-    }
+    await provider.emptyTrash();
   }
 
   @override
@@ -214,7 +171,7 @@ class _TrashScreenState extends State<TrashScreen> {
           icon: Icon(Icons.more_vert, color: AppColors.textPrimary(context)),
           onSelected: (value) {
             if (value == 'empty_trash') {
-              _confirmClearTrash(provider);
+              _clearTrash(provider);
             }
           },
           itemBuilder: (BuildContext context) => [
@@ -247,14 +204,14 @@ class _TrashScreenState extends State<TrashScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.restore, color: AppColors.primary),
+          icon: Icon(Icons.restore, color: AppColors.textPrimary(context)),
           tooltip: AppLocalizations.translate(context, 'restore'),
           onPressed: () => provider.restoreSelectedTrashNotes(),
         ),
         IconButton(
-          icon: const Icon(Icons.delete_forever, color: AppColors.error),
+          icon: Icon(Icons.delete_forever, color: AppColors.textPrimary(context)),
           tooltip: AppLocalizations.translate(context, 'deleteForever'),
-          onPressed: () => _confirmDeleteSelected(provider),
+          onPressed: () => _deleteSelectedForever(provider),
         ),
       ],
     );
@@ -276,20 +233,26 @@ class _TrashScreenState extends State<TrashScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.restore, color: AppColors.primary),
+              leading: Icon(Icons.restore, color: AppColors.textPrimary(context)),
               title: Text(AppLocalizations.translate(context, 'restoreNote')),
               onTap: () {
                 provider.restoreNote(note.id);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).clearSnackBars();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.translate(context, 'restoredNote'))),
+                  SnackBar(
+                    content: Text(AppLocalizations.translate(context, 'restoredNote')),
+                    duration: const Duration(seconds: 2),
+                  ),
                 );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_forever, color: AppColors.error),
-              title: Text(AppLocalizations.translate(context, 'deleteForever'), style: TextStyle(color: AppColors.error)),
+              leading: Icon(Icons.delete_forever, color: AppColors.textPrimary(context)),
+              title: Text(
+                AppLocalizations.translate(context, 'deleteForever'),
+                style: TextStyle(color: AppColors.textPrimary(context)),
+              ),
               onTap: () async {
                 Navigator.pop(context); // Đóng BottomSheet trước
 

@@ -28,17 +28,8 @@ extension _EditorScreenAi on _EditorScreenState {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [
-                        Color(0xFF3B82F6),
-                        Color(0xFF8B5CF6),
-                        Color(0xFFEC4899),
-                      ],
-                    ).createShader(bounds),
-                    child: const Icon(Icons.auto_awesome,
-                        color: Colors.white, size: 20),
-                  ),
+                  Icon(Icons.auto_awesome,
+                      color: AppColors.textPrimary(context), size: 20),
                   const SizedBox(width: 8),
                   Text(
                     AppLocalizations.translate(context, 'aiAssistantTitle'),
@@ -53,9 +44,9 @@ extension _EditorScreenAi on _EditorScreenState {
             ),
             const Divider(),
             ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEFF6FF),
-                child: Icon(Icons.title, color: AppColors.primary),
+              leading: CircleAvatar(
+                backgroundColor: AppColors.inputBackground(context),
+                child: Icon(Icons.title, color: AppColors.textPrimary(context)),
               ),
               title: Text(AppLocalizations.translate(context, 'aiGenerateTitle')),
               subtitle: Text(AppLocalizations.translate(context, 'aiGenerateTitleSub')),
@@ -65,9 +56,9 @@ extension _EditorScreenAi on _EditorScreenState {
               },
             ),
             ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEFF6FF),
-                child: Icon(Icons.summarize_outlined, color: AppColors.primary),
+              leading: CircleAvatar(
+                backgroundColor: AppColors.inputBackground(context),
+                child: Icon(Icons.summarize_outlined, color: AppColors.textPrimary(context)),
               ),
               title: Text(AppLocalizations.translate(context, 'aiSummarize')),
               subtitle: Text(AppLocalizations.translate(context, 'aiSummarizeSub')),
@@ -77,9 +68,9 @@ extension _EditorScreenAi on _EditorScreenState {
               },
             ),
             ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEFF6FF),
-                child: Icon(Icons.checklist_rounded, color: AppColors.primary),
+              leading: CircleAvatar(
+                backgroundColor: AppColors.inputBackground(context),
+                child: Icon(Icons.checklist_rounded, color: AppColors.textPrimary(context)),
               ),
               title: Text(AppLocalizations.translate(context, 'aiMakeChecklist')),
               subtitle: Text(AppLocalizations.translate(context, 'aiMakeChecklistSub')),
@@ -89,9 +80,9 @@ extension _EditorScreenAi on _EditorScreenState {
               },
             ),
             ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Color(0xFFEFF6FF),
-                child: Icon(Icons.label_outline, color: AppColors.primary),
+              leading: CircleAvatar(
+                backgroundColor: AppColors.inputBackground(context),
+                child: Icon(Icons.label_outline, color: AppColors.textPrimary(context)),
               ),
               title: Text(AppLocalizations.translate(context, 'aiSuggestLabels')),
               subtitle: Text(AppLocalizations.translate(context, 'aiSuggestLabelsSub')),
@@ -121,14 +112,7 @@ extension _EditorScreenAi on _EditorScreenState {
     }
 
     if (contentText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Hãy nhập nội dung trước khi dùng AI'),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showAiSnackBar('Hãy nhập nội dung trước khi dùng AI');
       return;
     }
 
@@ -158,15 +142,7 @@ extension _EditorScreenAi on _EditorScreenState {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_friendlyAiError(e)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showAiSnackBar(_friendlyAiError(e), isError: true);
       }
     } finally {
       if (mounted) setState(() => _isAiLoading = false);
@@ -181,17 +157,8 @@ extension _EditorScreenAi on _EditorScreenState {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Color(0xFF3B82F6),
-                  Color(0xFF8B5CF6),
-                  Color(0xFFEC4899),
-                ],
-              ).createShader(bounds),
-              child: const Icon(Icons.summarize_outlined,
-                  color: Colors.white, size: 24),
-            ),
+            Icon(Icons.summarize_outlined,
+                color: AppColors.textPrimary(context), size: 24),
             const SizedBox(width: 8),
             Text(
               AppLocalizations.translate(context, 'aiSummaryTitle'),
@@ -243,15 +210,7 @@ extension _EditorScreenAi on _EditorScreenState {
   // ── CHÈN TÓM TẮT VÀO GHI CHÚ ──
   void _insertAiSummary(String summary) {
     if (_isChecklistMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.translate(context, 'aiCannotInsertInChecklist')),
-          behavior: SnackBarBehavior.floating,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-          ),
-        ),
-      );
+      _showAiSnackBar(AppLocalizations.translate(context, 'aiCannotInsertInChecklist'));
       return;
     }
 
@@ -271,28 +230,14 @@ extension _EditorScreenAi on _EditorScreenState {
   // ── CHUYỂN THÀNH CHECKLIST ──
   void _makeChecklistFromCurrentNote() async {
     if (_isChecklistMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.translate(context, 'aiAlreadyChecklist')),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showAiSnackBar(AppLocalizations.translate(context, 'aiAlreadyChecklist'));
       return;
     }
 
     final contentText = _quillController.document.toPlainText().trim();
 
     if (contentText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.translate(context, 'aiNeedContent')),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showAiSnackBar(AppLocalizations.translate(context, 'aiNeedContent'));
       return;
     }
 
@@ -319,15 +264,7 @@ extension _EditorScreenAi on _EditorScreenState {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_friendlyAiError(e)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showAiSnackBar(_friendlyAiError(e), isError: true);
       }
     } finally {
       if (mounted) setState(() => _isAiLoading = false);
@@ -344,7 +281,7 @@ extension _EditorScreenAi on _EditorScreenState {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.checklist_rounded, color: AppColors.primary),
+            Icon(Icons.checklist_rounded, color: AppColors.textPrimary(context)),
             const SizedBox(width: 8),
             Text(
               AppLocalizations.translate(context, 'aiChecklistTitle'),
@@ -369,12 +306,12 @@ extension _EditorScreenAi on _EditorScreenState {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 2),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
                           child: Icon(
                             Icons.check_box_outline_blank,
                             size: 18,
-                            color: AppColors.primary,
+                            color: AppColors.textPrimary(context),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -449,14 +386,7 @@ extension _EditorScreenAi on _EditorScreenState {
   // ── ÁP DỤNG CHECKLIST VÀO NOTE ──
   void _applyAiChecklist(List<ChecklistItem> items) {
     if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.translate(context, 'aiNoChecklist')),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showAiSnackBar(AppLocalizations.translate(context, 'aiNoChecklist'));
       return;
     }
 
@@ -481,14 +411,7 @@ extension _EditorScreenAi on _EditorScreenState {
     }
 
     if (contentText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Hãy nhập nội dung trước khi dùng AI'),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showAiSnackBar('Hãy nhập nội dung trước khi dùng AI');
       return;
     }
 
@@ -528,15 +451,7 @@ extension _EditorScreenAi on _EditorScreenState {
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_friendlyAiError(e)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showAiSnackBar(_friendlyAiError(e), isError: true);
       }
     } finally {
       if (mounted) setState(() => _isAiLoading = false);
@@ -551,17 +466,7 @@ extension _EditorScreenAi on _EditorScreenState {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Color(0xFF3B82F6),
-                  Color(0xFF8B5CF6),
-                  Color(0xFFEC4899),
-                ],
-              ).createShader(bounds),
-              child:
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-            ),
+            Icon(Icons.auto_awesome, color: AppColors.textPrimary(context), size: 20),
             const SizedBox(width: 8),
             Text(
               AppLocalizations.translate(context, 'aiTitleSuggestTitle'),
@@ -646,15 +551,7 @@ extension _EditorScreenAi on _EditorScreenState {
     }
 
     if (titleText.isEmpty && contentText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(AppLocalizations.translate(context, 'aiNeedTitleOrContent')),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showAiSnackBar(AppLocalizations.translate(context, 'aiNeedTitleOrContent'));
       return;
     }
 
@@ -690,15 +587,7 @@ extension _EditorScreenAi on _EditorScreenState {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_friendlyAiError(e)),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        _showAiSnackBar(_friendlyAiError(e), isError: true);
       }
     } finally {
       if (mounted) setState(() => _isAiLoading = false);
@@ -736,17 +625,8 @@ extension _EditorScreenAi on _EditorScreenState {
                   borderRadius: BorderRadius.circular(16)),
               title: Row(
                 children: [
-                  ShaderMask(
-                    shaderCallback: (bounds) => const LinearGradient(
-                      colors: [
-                        Color(0xFF3B82F6),
-                        Color(0xFF8B5CF6),
-                        Color(0xFFEC4899),
-                      ],
-                    ).createShader(bounds),
-                    child: const Icon(Icons.label_outline,
-                        color: Colors.white, size: 24),
-                  ),
+                  Icon(Icons.label_outline,
+                      color: AppColors.textPrimary(context), size: 24),
                   const SizedBox(width: 8),
                   Text(
                     AppLocalizations.translate(context, 'aiTagsTitle'),
@@ -893,5 +773,19 @@ extension _EditorScreenAi on _EditorScreenState {
     }
 
     return AppLocalizations.translate(context, 'aiGenericError');
+  }
+
+  void _showAiSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppColors.error : null,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 }

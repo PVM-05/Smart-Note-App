@@ -28,6 +28,7 @@ import '../services/cloudinary_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'drawing_screen.dart';
+import 'label_selection_screen.dart';
 import '../services/biometric_service.dart';
 import '../core/app_strings.dart';
 import '../core/app_localizations.dart';
@@ -91,6 +92,8 @@ class _EditorScreenState extends State<EditorScreen>
   String? _mathSuggestionResult;
   int _mathSuggestionOffset = -1;
   int? _mathSuggestionChecklistIndex;
+  bool _isApplyingSuggestion = false;
+  int _mathSuggestionLength = 0;
 
   late String _noteId;
   late DateTime _createdAt;
@@ -170,6 +173,8 @@ class _EditorScreenState extends State<EditorScreen>
   String? _recordingPath;
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
+  List<double> _amplitudes = [];
 
   String? _playingUrl;
   bool _isPlaying = false;
@@ -332,6 +337,34 @@ class _EditorScreenState extends State<EditorScreen>
 
   void _onTextChanged() {
     if (_isLocked && !_isUnlocked) return;
+    if (_isApplyingSuggestion) return;
+
+    // Normal mode math suggestion cleanup check
+    if (!_isChecklistMode && _mathSuggestionResult != null) {
+      final currentCursor = _quillController.selection.baseOffset;
+      if (currentCursor >= _mathSuggestionOffset + _mathSuggestionLength) {
+        _acceptActiveSuggestionNormal();
+      } else if (currentCursor == _mathSuggestionOffset + 1) {
+        final docText = _quillController.document.toPlainText();
+        if (_mathSuggestionOffset < docText.length) {
+          final typedChar = docText[_mathSuggestionOffset];
+          if (typedChar == ' ') {
+            _isApplyingSuggestion = true;
+            _quillController.document.delete(_mathSuggestionOffset, 1);
+            _isApplyingSuggestion = false;
+            _acceptActiveSuggestionNormal();
+            _quillController.updateSelection(
+              TextSelection.collapsed(offset: _mathSuggestionOffset + _mathSuggestionLength),
+              ChangeSource.local,
+            );
+            return;
+          }
+        }
+        _clearActiveSuggestionNormal();
+      } else if (currentCursor != _mathSuggestionOffset) {
+        _clearActiveSuggestionNormal();
+      }
+    }
 
     // [MERGE từ Bản 1] Quét kiểm tra phép tính toán học thời gian thực
     _checkMathSuggestion();
@@ -344,8 +377,80 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  void _clearActiveSuggestionNormal() {
+    if (_mathSuggestionResult != null && _mathSuggestionOffset >= 0 && _mathSuggestionLength > 0) {
+      _isApplyingSuggestion = true;
+      final docLen = _quillController.document.length;
+      if (_mathSuggestionOffset + _mathSuggestionLength <= docLen) {
+        _quillController.document.delete(_mathSuggestionOffset, _mathSuggestionLength);
+      }
+      _mathSuggestionResult = null;
+      _mathSuggestionOffset = -1;
+      _mathSuggestionLength = 0;
+      _isApplyingSuggestion = false;
+    }
+  }
+
+  void _acceptActiveSuggestionNormal() {
+    if (_mathSuggestionResult != null && _mathSuggestionOffset >= 0 && _mathSuggestionLength > 0) {
+      _isApplyingSuggestion = true;
+      // Lấy định dạng màu chữ của ký tự trước gợi ý (ví dụ dấu '=') để áp dụng đồng bộ
+      final prevIndex = _mathSuggestionOffset > 0 ? _mathSuggestionOffset - 1 : 0;
+      final prevStyle = _quillController.document.collectStyle(prevIndex, 0);
+      final prevColorAttr = prevStyle.attributes[Attribute.color.key];
+      
+      _quillController.document.format(
+        _mathSuggestionOffset,
+        _mathSuggestionLength,
+        prevColorAttr ?? Attribute.fromKeyValue('color', null)
+      );
+      _mathSuggestionResult = null;
+      _mathSuggestionOffset = -1;
+      _mathSuggestionLength = 0;
+      _isApplyingSuggestion = false;
+    }
+  }
+
+  void _handleQuillMathSuggestion(String? result) {
+    if (_isApplyingSuggestion) return;
+
+    if (result == null || _mathSuggestionResult != result) {
+      _clearActiveSuggestionNormal();
+    }
+
+    if (result != null && _mathSuggestionResult == null) {
+      final cursor = _quillController.selection.baseOffset;
+      if (cursor >= 0) {
+        final suggestionText = ' $result';
+        _isApplyingSuggestion = true;
+
+        _quillController.document.insert(
+          cursor,
+          suggestionText
+        );
+        _quillController.document.format(
+          cursor,
+          suggestionText.length,
+          Attribute.fromKeyValue('color', '#9E9E9E')
+        );
+
+        _quillController.updateSelection(
+          TextSelection.collapsed(offset: cursor),
+          ChangeSource.local,
+        );
+
+        _mathSuggestionResult = result;
+        _mathSuggestionOffset = cursor;
+        _mathSuggestionLength = suggestionText.length;
+        _isApplyingSuggestion = false;
+      }
+    }
+  }
+
   // [MERGE từ Bản 1] Xử lý thuật toán gợi ý toán học cục bộ
   void _checkMathSuggestion() {
+    if (_isApplyingSuggestion) return;
+
     if (!_isChecklistMode) {
       int cursor = _quillController.selection.baseOffset;
       if (cursor > 0) {
@@ -353,16 +458,10 @@ class _EditorScreenState extends State<EditorScreen>
         if (cursor <= fullText.length) {
           String textBeforeCursor = fullText.substring(0, cursor);
           String? result = MathParser.evaluate(textBeforeCursor);
-          if (_mathSuggestionResult != result) {
-            setState(() {
-              _mathSuggestionResult = result;
-              _mathSuggestionOffset = cursor;
-              _mathSuggestionChecklistIndex = null;
-            });
-          }
+          _handleQuillMathSuggestion(result);
         }
-      } else if (_mathSuggestionResult != null) {
-        setState(() => _mathSuggestionResult = null);
+      } else {
+        _handleQuillMathSuggestion(null);
       }
     } else {
       bool found = false;
@@ -386,31 +485,12 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  // [MERGE từ Bản 1] Chèn kết quả phép tính tự động vào vị trí con trỏ
-  void _insertMathSuggestion() {
-    if (_mathSuggestionResult == null) return;
-    final resultText = ' $_mathSuggestionResult';
-    if (!_isChecklistMode && _mathSuggestionOffset >= 0) {
-      _quillController.document.insert(_mathSuggestionOffset, resultText);
-      _quillController.updateSelection(
-        TextSelection.collapsed(offset: _mathSuggestionOffset + resultText.length),
-        ChangeSource.local,
-      );
-    } else if (_isChecklistMode && _mathSuggestionChecklistIndex != null) {
-      int index = _mathSuggestionChecklistIndex!;
-      setState(() {
-        _checklistItems[index].text += resultText;
-      });
-    }
-    setState(() => _mathSuggestionResult = null);
-    _onTextChanged();
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _autoSaveTimer?.cancel();
     _recordTimer?.cancel();
+    _amplitudeSubscription?.cancel();
     _bannerTimer?.cancel();
     _titleController.dispose();
     _quillController.dispose();
@@ -450,6 +530,7 @@ class _EditorScreenState extends State<EditorScreen>
       SnackBar(
         content: Text(message ?? AppStrings.biometricAuthFailed),
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
         action: SnackBarAction(
           label: AppLocalizations.translate(context, 'biometricRetry'),
           textColor: Colors.white,
@@ -496,6 +577,14 @@ class _EditorScreenState extends State<EditorScreen>
     final String plainText;
 
     if (_isChecklistMode) {
+      if (_mathSuggestionResult != null && _mathSuggestionChecklistIndex != null) {
+        final idx = _mathSuggestionChecklistIndex!;
+        if (idx < _checklistItems.length) {
+          _checklistItems[idx].text += ' $_mathSuggestionResult';
+        }
+        _mathSuggestionResult = null;
+        _mathSuggestionChecklistIndex = null;
+      }
       final checklistJson = {
         'type': 'checklist',
         'items': _checklistItems.map((item) => item.toJson()).toList(),
@@ -503,8 +592,17 @@ class _EditorScreenState extends State<EditorScreen>
       content = jsonEncode(checklistJson);
       plainText = _checklistItems.map((i) => i.text).where((t) => t.trim().isNotEmpty).join(' ');
     } else {
+      final wasSuggesting = _mathSuggestionResult != null;
+      final tempResult = _mathSuggestionResult;
+      final tempOffset = _mathSuggestionOffset;
+      if (wasSuggesting) {
+        _clearActiveSuggestionNormal();
+      }
       content = jsonEncode(_quillController.document.toDelta().toJson());
       plainText = _quillController.document.toPlainText().trim();
+      if (wasSuggesting && tempResult != null && tempOffset >= 0) {
+        _handleQuillMathSuggestion(tempResult);
+      }
     }
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = auth.userId ?? '';
@@ -574,7 +672,10 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.translate(context, 'uploadImageError'))));
+            SnackBar(
+              content: Text(AppLocalizations.translate(context, 'uploadImageError')),
+              duration: const Duration(seconds: 2),
+            ));
       }
     }
   }
@@ -595,7 +696,10 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         setState(() => _uploadingFiles.remove(file));
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(AppLocalizations.translate(context, 'uploadDrawingError'))));
+            .showSnackBar(SnackBar(
+              content: Text(AppLocalizations.translate(context, 'uploadDrawingError')),
+              duration: const Duration(seconds: 2),
+            ));
       }
     }
   }
@@ -650,7 +754,10 @@ class _EditorScreenState extends State<EditorScreen>
         _deletingUrls.remove(oldUrl);
       });
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(AppLocalizations.translate(context, 'updateDrawingError'))));
+          .showSnackBar(SnackBar(
+            content: Text(AppLocalizations.translate(context, 'updateDrawingError')),
+            duration: const Duration(seconds: 2),
+          ));
     }
   }
 
@@ -706,14 +813,33 @@ class _EditorScreenState extends State<EditorScreen>
     );
 
     _recordDuration = Duration.zero;
+    _amplitudes = [];
     _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
     });
+    
+    _amplitudeSubscription = _recorder
+        .onAmplitudeChanged(const Duration(milliseconds: 100))
+        .listen((amp) {
+      if (mounted) {
+        setState(() {
+          double db = amp.current;
+          double normalized = (db + 50).clamp(0, 50) / 50.0;
+          if (normalized < 0.1) normalized = 0.1;
+          _amplitudes.add(normalized);
+          if (_amplitudes.length > 40) {
+            _amplitudes.removeAt(0);
+          }
+        });
+      }
+    });
+
     setState(() => _isRecording = true);
   }
 
   Future<void> _stopRecordingAndUpload() async {
     _recordTimer?.cancel();
+    _amplitudeSubscription?.cancel();
     final path = await _recorder.stop();
     setState(() => _isRecording = false);
 
@@ -863,31 +989,35 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _delete() async {
-    final l = AppLocalizations.translate;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l(context, 'deleteNoteTitle')),
-        content: Text(l(context, 'deleteNoteConfirm')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l(context, 'cancel'))),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(l(context, 'delete')),
-          ),
-        ],
-      ),
-    );
+    _autoSaveTimer?.cancel();
+    if (_isPlaying) await _audioPlayer.stop();
+    if (!mounted) return;
 
-    if (confirm == true && mounted) {
-      _autoSaveTimer?.cancel();
-      if (_isPlaying) await _audioPlayer.stop();
-      if (!mounted) return;
-      if (_hasBeenSavedInDb) await Provider.of<NoteProvider>(context, listen: false).deleteNote(_noteId);
-      if (mounted) Navigator.of(context).pop();
+    final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final snackMessage = AppLocalizations.translate(context, 'movedNotesToTrash').replaceAll('{count}', '1');
+    final undoLabel = AppLocalizations.translate(context, 'undo');
+
+    if (_hasBeenSavedInDb) {
+      await noteProvider.deleteNote(_noteId);
+    }
+
+    if (mounted) {
+      navigator.pop();
+      scaffoldMessenger.clearSnackBars();
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(snackMessage),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: undoLabel,
+            onPressed: () async {
+              await noteProvider.restoreNote(_noteId);
+            },
+          ),
+        ),
+      );
     }
   }
 
@@ -926,7 +1056,7 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _openLabelSelectionPage() {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => _LabelSelectionScreen(initialTags: _tags, onTagsChanged: (updatedTags) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => LabelSelectionScreen(initialTags: _tags, onTagsChanged: (updatedTags) {
       setState(() => _tags = updatedTags);
       _saveNote(isAutosave: true);
     })));
@@ -995,10 +1125,10 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                   trailing: TextButton.icon(
                     onPressed: () { Navigator.pop(context); _cancelReminder(); },
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    icon: Icon(Icons.delete_outline, size: 18, color: AppColors.textPrimary(context)),
                     label: Text(
                       AppLocalizations.translate(context, 'cancel'),
-                      style: GoogleFonts.outfit(color: Colors.red),
+                      style: GoogleFonts.outfit(color: AppColors.textPrimary(context)),
                     ),
                   ),
                 ),
@@ -1097,6 +1227,7 @@ class _EditorScreenState extends State<EditorScreen>
         SnackBar(
           content: Text(AppLocalizations.translate(context, 'reminderSet').replaceAll('{time}', _formatReminderTime(dt))),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -1111,6 +1242,7 @@ class _EditorScreenState extends State<EditorScreen>
         SnackBar(
           content: Text(AppLocalizations.translate(context, 'reminderCancelled')),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -1136,6 +1268,7 @@ class _EditorScreenState extends State<EditorScreen>
           SnackBar(
             content: Text(AppLocalizations.translate(context, 'reminderPastError')),
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -1160,13 +1293,51 @@ class _EditorScreenState extends State<EditorScreen>
 
     final quillBaseStyles = DefaultStyles.getInstance(context);
     final quillCustomStyles = DefaultStyles(
-      h1: quillBaseStyles.h1?.copyWith(style: quillBaseStyles.h1!.style.copyWith(fontWeight: FontWeight.w400, color: textColor)),
-      h2: quillBaseStyles.h2?.copyWith(style: quillBaseStyles.h2!.style.copyWith(fontWeight: FontWeight.w400, color: textColor)),
-      paragraph: quillBaseStyles.paragraph?.copyWith(style: quillBaseStyles.paragraph!.style.copyWith(color: textColor)),
+      h1: quillBaseStyles.h1?.copyWith(
+        style: GoogleFonts.outfit(
+          fontSize: 24,
+          fontWeight: FontWeight.w500,
+          color: textColor,
+        ),
+      ),
+      h2: quillBaseStyles.h2?.copyWith(
+        style: GoogleFonts.outfit(
+          fontSize: 20,
+          fontWeight: FontWeight.w500,
+          color: textColor,
+        ),
+      ),
+      paragraph: quillBaseStyles.paragraph?.copyWith(
+        style: GoogleFonts.outfit(
+          fontSize: 16,
+          height: 1.4,
+          color: textColor,
+        ),
+      ),
       bold: quillBaseStyles.bold?.copyWith(color: textColor),
       italic: quillBaseStyles.italic?.copyWith(color: textColor),
       underline: quillBaseStyles.underline?.copyWith(color: textColor),
-      placeHolder: quillBaseStyles.placeHolder?.copyWith(style: quillBaseStyles.placeHolder!.style.copyWith(color: placeholderColor)),
+      placeHolder: quillBaseStyles.placeHolder?.copyWith(
+        style: GoogleFonts.outfit(
+          fontSize: 16,
+          color: placeholderColor,
+        ),
+      ),
+      // Tùy biến phông chữ chữ số và mã code monospaced (Fira Code) để hiển thị chữ số chuyên nghiệp nhất
+      inlineCode: InlineCodeStyle(
+        style: GoogleFonts.firaCode(
+          fontSize: 14,
+          color: isCustomColor ? textColor : null,
+        ),
+        backgroundColor: isDarkTheme ? Colors.grey.shade800 : Colors.grey.shade200,
+        radius: const Radius.circular(4),
+      ),
+      code: quillBaseStyles.code?.copyWith(
+        style: GoogleFonts.firaCode(
+          fontSize: 14,
+          color: isCustomColor ? textColor : null,
+        ),
+      ),
     );
 
     return PopScope(
@@ -1200,21 +1371,10 @@ class _EditorScreenState extends State<EditorScreen>
           ),
           actions: [
             if (_isUploading) const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: _primary, strokeWidth: 2)))),
-            Tooltip(
-              message: AppLocalizations.translate(context, 'aiTooltip'),
-              child: GestureDetector(
-                onTap: _isAiLoading ? null : _showAiOptions,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: 40, height: 40,
-                  child: Center(
-                    child: ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6), Color(0xFFEC4899)]).createShader(bounds),
-                      child: const Icon(Icons.auto_awesome, size: 22, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
+            _buildAppBarRoundBtn(
+              icon: Icons.auto_awesome,
+              tooltip: AppLocalizations.translate(context, 'aiTooltip'),
+              onTap: _isAiLoading ? null : _showAiOptions,
             ),
             _buildAppBarRoundBtn(
               icon: _isLocked ? Icons.lock : Icons.lock_open_outlined,
@@ -1240,6 +1400,7 @@ class _EditorScreenState extends State<EditorScreen>
                       SnackBar(
                         content: Text(_isLocked ? msgLocked : msgUnlocked),
                         behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
@@ -1254,6 +1415,7 @@ class _EditorScreenState extends State<EditorScreen>
                       SnackBar(
                         content: Text(msg),
                         behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                         backgroundColor: AppColors.error,
@@ -1296,21 +1458,7 @@ class _EditorScreenState extends State<EditorScreen>
               children: [
                 EditorUploadBanner(showBanner: _showUploadBanner, message: _uploadMessage, bannerColor: _bannerColor, bannerTextColor: _bannerTextColor, statusIcon: _statusIcon, isUploading: _isUploading),
 
-                // [MERGE UI từ Bản 1] Thanh hiển thị kết quả phân tích toán học thông minh
-                if (_mathSuggestionResult != null)
-                  Container(
-                    color: Colors.amber.shade100,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calculate_outlined, color: Colors.amber, size: 20),
-                        const SizedBox(width: 8),
-                        Text('Gợi ý tính toán: $_mathSuggestionResult', style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87)),
-                        const Spacer(),
-                        TextButton(onPressed: _insertMathSuggestion, child: const Text('Chấp nhận')),
-                      ],
-                    ),
-                  ),
+                // Gợi ý tính toán được hiển thị mờ trực tiếp cạnh dấu = trong editor
                 Expanded(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
@@ -1422,6 +1570,7 @@ class _EditorScreenState extends State<EditorScreen>
                                           Duration(milliseconds: val.toInt())),
                                       onDeleteAudio: _deleteAudio,
                                       onStopRecording: _stopRecordingAndUpload,
+                                      amplitudes: _amplitudes,
                                     ),
                                   ],
                                   if (_tags.isNotEmpty) ...[
@@ -1488,7 +1637,7 @@ class _EditorScreenState extends State<EditorScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        GestureDetector(onTap: _authenticateNote, child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.lock_outline, size: 64, color: AppColors.primary))),
+                        GestureDetector(onTap: _authenticateNote, child: Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: AppColors.textPrimary(context).withValues(alpha: 0.1), shape: BoxShape.circle), child: Icon(Icons.lock_outline, size: 64, color: AppColors.textPrimary(context)))),
                         const SizedBox(height: 24),
                         Text(
                           AppLocalizations.translate(context, 'noteLockedTitle'),
@@ -1665,6 +1814,19 @@ class _EditorScreenState extends State<EditorScreen>
             _onTextChanged();
           },
           onItemTextChanged: (index, val) {
+            if (_mathSuggestionResult != null && _mathSuggestionChecklistIndex == index) {
+              if (val.endsWith('= ') || val.endsWith('=')) {
+                if (val.endsWith(' ')) {
+                  final textWithoutSpace = val.trimRight();
+                  final acceptedText = '$textWithoutSpace $_mathSuggestionResult ';
+                  _checklistItems[index].text = acceptedText;
+                  _mathSuggestionResult = null;
+                  _mathSuggestionChecklistIndex = null;
+                  _onTextChanged();
+                  return;
+                }
+              }
+            }
             _checklistItems[index].text = val;
             _onTextChanged();
           },
@@ -1681,6 +1843,8 @@ class _EditorScreenState extends State<EditorScreen>
             _onTextChanged();
           },
           onExitChecklistMode: _exitChecklistMode,
+          mathSuggestionText: _mathSuggestionResult,
+          mathSuggestionIndex: _mathSuggestionChecklistIndex,
         ),
         if (_audioUrls.isNotEmpty || _isRecording || _tags.isNotEmpty)
           Padding(
@@ -1703,6 +1867,7 @@ class _EditorScreenState extends State<EditorScreen>
                     onSeek: (val) => _audioPlayer.seek(Duration(milliseconds: val.toInt())),
                     onDeleteAudio: _deleteAudio,
                     onStopRecording: _stopRecordingAndUpload,
+                    amplitudes: _amplitudes,
                   ),
                 ],
                 if (_tags.isNotEmpty) ...[
@@ -1753,6 +1918,11 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _addChecklistItemAfter(int index) {
+    if (_mathSuggestionResult != null && _mathSuggestionChecklistIndex == index) {
+      _checklistItems[index].text += ' $_mathSuggestionResult';
+      _mathSuggestionResult = null;
+      _mathSuggestionChecklistIndex = null;
+    }
     setState(() { _checklistItems.insert(index + 1, ChecklistItem()); });
     _onTextChanged();
   }
@@ -1931,12 +2101,14 @@ class _EditorScreenState extends State<EditorScreen>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(AppLocalizations.translate(context, 'requiresSaveMsg').replaceAll('{action}', action)),
       behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }
 
   Widget _buildAppBarRoundBtn({required IconData icon, required String tooltip, required VoidCallback? onTap}) {
     final isCustomColor = _noteColor != null;
+    final onDarkNoteBg = isCustomColor && _isNoteBackgroundDark(context);
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -1944,7 +2116,7 @@ class _EditorScreenState extends State<EditorScreen>
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
           width: 40, height: 40,
-          child: Center(child: Icon(icon, size: 22, color: isCustomColor ? const Color(0xFF1E293B) : AppColors.textMetadata(context))),
+          child: Center(child: Icon(icon, size: 22, color: isCustomColor ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B)) : AppColors.textMetadata(context))),
         ),
       ),
     );
@@ -1952,7 +2124,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   Widget _toolbarButton({required IconData icon, required String tooltip, VoidCallback? onTap, Color? color}) {
     final isCustomColor = _noteColor != null;
-    final defaultIconColor = isCustomColor ? const Color(0xFF1E293B) : AppColors.textPrimary(context);
+    final onDarkNoteBg = isCustomColor && _isNoteBackgroundDark(context);
+    final defaultIconColor = isCustomColor ? (onDarkNoteBg ? Colors.white : const Color(0xFF1E293B)) : AppColors.textPrimary(context);
 
     return Tooltip(
       message: tooltip,
@@ -1963,7 +2136,7 @@ class _EditorScreenState extends State<EditorScreen>
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: SizedBox(
             width: 40, height: 40,
-            child: Center(child: Icon(icon, size: 22, color: onTap == null ? (isCustomColor ? Colors.black.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor))),
+            child: Center(child: Icon(icon, size: 22, color: onTap == null ? (isCustomColor ? (onDarkNoteBg ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.2)) : Colors.grey.withValues(alpha: 0.3)) : (color ?? defaultIconColor))),
           ),
         ),
       ),
@@ -1996,103 +2169,6 @@ class _EditorScreenState extends State<EditorScreen>
   }
 }
 
-class _LabelSelectionScreen extends StatefulWidget {
-  final List<String> initialTags;
-  final ValueChanged<List<String>> onTagsChanged;
-  const _LabelSelectionScreen({required this.initialTags, required this.onTagsChanged});
-  @override
-  State<_LabelSelectionScreen> createState() => _LabelSelectionScreenState();
-}
-
-class _LabelSelectionScreenState extends State<_LabelSelectionScreen> {
-  late List<String> _selectedTags;
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void initState() { super.initState(); _selectedTags = List.from(widget.initialTags); }
-
-  @override
-  void dispose() { _searchController.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    final provider = Provider.of<NoteProvider>(context);
-    final allLabels = provider.allLabels;
-    final filteredLabels = allLabels.where((l) => l.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-    final showCreate = _searchQuery.trim().isNotEmpty && !allLabels.any((l) => l.toLowerCase() == _searchQuery.trim().toLowerCase());
-
-    return Scaffold(
-      backgroundColor: AppColors.background(context),
-      appBar: AppBar(
-        backgroundColor: AppColors.background(context),
-        elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back, color: AppColors.textPrimary(context)), onPressed: () => Navigator.pop(context)),
-        titleSpacing: 0,
-        title: TextField(
-          controller: _searchController,
-          autofocus: true,
-          style: GoogleFonts.inter(color: AppColors.textPrimary(context)),
-          decoration: InputDecoration(
-            hintText: AppLocalizations.translate(context, 'labelSearchHint'),
-            border: InputBorder.none,
-            hintStyle: GoogleFonts.inter(color: AppColors.placeholder(context)),
-            suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: Icon(Icons.clear, size: 20, color: AppColors.textSecondary(context)), onPressed: () { _searchController.clear(); setState(() => _searchQuery = ''); }) : null,
-          ),
-          onChanged: (val) => setState(() => _searchQuery = val),
-        ),
-      ),
-      body: Column(
-        children: [
-          Divider(height: 1, color: AppColors.divider(context)),
-          Expanded(
-            child: ListView(
-              children: [
-                if (showCreate)
-                  ListTile(
-                    leading: const Icon(Icons.add, color: AppColors.primary),
-                    title: Text(
-                        AppLocalizations.translate(context, 'createLabelOption').replaceAll('{name}', _searchQuery.trim()),
-                        style: GoogleFonts.inter(
-                            color: AppColors.textPrimary(context))),
-                    onTap: () {
-                      final newTag = _searchQuery.trim();
-                      provider.addLabel(newTag);
-                      setState(() {
-                        if (!_selectedTags.contains(newTag)) _selectedTags.add(newTag);
-                        _searchQuery = '';
-                        _searchController.clear();
-                      });
-                      widget.onTagsChanged(_selectedTags);
-                    },
-                  ),
-                ...filteredLabels.map((label) {
-                  final isChecked = _selectedTags.contains(label);
-                  return CheckboxListTile(
-                    title: Text(label, style: GoogleFonts.inter(color: AppColors.textPrimary(context))),
-                    value: isChecked,
-                    activeColor: AppColors.primary,
-                    checkColor: AppColors.onPrimary,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _selectedTags.add(label);
-                        } else {
-                          _selectedTags.remove(label);
-                        }
-                      });
-                      widget.onTagsChanged(_selectedTags);
-                    },
-                  );
-                }),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ImageViewer extends StatefulWidget {
   final List<String> imageUrls;

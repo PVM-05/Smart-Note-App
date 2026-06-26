@@ -511,7 +511,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
           elevation: 0,
           scrolledUnderElevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF64748B)),
+            icon: Icon(Icons.arrow_back, color: AppColors.textSecondary(context)),
             onPressed: () async {
               await _onWillPop();
             },
@@ -519,12 +519,12 @@ class _DrawingScreenState extends State<DrawingScreen> {
           title: const SizedBox.shrink(),
           actions: [
             IconButton(
-              icon: const Icon(Icons.add_photo_alternate_outlined, color: Color(0xFF64748B)),
+              icon: Icon(Icons.add_photo_alternate_outlined, color: AppColors.textSecondary(context)),
               onPressed: _pickBackgroundImage,
               tooltip: AppLocalizations.translate(context, 'insertBackgroundImage'),
             ),
             PopupMenuButton<PaperStyle>(
-              icon: const Icon(Icons.layers_outlined, color: Color(0xFF64748B)),
+              icon: Icon(Icons.layers_outlined, color: AppColors.textSecondary(context)),
               tooltip: AppLocalizations.translate(context, 'paperTemplateStyle'),
               onSelected: (PaperStyle style) {
                 setState(() {
@@ -586,7 +586,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                       IconButton(
                         icon: Icon(
                           Icons.undo,
-                          color: _drawingController.canUndo() ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+                          color: _drawingController.canUndo() ? AppColors.textSecondary(context) : AppColors.placeholder(context),
                         ),
                         onPressed: _drawingController.canUndo() ? () => _drawingController.undo() : null,
                         tooltip: AppLocalizations.translate(context, 'undoTooltip'),
@@ -594,7 +594,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                       IconButton(
                         icon: Icon(
                           Icons.redo,
-                          color: _drawingController.canRedo() ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+                          color: _drawingController.canRedo() ? AppColors.textSecondary(context) : AppColors.placeholder(context),
                         ),
                         onPressed: _drawingController.canRedo() ? () => _drawingController.redo() : null,
                         tooltip: AppLocalizations.translate(context, 'redoTooltip'),
@@ -604,7 +604,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.check, color: AppColors.primary),
+                icon: Icon(Icons.check, color: AppColors.textPrimary(context)),
                 onPressed: () async {
                   if (_isSaving) return;
                   final navigator = Navigator.of(context);
@@ -617,7 +617,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
                 tooltip: AppLocalizations.translate(context, 'saveDrawing'),
               ),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Color(0xFF64748B)),
+                icon: Icon(Icons.more_vert, color: AppColors.textSecondary(context)),
                 onSelected: (value) {
                   if (value == 'clear') {
                     _drawingController.clear();
@@ -625,13 +625,13 @@ class _DrawingScreenState extends State<DrawingScreen> {
                 },
                 itemBuilder: (BuildContext context) {
                   return [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'clear',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Xóa toàn bộ bản vẽ', style: TextStyle(color: Colors.red)),
+                          Icon(Icons.delete_outline, color: AppColors.textPrimary(context)),
+                          const SizedBox(width: 8),
+                          Text('Xóa toàn bộ bản vẽ', style: TextStyle(color: AppColors.textPrimary(context))),
                         ],
                       ),
                     ),
@@ -751,7 +751,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
 
   Widget _buildToolIcon(DrawingTool tool, IconData icon, String tooltip) {
     final isSelected = _selectedTool == tool;
-    final color = isSelected && tool != DrawingTool.eraser ? _currentColor : (isSelected ? const Color(0xFF3B82F6) : const Color(0xFF64748B));
+    final color = isSelected && tool != DrawingTool.eraser ? _currentColor : (isSelected ? const Color(0xFF3B82F6) : AppColors.textSecondary(context));
     
     return GestureDetector(
       onTap: () => _onToolSelected(tool),

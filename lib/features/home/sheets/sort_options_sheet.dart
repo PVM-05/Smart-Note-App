@@ -33,7 +33,7 @@ class SortOptionsSheet extends StatelessWidget {
           color: isSelected ? primaryColor : AppColors.textMetadata(context)),
       title: Text(
         title,
-        style: GoogleFonts.roboto(
+        style: GoogleFonts.outfit(
           fontSize: 15,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           color: isSelected ? primaryColor : AppColors.textPrimary(context),
@@ -58,10 +58,11 @@ class SortOptionsSheet extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             child: Text(
               'Sắp xếp theo',
-              style: GoogleFonts.roboto(
+              style: GoogleFonts.outfit(
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary(context),
+                letterSpacing: -0.2,
               ),
             ),
           ),

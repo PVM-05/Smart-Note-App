@@ -13,6 +13,8 @@ class EditorChecklistSection extends StatelessWidget {
   final Function(int, bool) onItemChecked;
   final void Function(int, int) onReorder;
   final VoidCallback onExitChecklistMode;
+  final String? mathSuggestionText;
+  final int? mathSuggestionIndex;
 
   const EditorChecklistSection({
     super.key,
@@ -25,6 +27,8 @@ class EditorChecklistSection extends StatelessWidget {
     required this.onItemChecked,
     required this.onReorder,
     required this.onExitChecklistMode,
+    this.mathSuggestionText,
+    this.mathSuggestionIndex,
   });
 
   Widget _buildChecklistTile(
@@ -87,8 +91,16 @@ class EditorChecklistSection extends StatelessWidget {
           // Text field
           Expanded(
             child: TextField(
-              controller: TextEditingController(text: item.text)
-                ..selection = TextSelection.collapsed(offset: item.text.length),
+              controller: GhostTextEditingController(
+                text: item.text,
+                ghostText: (mathSuggestionIndex == index && mathSuggestionText != null)
+                    ? ' $mathSuggestionText'
+                    : null,
+                ghostStyle: GoogleFonts.outfit(
+                  fontSize: 15,
+                  color: textThemeColor.withValues(alpha: 0.4),
+                ),
+              )..selection = TextSelection.collapsed(offset: item.text.length),
               style: GoogleFonts.outfit(
                 fontSize: 15,
                 color: item.checked
@@ -222,6 +234,39 @@ class EditorChecklistSection extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class GhostTextEditingController extends TextEditingController {
+  final String? ghostText;
+  final TextStyle? ghostStyle;
+
+  GhostTextEditingController({super.text, this.ghostText, this.ghostStyle});
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    final baseSpan = super.buildTextSpan(context: context, style: style, withComposing: withComposing);
+    if (ghostText == null || ghostText!.isEmpty) {
+      return baseSpan;
+    }
+
+    final List<InlineSpan> children = [];
+    if (baseSpan.text != null) {
+      children.add(TextSpan(text: baseSpan.text, style: baseSpan.style));
+    }
+    if (baseSpan.children != null) {
+      children.addAll(baseSpan.children!);
+    }
+
+    children.add(TextSpan(
+      text: ghostText,
+      style: ghostStyle ?? const TextStyle(color: Colors.grey),
+    ));
+
+    return TextSpan(
+      style: style,
+      children: children,
     );
   }
 }

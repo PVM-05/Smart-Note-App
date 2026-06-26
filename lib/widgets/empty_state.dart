@@ -80,34 +80,44 @@ class _EmptyStateWidgetState extends State<EmptyStateWidget>
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Biểu tượng chính — làm mờ 60% để trông nhẹ nhàng hơn
-                Icon(
-                  widget.icon,
-                  size: 64,
-                  color: textSecondaryColor.withValues(alpha: 0.4),
+                // Biểu tượng chính — trong vòng tròn nhẹ để tạo chiều sâu
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: AppColors.textPrimary(context).withValues(alpha: 0.04),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    size: 36,
+                    color: textSecondaryColor.withValues(alpha: 0.35),
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
-                // Tiêu đề — font Space Grotesk đậm
+                // Tiêu đề
                 Text(
                   widget.title,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.outfit(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: textPrimaryColor,
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Mô tả phụ — font Inter nhỏ hơn, màu xám
+                // Mô tả phụ
                 Text(
                   widget.subtitle,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.outfit(
                     fontSize: 14,
-                    height: 1.5,
-                    color: textSecondaryColor,
+                    height: 1.55,
+                    color: textSecondaryColor.withValues(alpha: 0.7),
+                    letterSpacing: 0.1,
                   ),
                 ),
 
@@ -123,12 +133,12 @@ class _EmptyStateWidgetState extends State<EmptyStateWidget>
                         vertical: 12,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(20), // 🔒 pill = 20
                       ),
                     ),
                     child: Text(
                       widget.actionLabel!,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.outfit(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),

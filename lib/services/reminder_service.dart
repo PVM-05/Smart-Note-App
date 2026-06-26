@@ -29,7 +29,7 @@ class ReminderService {
     try {
       timeZoneName = (await FlutterTimezone.getLocalTimezone()).identifier;
       tz.setLocalLocation(tz.getLocation(timeZoneName));
-      log('⏰ Timezone initialized: $timeZoneName');
+      // Timezone initialized successfully
     } catch (e) {
       log('⚠️ Error setting timezone location: $e. Falling back to UTC.');
       try {
@@ -57,20 +57,20 @@ class ReminderService {
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse details) {
         final payload = details.payload;
-        log('🔔 Notification clicked with payload: $payload');
+        // Notification clicked
         if (payload != null && payload.isNotEmpty) {
           navigateToNote(payload);
         }
       },
     );
-    log('🔔 FlutterLocalNotifications initialized.');
+    // FlutterLocalNotifications initialized
 
     // 3. Kiểm tra chi tiết launch app (Cold Start)
     try {
       final details = await _localNotificationsPlugin.getNotificationAppLaunchDetails();
       if (details != null && details.didNotificationLaunchApp) {
         _coldStartPayload = details.notificationResponse?.payload;
-        log('❄️ Cold start payload detected: $_coldStartPayload');
+        // Cold start payload detected
       }
     } catch (e) {
       log('⚠️ Error fetching launch details: $e');
@@ -100,7 +100,7 @@ class ReminderService {
           return;
         }
 
-        log('🚀 Điều hướng thẳng đến ghi chú: $noteId');
+        // Navigate to note
         navigatorKey.currentState?.push(
           MaterialPageRoute(
             builder: (context) => EditorScreen(note: note),
@@ -116,7 +116,7 @@ class ReminderService {
 
   // Đồng bộ lại tất cả lịch nhắc nhở (dùng sau khi đồng bộ hóa dữ liệu đám mây)
   Future<void> syncReminders(List<Note> notes) async {
-    log('♻️ Đang đồng bộ hóa lịch nhắc nhở từ danh sách Cloud Sync...');
+    // Syncing reminders from cloud
     for (final note in notes) {
       if (note.status == 'trash') {
         await cancelReminder(note.id);
@@ -233,7 +233,7 @@ class ReminderService {
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: id,
       );
-      log('⏰ Đã lên lịch nhắc nhở chính xác cho note $id lúc $tzScheduledDate (hashId: $notificationId)');
+      // Reminder scheduled for note $id
     } catch (e) {
       log('⚠️ Không thể lên lịch chính xác (do giới hạn quyền Android 14+), tự động chuyển sang chế độ linh hoạt: $e');
       await _localNotificationsPlugin.zonedSchedule(
@@ -247,7 +247,7 @@ class ReminderService {
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: id,
       );
-      log('⏰ Đã lên lịch nhắc nhở linh hoạt cho note $id lúc $tzScheduledDate (hashId: $notificationId)');
+      // Inexact reminder scheduled for note $id
     }
   }
 
@@ -255,6 +255,6 @@ class ReminderService {
   Future<void> cancelReminder(String id) async {
     final int notificationId = id.hashCode.abs() % 2147483647;
     await _localNotificationsPlugin.cancel(notificationId);
-    log('🚫 Đã hủy lịch nhắc nhở note $id (hashId: $notificationId)');
+    // Reminder cancelled for note $id
   }
 }

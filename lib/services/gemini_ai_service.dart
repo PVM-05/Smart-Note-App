@@ -8,7 +8,12 @@ class GeminiAiService {
     try {
       final response = await model.generateContent([
         Content.inlineData(mimeType, bytes),
-        Content.text('Hãy chuyển toàn bộ âm thanh trong file ghi âm này thành văn bản thuần túy (thường là tiếng Việt). Chỉ trả về phần văn bản nói được nhận dạng, không được thêm bất kỳ lời giải thích, ghi chú hay ký tự nào khác ngoài nội dung lời nói.'),
+        Content.text('Hãy chuyển toàn bộ âm thanh trong file ghi âm này thành văn bản thuần túy (thường là tiếng Việt). '
+            'Yêu cầu áp dụng Định dạng Thông minh (Smart Formatting) cho văn bản kết quả:\n'
+            '1. Tự động viết hoa chữ cái đầu câu và viết hoa các danh từ riêng.\n'
+            '2. Thêm các dấu câu phù hợp (dấu chấm, dấu phẩy, dấu chấm hỏi) dựa trên nhịp điệu và quãng ngắt nghỉ.\n'
+            '3. Định dạng và chuẩn hóa số điện thoại, ngày tháng, thời gian, số liệu (ví dụ: "chín giờ tối" -> "21:00", "ngày hai mươi hai tháng sáu năm hai nghìn không trăm hai mươi sáu" -> "22/06/2026", "không chín tám bảy sáu năm bốn ba hai một" -> "0987654321").\n'
+            'Chỉ trả về duy nhất văn bản lời nói đã được chuyển đổi và định dạng. Tuyệt đối không thêm lời giải thích, tiêu đề phụ, hoặc bất kỳ ký tự dư thừa nào khác.'),
       ]);
       return response.text?.trim() ?? '';
     } catch (e) {

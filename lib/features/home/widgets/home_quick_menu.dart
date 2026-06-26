@@ -204,7 +204,7 @@ class HomeQuickMenu extends StatelessWidget {
                             child: child,
                           );
                         },
-                        child: const Icon(
+                        child: Icon(
                           Icons.add,
                           color: AppColors.primary,
                           size: 28,

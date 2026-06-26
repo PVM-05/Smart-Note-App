@@ -55,4 +55,25 @@ class FirestoreNoteService {
     }
     await batch.commit();
   }
+
+  // ── Lấy custom labels ──
+  Future<List<String>> getCustomLabels() async {
+    try {
+      final doc = await _firestore.collection('users').doc(_uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (data.containsKey('custom_labels')) {
+          return List<String>.from(data['custom_labels'] as List);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // ── Lưu custom labels ──
+  Future<void> saveCustomLabels(List<String> labels) async {
+    await _firestore.collection('users').doc(_uid).set({
+      'custom_labels': labels,
+    }, SetOptions(merge: true));
+  }
 }

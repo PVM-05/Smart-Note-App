@@ -131,6 +131,13 @@ class SyncRepositoryImpl implements SyncRepository {
         });
       }
 
+      // Đồng bộ custom labels
+      final localLabels = await _localService.getCustomLabels(userId);
+      final cloudLabels = await _firestoreService.getCustomLabels();
+      final mergedLabels = {...localLabels, ...cloudLabels}.toList();
+      await _firestoreService.saveCustomLabels(mergedLabels);
+      await _localService.syncCustomLabels(userId, mergedLabels);
+
       // Đồng bộ lại lịch nhắc nhở từ ghi chú trên Cloud
       await ReminderService().syncReminders(cloudNotes);
 
@@ -195,6 +202,10 @@ class SyncRepositoryImpl implements SyncRepository {
 
     // Đồng bộ lại lịch nhắc nhở từ các ghi chú kéo từ Cloud
     await ReminderService().syncReminders(cloudNotes);
+
+    // Đồng bộ custom labels
+    final cloudLabels = await _firestoreService.getCustomLabels();
+    await _localService.syncCustomLabels(userId, cloudLabels);
 
     return hasNewChanges; // Trả về true nếu thực sự có ghi chú mới được ghi xuống máy
   }

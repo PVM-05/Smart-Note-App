@@ -22,6 +22,8 @@ abstract class NoteRepository {
 
   Future<List<Note>> getArchivedNotes(String userId);
   Future<void> updateNotesSortOrder(List<Note> notes);
+  Future<List<String>> getCustomLabels(String userId);
+  Future<void> saveCustomLabels(String userId, List<String> labels);
 }
 
 class NoteRepositoryImpl implements NoteRepository {
@@ -190,6 +192,33 @@ class NoteRepositoryImpl implements NoteRepository {
         }
       } catch (_) {
         // Giữ isSynced=false → SyncProvider sẽ retry sau
+      }
+    }
+  }
+
+  @override
+  Future<List<String>> getCustomLabels(String userId) async {
+    final localLabels = await _localService.getCustomLabels(userId);
+    if (localLabels.isEmpty && await _canSync()) {
+      try {
+        final cloudLabels = await _firestoreService.getCustomLabels();
+        await _localService.syncCustomLabels(userId, cloudLabels);
+        return cloudLabels;
+      } catch (e) {
+        log('⚠️ Pull custom labels failed: $e');
+      }
+    }
+    return localLabels;
+  }
+
+  @override
+  Future<void> saveCustomLabels(String userId, List<String> labels) async {
+    await _localService.syncCustomLabels(userId, labels);
+    if (await _canSync()) {
+      try {
+        await _firestoreService.saveCustomLabels(labels);
+      } catch (e) {
+        log('⚠️ Push custom labels failed: $e');
       }
     }
   }

@@ -78,6 +78,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           const SnackBar(
             content: Text('Xác thực email thành công!'),
             backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
           ),
         );
         Navigator.pushReplacement(
@@ -89,6 +90,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           const SnackBar(
             content: Text('Tài khoản của bạn chưa được xác thực. Vui lòng kiểm tra lại email!'),
             backgroundColor: AppColors.error,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -105,6 +107,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             const SnackBar(
               content: Text('Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư!'),
               backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
             ),
           );
           _startCountdown();
@@ -115,6 +118,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             SnackBar(
               content: Text('Không thể gửi lại email: $e'),
               backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 2),
             ),
           );
         }

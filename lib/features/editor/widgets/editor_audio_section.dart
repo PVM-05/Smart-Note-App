@@ -15,6 +15,7 @@ class EditorAudioSection extends StatelessWidget {
   final ValueChanged<double> onSeek;
   final Function(String, int) onDeleteAudio;
   final VoidCallback onStopRecording;
+  final List<double> amplitudes;
 
   const EditorAudioSection({
     super.key,
@@ -30,6 +31,7 @@ class EditorAudioSection extends StatelessWidget {
     required this.onSeek,
     required this.onDeleteAudio,
     required this.onStopRecording,
+    this.amplitudes = const [],
   });
 
   String _formatDuration(Duration d) {
@@ -41,7 +43,7 @@ class EditorAudioSection extends StatelessWidget {
   Widget _buildRecordingIndicator() {
     const recordColor = Color(0xFFEF4444);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: recordColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(30),
@@ -49,23 +51,60 @@ class EditorAudioSection extends StatelessWidget {
       ),
       child: Row(
         children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.4, end: 1.0),
-            duration: const Duration(milliseconds: 600),
-            builder: (_, val, child) => Opacity(opacity: val, child: child),
-            child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                    color: recordColor, shape: BoxShape.circle)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.4, end: 1.0),
+                duration: const Duration(milliseconds: 600),
+                builder: (_, val, child) => Opacity(opacity: val, child: child),
+                child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                        color: recordColor, shape: BoxShape.circle)),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _formatDuration(recordDuration),
+                style: GoogleFonts.outfit(
+                    color: recordColor, fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
           Expanded(
-              child: Text(
-            'Đang ghi âm... ${_formatDuration(recordDuration)}',
-            style: GoogleFonts.outfit(
-                color: recordColor, fontWeight: FontWeight.w600),
-          )),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              height: 32,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: amplitudes.isEmpty
+                    ? List.generate(
+                        15,
+                        (index) => Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          width: 3,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: recordColor.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(1.5),
+                          ),
+                        ),
+                      )
+                    : amplitudes.map((amp) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          width: 3,
+                          height: (28 * amp).clamp(3, 28),
+                          decoration: BoxDecoration(
+                            color: recordColor,
+                            borderRadius: BorderRadius.circular(1.5),
+                          ),
+                        );
+                      }).toList(),
+              ),
+            ),
+          ),
           GestureDetector(
             onTap: onStopRecording,
             child: Container(

@@ -233,6 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       content: Text(msg, style: GoogleFonts.roboto()),
       backgroundColor: isError ? AppColors.error : AppColors.success,
       behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
     ));
@@ -386,8 +387,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildSectionCard(context, [
                 ProfileMenuTile(
                   icon: Icons.person_outline_rounded,
-                  iconColor: AppColors.primaryVariant,
-                  iconBg: AppColors.primary.withValues(alpha: 0.12),
+                  iconColor: AppColors.textPrimary(context),
+                  iconBg: AppColors.inputBackground(context),
                   label: AppLocalizations.translate(context, 'personalInfo'),
                   description: AppLocalizations.translate(context, 'manageAccountInfo'),
                   onTap: () => _showPersonalInfoBottomSheet(context, auth),
@@ -395,8 +396,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (isEmailProvider)
                   ProfileMenuTile(
                     icon: Icons.lock_outline_rounded,
-                    iconColor: AppColors.success,
-                    iconBg: AppColors.success.withValues(alpha: 0.1),
+                    iconColor: AppColors.textPrimary(context),
+                    iconBg: AppColors.inputBackground(context),
                     label: AppLocalizations.translate(context, 'securityTitle'),
                     description: AppLocalizations.translate(context, 'passwordAndAuth'),
                     onTap: () => _showSecurityBottomSheet(context),
